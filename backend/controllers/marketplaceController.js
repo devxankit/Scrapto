@@ -143,23 +143,15 @@ export const getMarketplaceRequests = asyncHandler(async (req, res) => {
   if (req.user.role === 'scrapper') {
     const Scrapper = (await import('../models/Scrapper.js')).default;
     const scrapper = await Scrapper.findById(scrapperId).populate('subscription.planId');
-    
+
     const sub = scrapper?.subscription;
-    const isPlatformActive = (sub?.status === 'active' || sub?.status === 'cancelled') && new Date(sub.expiryDate) > new Date();
+    const isSubscriptionActive = sub?.planId && sub?.status === 'active' && new Date(sub.expiryDate) > new Date();
 
-    // We no longer block the list view; restriction will happen at the details level
-    // and by masking sensitive info.
-    /*
-    if (!isPlatformActive) {
-      return sendError(res, 'Active subscription required to view marketplace', 403);
-    }
-    */
-
-    maxRequests = sub.planId?.maxMarketplaceRequests ?? null;
+    // Read marketplace request limit from the single subscription plan
+    maxRequests = sub?.planId?.maxMarketplaceRequests ?? null;
 
     // Build query and enforce city filter
     const query = {};
-    // Always only show 'open' requests to scrappers
     query.status = 'open';
     if (category) query.category = category;
 
@@ -167,7 +159,6 @@ export const getMarketplaceRequests = asyncHandler(async (req, res) => {
     if (scrapper.city && scrapper.city.trim() !== "") {
       query['location.city'] = new RegExp(`^${scrapper.city.trim()}$`, 'i');
     } else {
-      // If no city set, don't show any requests to be strict
       logger.warn(`[Marketplace] Scrapper ${scrapperId} has no city set. Returning empty list.`);
       return sendSuccess(res, 'Please set your city in profile to view marketplace requests', []);
     }

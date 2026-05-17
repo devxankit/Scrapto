@@ -133,50 +133,6 @@ const scrapperSchema = new mongoose.Schema({
       default: 0
     }
   },
-  marketSubscription: {
-    status: {
-      type: String,
-      enum: ['active', 'expired', 'cancelled', 'none'],
-      default: 'none'
-    },
-    planId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'SubscriptionPlan',
-      default: null
-    },
-    startDate: {
-      type: Date,
-      default: null
-    },
-    expiryDate: {
-      type: Date,
-      default: null
-    },
-    razorpaySubscriptionId: {
-      type: String,
-      default: null
-    },
-    razorpayPaymentId: {
-      type: String,
-      default: null
-    },
-    autoRenew: {
-      type: Boolean,
-      default: true
-    },
-    cancelledAt: {
-      type: Date,
-      default: null
-    },
-    cancellationReason: {
-      type: String,
-      default: null
-    },
-    usedPickups: {
-      type: Number,
-      default: 0
-    }
-  },
   liveLocation: {
     type: {
       type: String,

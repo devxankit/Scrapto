@@ -31,7 +31,7 @@ const subscriptionPlanSchema = new mongoose.Schema({
   durationType: {
     type: String,
     required: [true, 'Duration type is required'],
-    enum: ['monthly', 'quarterly', 'yearly'],
+    enum: ['daily', 'monthly', 'quarterly', 'yearly'],
     lowercase: true
   },
   features: [{
@@ -62,12 +62,6 @@ const subscriptionPlanSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  type: {
-    type: String,
-    enum: ['general', 'market_price'],
-    default: 'general',
-    required: true
-  },
   sortOrder: {
     type: Number,
     default: 0
@@ -93,7 +87,9 @@ subscriptionPlanSchema.statics.getActivePlanById = async function (planId) {
 
 // Instance method to calculate duration in days
 subscriptionPlanSchema.methods.getDurationInDays = function () {
-  if (this.durationType === 'monthly') {
+  if (this.durationType === 'daily') {
+    return this.duration;
+  } else if (this.durationType === 'monthly') {
     return this.duration * 30;
   } else if (this.durationType === 'quarterly') {
     return this.duration * 90;

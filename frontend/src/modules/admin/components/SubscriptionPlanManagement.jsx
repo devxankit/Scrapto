@@ -25,7 +25,9 @@ const SubscriptionPlanManagement = () => {
     "months",
     "1 year",
     "years",
+    "1 day",
     "days",
+    "Daily",
     "Subscription Plan Management",
     "Create and manage subscription plans for scrappers",
     "Create Plan",
@@ -47,6 +49,7 @@ const SubscriptionPlanManagement = () => {
     "Price (₹) *",
     "Duration *",
     "Duration Type *",
+    "Daily",
     "Monthly",
     "Quarterly",
     "Yearly",
@@ -57,9 +60,6 @@ const SubscriptionPlanManagement = () => {
     "Popular",
     "Save Plan",
     "Cancel",
-    "Plan Type *",
-    "Platform Access",
-    "Market Prices",
     "Max Marketplace Requests (leave empty for unlimited)",
     "Max {count} marketplace requests"
   ];
@@ -78,7 +78,6 @@ const SubscriptionPlanManagement = () => {
     isActive: true,
     isPopular: false,
     sortOrder: 0,
-    type: 'general',
     maxMarketplaceRequests: ''
   });
   const [newFeature, setNewFeature] = useState('');
@@ -119,7 +118,6 @@ const SubscriptionPlanManagement = () => {
       isActive: true,
       isPopular: false,
       sortOrder: 0,
-      type: 'general',
       maxMarketplaceRequests: ''
     });
     setEditingId(null);
@@ -140,7 +138,6 @@ const SubscriptionPlanManagement = () => {
       isActive: plan.isActive !== undefined ? plan.isActive : true,
       isPopular: plan.isPopular || false,
       sortOrder: plan.sortOrder || 0,
-      type: plan.type || 'general',
       maxMarketplaceRequests: plan.maxMarketplaceRequests || ''
     });
     setEditingId(plan._id || plan.id);
@@ -183,13 +180,7 @@ const SubscriptionPlanManagement = () => {
   const handleDelete = async (plan) => {
     const planId = plan._id || plan.id;
 
-    let confirmMessage = getTranslatedText('Are you sure you want to delete this plan? This action cannot be undone.');
-
-    if (plan.type === 'market_price') {
-      confirmMessage = getTranslatedText('Warning: This is a Market Price plan. Deleting it might affect users accessing market prices. Are you sure you want to delete this plan?');
-    }
-
-    if (!confirm(confirmMessage)) {
+    if (!confirm(getTranslatedText('Are you sure you want to delete this plan? This action cannot be undone.'))) {
       return;
     }
 
@@ -225,7 +216,9 @@ const SubscriptionPlanManagement = () => {
   };
 
   const formatDuration = (duration, durationType) => {
-    if (durationType === 'monthly') {
+    if (durationType === 'daily') {
+      return duration === 1 ? getTranslatedText('1 day') : `${duration} ${getTranslatedText('days')}`;
+    } else if (durationType === 'monthly') {
       return duration === 1 ? getTranslatedText('1 month') : `${duration} ${getTranslatedText('months')}`;
     } else if (durationType === 'quarterly') {
       return `${duration} ${getTranslatedText('months')}`;
@@ -316,9 +309,6 @@ const SubscriptionPlanManagement = () => {
               <div className="mb-4">
                 <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#2d3748' }}>
                   {plan.name}
-                  <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${plan.type === 'market_price' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {plan.type === 'market_price' ? getTranslatedText('Market Prices') : getTranslatedText('Platform Access')}
-                  </span>
                 </h3>
                 {plan.description && (
                   <p className="text-xs md:text-sm mb-3" style={{ color: '#718096' }}>
@@ -470,38 +460,21 @@ const SubscriptionPlanManagement = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
-                    {getTranslatedText("Duration Type *")}
-                  </label>
-                  <select
-                    value={formData.durationType}
-                    onChange={(e) => setFormData({ ...formData, durationType: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
-                  >
-                    <option value="monthly">{getTranslatedText("Monthly")}</option>
-                    <option value="quarterly">{getTranslatedText("Quarterly")}</option>
-                    <option value="yearly">{getTranslatedText("Yearly")}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
-                    {getTranslatedText("Plan Type *")}
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
-                  >
-                    <option value="general">{getTranslatedText("Platform Access")}</option>
-                    <option value="market_price">{getTranslatedText("Market Prices")}</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  {getTranslatedText("Duration Type *")}
+                </label>
+                <select
+                  value={formData.durationType}
+                  onChange={(e) => setFormData({ ...formData, durationType: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
+                  style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                >
+                  <option value="daily">{getTranslatedText("Daily")}</option>
+                  <option value="monthly">{getTranslatedText("Monthly")}</option>
+                  <option value="quarterly">{getTranslatedText("Quarterly")}</option>
+                  <option value="yearly">{getTranslatedText("Yearly")}</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

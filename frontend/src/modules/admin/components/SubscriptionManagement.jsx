@@ -150,7 +150,7 @@ const SubscriptionManagement = () => {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-2xl font-bold text-emerald-600">₹{plan.price}</p>
-                                    <p className="text-sm text-gray-500">/{plan.duration} {plan.durationType === 'monthly' ? 'Month(s)' : plan.durationType}</p>
+                                    <p className="text-sm text-gray-500">/{plan.duration} {plan.durationType === 'daily' ? 'Day(s)' : (plan.durationType === 'monthly' ? 'Month(s)' : plan.durationType)}</p>
                                 </div>
                             </div>
 
@@ -243,6 +243,7 @@ const SubscriptionManagement = () => {
                                     onChange={e => setFormData({ ...formData, durationType: e.target.value })}
                                     className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500"
                                 >
+                                    <option value="daily">Daily</option>
                                     <option value="monthly">Monthly</option>
                                     <option value="quarterly">Quarterly</option>
                                     <option value="yearly">Yearly</option>

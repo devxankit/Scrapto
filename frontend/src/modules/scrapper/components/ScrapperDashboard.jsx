@@ -108,7 +108,7 @@ const ScrapperDashboard = () => {
     rating: 4.8,
     activeRequests: 0
   });
-  const [marketSubStatus, setMarketSubStatus] = useState('inactive'); // for real-time market price subscription
+  const [marketSubStatus, setMarketSubStatus] = useState('inactive'); // kept for backward compat
   const [activityStats, setActivityStats] = useState({
     upcomingPickups: 0,
     collectors: 0,
@@ -375,7 +375,6 @@ const ScrapperDashboard = () => {
         // Fetch Subscriptions
         const subRes = await subscriptionAPI.getMySubscription();
         const subscription = subRes.data?.subscription;
-        const marketSubscription = subRes.data?.marketSubscription;
 
         if (kyc) {
           setKycStatus(kyc.status || 'not_submitted');
@@ -385,24 +384,15 @@ const ScrapperDashboard = () => {
           setKycStatus('not_submitted');
         }
 
-        // Handle Subscriptions
-        const platformSubActive = (subscription?.status === 'active' || subscription?.status === 'cancelled') && new Date(subscription.expiryDate) > new Date();
-        const marketSubActive = (marketSubscription?.status === 'active' || marketSubscription?.status === 'cancelled') && new Date(marketSubscription.expiryDate) > new Date();
+        // Handle Subscription
+        const platformSubActive = (subscription?.status === 'active' || subscription?.status === 'cancelled') && new Date(subscription?.expiryDate) > new Date();
 
         setSubscriptionData({
           platform: subscription,
-          market: marketSubscription,
-          isPlatformActive: platformSubActive,
-          isMarketActive: marketSubActive
+          isPlatformActive: platformSubActive
         });
 
         localStorage.setItem('scrapperSubscriptionStatus', platformSubActive ? 'active' : (subscription?.status === 'expired' ? 'expired' : 'none'));
-        // We might want to store market status too
-        if (marketSubActive) {
-          localStorage.setItem('scrapperMarketPriceSubscriptionStatus', 'active');
-        } else {
-          localStorage.setItem('scrapperMarketPriceSubscriptionStatus', 'inactive');
-        }
 
         // Redirect based on REAL backend data
         const backendKycStatus = kyc?.status || 'not_submitted';
@@ -472,7 +462,6 @@ const ScrapperDashboard = () => {
         // Fetch Subscriptions
         const subRes = await subscriptionAPI.getMySubscription();
         const subscription = subRes.data?.subscription;
-        const marketSubscription = subRes.data?.marketSubscription;
 
         if (kyc) {
           setKycStatus(kyc.status || 'not_submitted');
@@ -481,21 +470,13 @@ const ScrapperDashboard = () => {
         }
 
         const platformSubActive = subscription?.status === 'active' && new Date(subscription.expiryDate) > new Date();
-        const marketSubActive = marketSubscription?.status === 'active' && new Date(marketSubscription.expiryDate) > new Date();
 
         setSubscriptionData({
           platform: subscription,
-          market: marketSubscription,
-          isPlatformActive: platformSubActive,
-          isMarketActive: marketSubActive
+          isPlatformActive: platformSubActive
         });
 
         localStorage.setItem('scrapperSubscriptionStatus', platformSubActive ? 'active' : 'expired');
-        if (marketSubActive) {
-          localStorage.setItem('scrapperMarketPriceSubscriptionStatus', 'active');
-        } else {
-          localStorage.setItem('scrapperMarketPriceSubscriptionStatus', 'inactive');
-        }
 
       } catch (error) {
         console.error('Error polling KYC/Subscription status:', error);

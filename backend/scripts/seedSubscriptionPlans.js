@@ -26,9 +26,11 @@ const seedPlans = async () => {
           'Receive pickup requests',
           'Basic support',
           'Standard priority',
-          'Up to 50 pickups/month'
+          'Up to 50 pickups/month',
+          'Up to 10 marketplace requests'
         ],
         maxPickups: 50,
+        maxMarketplaceRequests: 10,
         priority: 1,
         isActive: true,
         isPopular: false,
@@ -46,10 +48,12 @@ const seedPlans = async () => {
           '24/7 Premium support',
           'Higher priority in queue',
           'Unlimited pickups',
+          'Unlimited marketplace requests',
           'Advanced analytics',
           'Early access to features'
         ],
         maxPickups: null, // Unlimited
+        maxMarketplaceRequests: null, // Unlimited
         priority: 2,
         isActive: true,
         isPopular: true,
@@ -58,7 +62,7 @@ const seedPlans = async () => {
       {
         name: 'Quarterly Plan',
         description: 'Save money with 3-month subscription',
-        price: 249, // 3 months for price of ~2.5 months
+        price: 249,
         currency: 'INR',
         duration: 3,
         durationType: 'monthly',
@@ -67,11 +71,13 @@ const seedPlans = async () => {
           '24/7 Premium support',
           'Higher priority in queue',
           'Unlimited pickups',
+          'Unlimited marketplace requests',
           'Advanced analytics',
           'Early access to features',
           'Save 17% compared to monthly'
         ],
         maxPickups: null,
+        maxMarketplaceRequests: null,
         priority: 2,
         isActive: true,
         isPopular: false,
@@ -80,7 +86,7 @@ const seedPlans = async () => {
       {
         name: 'Yearly Plan',
         description: 'Best value - Save big with annual subscription',
-        price: 1999, // 12 months for price of ~10 months
+        price: 1999,
         currency: 'INR',
         duration: 12,
         durationType: 'monthly',
@@ -89,12 +95,14 @@ const seedPlans = async () => {
           '24/7 Premium support',
           'Highest priority in queue',
           'Unlimited pickups',
+          'Unlimited marketplace requests',
           'Advanced analytics',
           'Early access to features',
           'Save 16% compared to monthly',
           'Free setup assistance'
         ],
         maxPickups: null,
+        maxMarketplaceRequests: null,
         priority: 3,
         isActive: true,
         isPopular: false,

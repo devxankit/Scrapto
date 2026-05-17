@@ -37,6 +37,7 @@ const SubscriptionPlanPage = () => {
     "months",
     "year",
     "years",
+    "day",
     "days",
     "Platform Access",
     "Market Prices",
@@ -105,10 +106,9 @@ const SubscriptionPlanPage = () => {
           const subRes = await subscriptionAPI.getMySubscription();
           if (subRes.success) {
             // Store full response to handle both types
-            const { subscription, marketSubscription } = subRes.data;
+            const { subscription } = subRes.data;
             setCurrentSubscription({
-              general: subscription,
-              market_price: marketSubscription
+              general: subscription
             });
 
             // Update localStorage - storing generic status might be tricky now
@@ -284,7 +284,9 @@ const SubscriptionPlanPage = () => {
 
   // Format duration display
   const formatDuration = (duration, durationType) => {
-    if (durationType === 'monthly') {
+    if (durationType === 'daily') {
+      return duration === 1 ? getTranslatedText('day') : `${duration} ${getTranslatedText('days')}`;
+    } else if (durationType === 'monthly') {
       return duration === 1 ? getTranslatedText('month') : `${duration} ${getTranslatedText('months')}`;
     } else if (durationType === 'quarterly') {
       return `${duration} ${getTranslatedText('months')}`;

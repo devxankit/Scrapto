@@ -56,7 +56,6 @@ const ScrapperProfile = () => {
   const { user, logout, updateUser } = useAuth();
   const [kycStatus, setKycStatus] = useState('not_submitted');
   const [platformSubscription, setPlatformSubscription] = useState(null);
-  const [marketSubscription, setMarketSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scrapperUser, setScrapperUser] = useState(user);
   const [rating, setRating] = useState({ average: 0, count: 0, breakdown: null });
@@ -125,25 +124,10 @@ const ScrapperProfile = () => {
                 autoRenew: sub.autoRenew
               });
             }
-
-            // Handle Market Price Subscription
-            if (subResponse.data?.marketSubscription) {
-              const mSub = subResponse.data.marketSubscription;
-              setMarketSubscription({
-                status: mSub.status,
-                planId: mSub.planId?._id || mSub.planId,
-                planName: mSub.planId?.name || 'Unknown Plan',
-                price: mSub.planId?.price || 0,
-                startDate: mSub.startDate,
-                expiryDate: mSub.expiryDate,
-                autoRenew: mSub.autoRenew
-              });
-            }
           }
         } catch (subError) {
           console.error('Error fetching subscription:', subError);
           setPlatformSubscription(null);
-          setMarketSubscription(null);
         }
 
         // Fetch detailed Scrapper Profile (including ratings)
@@ -306,14 +290,6 @@ const ScrapperProfile = () => {
                   >
                     {platformSubscription ? getTranslatedText("{planName} active", { planName: platformSubscription.planName }) : getTranslatedText('No subscription')}
                   </span>
-                  {/* Market Subscription badge */}
-                  {marketSubscription && marketSubscription.status === 'active' && (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700"
-                    >
-                      {getTranslatedText("Market Prices")}: {getTranslatedText("Active")}
-                    </span>
-                  )}
                   {/* Vehicle info small badge */}
                   <span
                     className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 capitalize"
@@ -466,11 +442,8 @@ const ScrapperProfile = () => {
                 <p className="text-[11px] md:text-xs text-slate-500">
                   {platformSubscription
                     ? getTranslatedText("{planName} • ₹{price}/month", { planName: platformSubscription.planName, price: platformSubscription.price })
-                    : (marketSubscription
-                      ? getTranslatedText("{planName} • ₹{price}/month", { planName: marketSubscription.planName, price: marketSubscription.price })
-                      : getTranslatedText('No active subscription'))
+                    : getTranslatedText('No active subscription')
                   }
-                  {platformSubscription && marketSubscription && marketSubscription.status === 'active' && ` & ${getTranslatedText("Market Prices")}`}
                 </p>
               </div>
               <span

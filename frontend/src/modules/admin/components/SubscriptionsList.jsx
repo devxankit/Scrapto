@@ -300,9 +300,6 @@ const SubscriptionsList = () => {
                         <div className="flex items-center gap-1.5 md:gap-2">
                           <FaCreditCard className="text-xs" />
                           <span className="font-semibold" style={{ color: '#2d3748' }}>{sub.planName}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${sub.type === 'market_price' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {sub.type === 'market_price' ? getTranslatedText('Market Price') : getTranslatedText('Platform')}
-                          </span>
                         </div>
                         <div className="flex items-center gap-1.5 md:gap-2">
                           <FaRupeeSign className="text-xs" />

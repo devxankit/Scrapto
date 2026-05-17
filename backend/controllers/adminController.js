@@ -1266,26 +1266,22 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
 
     const filter = {};
     if (req.query.status) {
-      filter.$or = [
-        { 'subscription.status': req.query.status },
-        { 'marketSubscription.status': req.query.status }
-      ];
+      filter['subscription.status'] = req.query.status;
     }
+    // Only include scrappers who have a plan attached
+    filter['subscription.planId'] = { $ne: null };
 
-    // Get scrappers who have either subscription
     const [scrappers, total] = await Promise.all([
       Scrapper.find(filter)
-        .select('name phone email subscription marketSubscription')
-        .populate('subscription.planId', 'name price duration durationType type')
-        .populate('marketSubscription.planId', 'name price duration durationType type')
+        .select('name phone email subscription')
+        .populate('subscription.planId', 'name price duration durationType maxPickups maxMarketplaceRequests')
         .sort({ createdAt: -1 }),
       Scrapper.countDocuments(filter)
     ]);
 
-    // Flatten subscriptions into a single list
+    // Map scrappers to subscription entries
     const allSubs = [];
     scrappers.forEach(s => {
-      // Add general subscription if it exists and matches status filter
       if (s.subscription && s.subscription.planId) {
         if (!req.query.status || s.subscription.status === req.query.status) {
           allSubs.push({
@@ -1297,22 +1293,6 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
             },
             subscription: s.subscription,
             type: 'general'
-          });
-        }
-      }
-
-      // Add market subscription if it exists and matches status filter
-      if (s.marketSubscription && s.marketSubscription.planId) {
-        if (!req.query.status || s.marketSubscription.status === req.query.status) {
-          allSubs.push({
-            scrapper: {
-              id: s._id,
-              name: s.name,
-              phone: s.phone,
-              email: s.email
-            },
-            subscription: s.marketSubscription,
-            type: 'market_price'
           });
         }
       }

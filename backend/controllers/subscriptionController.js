@@ -43,8 +43,7 @@ export const getMySubscription = asyncHandler(async (req, res) => {
   const scrapperId = req.user.id;
   const result = await getScrapperSubscription(scrapperId);
   sendSuccess(res, 'Subscription retrieved successfully', {
-    subscription: result.subscription,
-    marketSubscription: result.marketSubscription
+    subscription: result.subscription
   });
 });
 
@@ -409,10 +408,10 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 // @route   POST /api/subscriptions/cancel
 // @access  Private (Scrapper)
 export const cancel = asyncHandler(async (req, res) => {
-  const { reason, type = 'general' } = req.body;
+  const { reason } = req.body;
   const scrapperId = req.user.id;
 
-  const result = await cancelSubscription(scrapperId, type, reason);
+  const result = await cancelSubscription(scrapperId, reason);
   sendSuccess(res, 'Subscription cancelled successfully', { subscription: result.subscription });
 });
 

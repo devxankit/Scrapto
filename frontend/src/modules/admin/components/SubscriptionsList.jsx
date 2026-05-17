@@ -66,7 +66,15 @@ const SubscriptionsList = () => {
             planId: plan._id || plan.id || 'unknown',
             planName: plan.name || getTranslatedText('Unknown Plan'),
             price: plan.price || 0,
-            status: sub.status || 'inactive',
+            status: (() => {
+              const status = sub.status || 'inactive';
+              if ((status === 'active' || status === 'cancelled') && sub.expiryDate) {
+                if (new Date(sub.expiryDate) < new Date()) {
+                  return 'expired';
+                }
+              }
+              return status;
+            })(),
             subscribedAt: sub.startDate || sub.createdAt,
             expiryDate: sub.expiryDate,
             cancelledAt: sub.cancelledAt,

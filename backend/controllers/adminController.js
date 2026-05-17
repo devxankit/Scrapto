@@ -25,6 +25,14 @@ import { sendPushNotification } from '../services/firebaseService.js';
 // @access  Private (Admin)
 export const getDashboardStats = asyncHandler(async (req, res) => {
   try {
+    // Automatically update expired subscriptions on dashboard load
+    try {
+      const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
+      await checkExpiredSubscriptions();
+    } catch (err) {
+      logger.error('[Admin] Error running checkExpiredSubscriptions in getDashboardStats:', err);
+    }
+
     const [
       totalUsers,
       totalScrappers,
@@ -1244,6 +1252,14 @@ export const deletePlan = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const getAllSubscriptions = asyncHandler(async (req, res) => {
   try {
+    // Automatically update expired subscriptions on fetch
+    try {
+      const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
+      await checkExpiredSubscriptions();
+    } catch (err) {
+      logger.error('[Admin] Error running checkExpiredSubscriptions in getAllSubscriptions:', err);
+    }
+
     const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
     const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
     const skip = (page - 1) * limit;

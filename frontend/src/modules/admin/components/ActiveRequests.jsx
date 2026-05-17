@@ -82,9 +82,10 @@ const ActiveRequests = () => {
 
     // Map backend order status to UI status keys used in filters/badges
     let uiStatus = 'pending';
-    if (order.status === 'COMPLETED') {
+    const normalizedStatus = String(order.status || '').toLowerCase();
+    if (normalizedStatus === 'completed') {
       uiStatus = 'completed';
-    } else if (order.status === 'IN_PROGRESS') {
+    } else if (normalizedStatus === 'in_progress') {
       uiStatus = 'in_progress';
     } else if (order.assignmentStatus === 'accepted' || order.scrapper) {
       uiStatus = 'accepted';

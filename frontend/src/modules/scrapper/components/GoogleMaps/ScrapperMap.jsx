@@ -275,7 +275,7 @@ const ScrapperMap = ({
             <GoogleMap
                 mapContainerStyle={mapContainerStyle}
                 zoom={14}
-                center={stableMapCenter || userLocation || defaultCenter}
+                center={stableMapCenter || userLocation || animatedPosition || defaultCenter}
                 options={{
                     ...mapOptions,
                     tilt: 45, // 3D view
@@ -311,14 +311,26 @@ const ScrapperMap = ({
                     />
                 )}
 
-                {/* Request Stage: Show User Marker only */}
-                {stage === 'request' && userLocation && (
-                    <Marker
-                        position={userLocation}
-                        title={userName || getTranslatedText("Pickup Location")}
-                        icon={getUserIcon()}
-                        animation={window.google.maps.Animation.DROP}
-                    />
+                {/* Request Stage */}
+                {stage === 'request' && (
+                    <>
+                        {userLocation && (
+                            <Marker
+                                position={userLocation}
+                                title={userName || getTranslatedText("Pickup Location")}
+                                icon={getUserIcon()}
+                                animation={window.google.maps.Animation.DROP}
+                            />
+                        )}
+                        {animatedPosition && (
+                            <Marker
+                                position={animatedPosition}
+                                title={getTranslatedText("Scrapper (You)")}
+                                icon={getScrapperIcon(heading)}
+                                zIndex={1000}
+                            />
+                        )}
+                    </>
                 )}
 
                 {/* Pickup Stage: Show both + Route */}
@@ -384,7 +396,7 @@ const ScrapperMap = ({
 
             {/* Stats Overlay for Pickup Status */}
             {stage === 'pickup' && routeStats && (
-                <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-4 py-3 rounded-xl shadow-lg border border-gray-100/50">
+                <div className="absolute top-24 left-4 z-10 bg-white/90 backdrop-blur-md px-4 py-3 rounded-xl shadow-lg border border-gray-100/50">
                     <div className="flex items-center gap-4">
                         <div>
                             <p className="text-xs text-gray-500 font-medium">Distance</p>

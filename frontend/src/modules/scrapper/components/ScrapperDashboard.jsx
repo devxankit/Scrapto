@@ -310,7 +310,24 @@ const ScrapperDashboard = () => {
 
     // Sync with backend
     try {
-      await scrapperProfileAPI.updateMyProfile({ isOnline: newAvailability });
+      let locationPayload = {};
+      if (newAvailability) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+          });
+          locationPayload = {
+            liveLocation: {
+              type: 'Point',
+              coordinates: [position.coords.longitude, position.coords.latitude]
+            }
+          };
+        } catch (err) {
+          console.warn('Could not get live location:', err);
+          alert(getTranslatedText('Please enable location services for better accuracy.'));
+        }
+      }
+      await scrapperProfileAPI.updateMyProfile({ isOnline: newAvailability, ...locationPayload });
     } catch (error) {
       console.error('Failed to update availability status:', error);
       // Optional: revert state if failed, but for better UX we often just log it 

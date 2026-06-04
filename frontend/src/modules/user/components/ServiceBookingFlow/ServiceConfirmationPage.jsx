@@ -87,6 +87,20 @@ const ServiceConfirmationPage = () => {
     }
 
     setIsSubmitting(true);
+    
+    let liveLat = addressData.coordinates?.lat || 0;
+    let liveLng = addressData.coordinates?.lng || 0;
+
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+      });
+      liveLat = position.coords.latitude;
+      liveLng = position.coords.longitude;
+    } catch (err) {
+      console.warn('Could not get live location, using address coordinates', err);
+    }
+
     try {
       const payload = {
         orderType: "cleaning_service", // Ensure this matches backend constant value
@@ -100,7 +114,11 @@ const ServiceConfirmationPage = () => {
         totalAmount: 0, // Fee is separate
         pickupAddress: {
           street: addressData.address,
-          coordinates: addressData.coordinates,
+          coordinates: { lat: liveLat, lng: liveLng },
+          location: {
+            type: 'Point',
+            coordinates: [liveLng, liveLat]
+          }
         },
         pickupSlot: {
           date: pickupSlot.date,

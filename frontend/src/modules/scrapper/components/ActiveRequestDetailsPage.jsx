@@ -89,6 +89,7 @@ const ActiveRequestDetailsPage = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [useWallet, setUseWallet] = useState(true);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(true);
 
   // Check authentication first
   useEffect(() => {
@@ -875,13 +876,25 @@ const ActiveRequestDetailsPage = () => {
             {/* Request Details & Contact Info - Bottom Slide (when payment not pending) */}
             <motion.div
               initial={{ y: '100%' }}
-              animate={{ y: 0 }}
+              animate={{ y: isSheetExpanded ? 0 : 'calc(100% - 150px)' }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.y > 50 || velocity.y > 500) setIsSheetExpanded(false);
+                else if (offset.y < -50 || velocity.y < -500) setIsSheetExpanded(true);
+              }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="absolute bottom-0 left-0 right-0 z-30 rounded-t-2xl shadow-2xl flex flex-col bg-white border-t border-slate-200"
-              style={{ maxHeight: '65vh', overflow: 'hidden' }}
+              style={{ maxHeight: '65vh', overflow: 'hidden', touchAction: 'none' }}
             >
               {/* Slide Handle */}
-              <div className="w-12 h-1.5 mx-auto mt-2 rounded-full flex-shrink-0 bg-slate-300" />
+              <div 
+                className="w-full pt-3 pb-3 cursor-grab active:cursor-grabbing flex justify-center"
+                onClick={() => setIsSheetExpanded(!isSheetExpanded)}
+              >
+                <div className="w-12 h-1.5 rounded-full flex-shrink-0 bg-slate-300" />
+              </div>
 
               {/* Request Content - Compact - Scrollable */}
               <div className="p-4 pb-2 overflow-y-auto flex-1" style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
@@ -907,6 +920,23 @@ const ActiveRequestDetailsPage = () => {
                   </div>
 
                   {renderPickupSlot()}
+
+                  {/* Address Display */}
+                  {requestData.pickupAddress && (
+                    <div className="mb-4">
+                      <p className="text-xs md:text-sm mb-1" style={{ color: '#718096' }}>
+                        {getTranslatedText("Pickup Address:")}
+                      </p>
+                      <p className="text-sm md:text-base font-medium" style={{ color: '#2d3748' }}>
+                        {[
+                          requestData.pickupAddress.street,
+                          requestData.pickupAddress.city,
+                          requestData.pickupAddress.state,
+                          requestData.pickupAddress.pincode
+                        ].filter(Boolean).join(', ') || getTranslatedText('Address not available')}
+                      </p>
+                    </div>
+                  )}
 
                   {/* User Notes */}
                   {requestData.notes && (

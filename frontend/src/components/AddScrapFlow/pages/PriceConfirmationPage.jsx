@@ -254,12 +254,29 @@ const PriceConfirmationPage = () => {
       publicId: img.publicId || null
     }));
 
+    let liveLat = addressData?.coordinates?.lat || 0;
+    let liveLng = addressData?.coordinates?.lng || 0;
+
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+      });
+      liveLat = position.coords.latitude;
+      liveLng = position.coords.longitude;
+    } catch (err) {
+      console.warn('Could not get live location, using address coordinates', err);
+    }
+
     // Prepare pickup address from addressData
     const pickupAddress = {
       street: addressData?.address || getTranslatedText('Address not provided'),
       coordinates: {
-        lat: addressData?.coordinates?.lat || 0,
-        lng: addressData?.coordinates?.lng || 0
+        lat: liveLat,
+        lng: liveLng
+      },
+      location: {
+        type: 'Point',
+        coordinates: [liveLng, liveLat]
       }
     };
 

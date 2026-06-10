@@ -314,7 +314,7 @@ const ScrapperDashboard = () => {
       if (newAvailability) {
         try {
           const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true });
           });
           locationPayload = {
             liveLocation: {
@@ -324,7 +324,9 @@ const ScrapperDashboard = () => {
           };
         } catch (err) {
           console.warn('Could not get live location:', err);
-          alert(getTranslatedText('Please enable location services for better accuracy.'));
+          alert(getTranslatedText('Location access is mandatory to receive nearby orders. Please enable GPS and allow location permissions.'));
+          setIsAvailable(false);
+          return;
         }
       }
       await scrapperProfileAPI.updateMyProfile({ isOnline: newAvailability, ...locationPayload });

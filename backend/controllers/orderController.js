@@ -255,11 +255,14 @@ export const getAvailableOrders = asyncHandler(async (req, res) => {
         $maxDistance: 25000 // 25km
       }
     };
+  } else {
+    // Strict GPS enforcement: if no valid GPS coordinates, do not return any orders.
+    return sendSuccess(res, 'Available orders retrieved successfully', { orders: [] });
   }
 
   let dbQuery = Order.find(query).populate('user', 'name phone');
 
-  // If no location filter, sort by newest first
+  // Since we enforced location filter, no need for the fallback sorting logic, but kept for consistency
   if (!query.location) {
     dbQuery = dbQuery.sort({ createdAt: -1 });
   }

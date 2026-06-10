@@ -157,7 +157,12 @@ export const getMarketplaceRequests = asyncHandler(async (req, res) => {
 
     // STRICT city filter: scrapper only sees their own city
     if (scrapper.city && scrapper.city.trim() !== "") {
-      query['location.city'] = new RegExp(`^${scrapper.city.trim()}$`, 'i');
+      const cityName = scrapper.city.trim();
+      if (cityName.toLowerCase() === 'gurugram' || cityName.toLowerCase() === 'gurgaon') {
+        query['location.city'] = { $regex: /gurugram|gurgaon/i };
+      } else {
+        query['location.city'] = new RegExp(cityName, 'i');
+      }
     } else {
       logger.warn(`[Marketplace] Scrapper ${scrapperId} has no city set. Returning empty list.`);
       return sendSuccess(res, 'Please set your city in profile to view marketplace requests', []);

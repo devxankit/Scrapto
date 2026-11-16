@@ -1,4 +1,5 @@
-import admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -9,12 +10,17 @@ const __dirname = path.dirname(__filename);
 
 const serviceAccountPath = path.join(__dirname, '../config/firebase-service-account.json');
 
+let firebaseInitialized = false;
+
 try {
-    if (fs.existsSync(serviceAccountPath)) {
+    if (getApps().length > 0) {
+        firebaseInitialized = true;
+    } else if (fs.existsSync(serviceAccountPath)) {
         const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+        initializeApp({
+            credential: cert(serviceAccount)
         });
+        firebaseInitialized = true;
         logger.info('✅ Firebase Admin initialized successfully');
     } else {
         logger.warn('⚠️ Firebase service account file not found. Push notifications will not work.');
@@ -34,6 +40,11 @@ export const sendPushNotification = async (tokens, payload) => {
         return { successCount: 0, failureCount: 0 };
     }
 
+    if (!firebaseInitialized) {
+        logger.warn('Push notification skipped: Firebase Admin not initialized.');
+        return { successCount: 0, failureCount: tokens.length };
+    }
+
     try {
         const message = {
             notification: {
@@ -44,7 +55,7 @@ export const sendPushNotification = async (tokens, payload) => {
             tokens: tokens,
         };
 
-        const response = await admin.messaging().sendEachForMulticast(message);
+        const response = await getMessaging().sendEachForMulticast(message);
         logger.info(`Successfully sent: ${response.successCount} messages. Failed: ${response.failureCount} messages.`);
         
         // Handle failed tokens (e.g., remove invalid tokens from DB)
@@ -67,5 +78,3 @@ export const sendPushNotification = async (tokens, payload) => {
         throw error;
     }
 };
-
-export default admin;

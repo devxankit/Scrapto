@@ -1,6 +1,6 @@
 # Scrapto native apps ↔ backend: handoff
 
-**As of:** 2026-11-17 · **Apps:** `user-app` (com.scrapto.user), `scrapper-app` (com.scrapto.app) · **Backend:** `backend/`
+**As of:** 2026-11-17 · **Apps:** `user-app` (com.scrapto.user), `scrapper-app` (com.scrapto.partner) · **Backend:** `backend/`
 
 This note is for whoever continues the integration. It says what is done, what is proven, what is left, and how to run everything locally.
 
@@ -57,10 +57,18 @@ This note is for whoever continues the integration. It says what is done, what i
 
 ## 4. Release signing
 
-New **upload keys** were generated on 2026-11-17 (no key existed). They are git-ignored and exist only on the dev PC:
+**Final Play Store keys: Ankit's (the project owner's).** Every release and every Play Store upload of both apps must be signed with them. The keys generated on 2026-11-17 on the integration dev PC (SHA-256 `CA:5E:54:2A:…` user, `80:71:A3:CE:…` partner) are **not** the release keys. Do not use them for any build that is distributed, and do not upload anything signed with them to Play.
 
-| App | Keystore | Passwords |
-|---|---|---|
+| App | Package | Keystore (git-ignored) | Release SHA-256 |
+|---|---|---|---|
+| user-app | `com.scrapto.user` | `android/app/scraptox-user-upload.keystore` + `android/keystore.properties` | `A1:99:09:A7:D5:5D:6B:83:A3:66:2B:3D:9A:6C:6E:77:45:88:46:A9:55:C1:EE:73:AA:9F:3F:0C:BD:C7:A6:74` |
+| scrapper-app | `com.scrapto.partner` | `android/app/scraptox-partner-upload.keystore` + `android/keystore.properties` | `46:24:5E:DC:1E:8D:36:15:5F:B0:2D:95:AC:4A:E8:1C:BB:7A:78:4F:50:E2:1F:7A:40:51:00:AF:E6:69:F6:CE` |
+
+- Release APKs/AABs are built and signed by Ankit. Check with `apksigner verify --print-certs`; the SHA-256 must match the table.
+- The keystores and passwords are never committed or sent through git or chat. Ask Ankit if you need a signed build.
+- Debug builds use the public RN `debug.keystore` and are fine for testing.
+
+---|---|---|
 | user-app | `android/app/scraptox-user-upload.keystore` (SHA-256 `CA:5E:54:2A:…:30:BA`) | `android/keystore.properties` |
 | scrapper-app | `android/app/scraptox-partner-upload.keystore` (SHA-256 `80:71:A3:CE:…:35:3B`) | `android/keystore.properties` |
 

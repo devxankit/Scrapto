@@ -3,108 +3,123 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import Payment from '../models/Payment.js';
 import Order from '../models/Order.js';
+import Scrapper from '../models/Scrapper.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import {
   getRazorpayClient,
-  createOrder,
   verifyPayment as verifyPaymentAPI,
   verifyPaymentSignature,
   refundPayment
 } from '../services/paymentService.js';
+import { creditWallet, withTransaction } from '../services/walletService.js';
 import { PAYMENT_STATUS, ORDER_STATUS } from '../config/constants.js';
+import { assertObjectId, asString, roundMoney, parseMoney } from '../utils/security.js';
+import { recordAudit } from '../services/auditService.js';
 import logger from '../utils/logger.js';
-import Scrapper from '../models/Scrapper.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
 
-// @desc    Create Razorpay order for payment
+const PAISE_TOLERANCE = 100; // allow ≤ ₹1 rounding drift between order and capture
+
+/**
+ * Credit the assigned scrapper for a user's captured online order payment.
+ * Idempotent on the Razorpay payment id — webhook and verify can race freely.
+ */
+const creditScrapperForOrderPayment = async (order, payment, razorpayPaymentId) => {
+  if (!order.scrapper) return;
+  const { duplicate } = await creditWallet({
+    ownerId: order.scrapper,
+    ownerType: 'Scrapper',
+    amount: roundMoney(payment.amount),
+    category: 'PAYMENT_RECEIVED',
+    description: `Payment received for Order #${order._id}`,
+    orderId: order._id,
+    gateway: { provider: 'RAZORPAY', paymentId: razorpayPaymentId },
+    idempotencyKey: `order-online-credit:${razorpayPaymentId}`,
+    metadata: { orderId: String(order._id), paymentId: String(payment._id) },
+    allowFrozen: true
+  });
+  if (!duplicate) {
+    logger.info(`[Payment] Credited ₹${payment.amount} to scrapper ${order.scrapper} for order ${order._id}`);
+  }
+};
+
+/**
+ * Activate a subscription for a completed subscription payment, exactly once.
+ * Used by both the verify endpoint and the webhook.
+ */
+const activateSubscriptionForPayment = async (payment) => {
+  const { activateSubscription } = await import('../services/subscriptionService.js');
+  if (!payment.planId) {
+    logger.warn(`[Payment] Subscription payment ${payment._id} has no planId; cannot activate`);
+    return;
+  }
+  await activateSubscription(payment.user, payment._id);
+};
+
+// @desc    Create Razorpay order for an order payment
 // @route   POST /api/payments/create-order
-// @access  Private
+// @access  Private (order owner)
 export const createPaymentOrder = asyncHandler(async (req, res) => {
-  const { orderId } = req.body;
+  const orderId = assertObjectId(req.body.orderId, 'orderId');
   const userId = req.user.id;
 
-  // Find the order
   const order = await Order.findById(orderId).populate('user', 'name email phone');
-
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
-
-  // Check if order belongs to user
   if (order.user._id.toString() !== userId) {
     return sendError(res, 'Not authorized to pay for this order', 403);
   }
-
-  // Check if order is ready for payment
   if (order.status !== ORDER_STATUS.CONFIRMED && order.status !== ORDER_STATUS.IN_PROGRESS) {
     return sendError(res, 'Order is not ready for payment', 400);
   }
+  if (order.paymentStatus === PAYMENT_STATUS.COMPLETED) {
+    return sendError(res, 'Payment already completed for this order', 400);
+  }
+  const amount = roundMoney(order.totalAmount);
+  if (!(amount > 0)) {
+    return sendError(res, 'Order amount is not set', 400);
+  }
 
-  // Check if payment already exists and is completed
   const existingPayment = await Payment.findOne({ order: orderId, user: userId });
   if (existingPayment && existingPayment.status === PAYMENT_STATUS.COMPLETED) {
     return sendError(res, 'Payment already completed for this order', 400);
-  }
-
-  // Validate Razorpay configuration
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    logger.error('[Payment] Razorpay keys not configured');
-    return sendError(res, 'Payment gateway not configured. Please contact support.', 500);
   }
 
   let razorpay;
   try {
     razorpay = getRazorpayClient();
   } catch (razorpayError) {
-    logger.error('[Payment] Razorpay client initialization error:', razorpayError);
-    return sendError(res, 'Payment gateway initialization failed. Please contact support.', 500);
+    logger.error('[Payment] Razorpay client initialization error:', { error: razorpayError.message });
+    return sendError(res, 'Payment gateway not configured. Please contact support.', 500);
   }
 
-  // Generate receipt ID (max 40 characters for Razorpay)
-  const receiptId = `scrapto_${orderId.toString().slice(-20)}_${Date.now()}`.slice(0, 40);
+  const receiptId = `scrapto_${orderId.slice(-20)}_${Date.now()}`.slice(0, 40);
 
-  // Create Razorpay order
   let razorpayOrder;
   try {
-    const options = {
-      amount: Math.round(order.totalAmount * 100), // Convert to paise
+    razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(amount * 100),
       currency: 'INR',
       receipt: receiptId,
       payment_capture: 1,
       notes: {
         orderId: order._id.toString(),
         userId: userId.toString(),
-        orderType: 'scrap_pickup'
+        entityType: 'order'
       }
-    };
-
-    logger.info('[Payment] Creating Razorpay order:', {
-      orderId: order._id,
-      amount: options.amount,
-      receipt: receiptId
     });
-
-    razorpayOrder = await razorpay.orders.create(options);
-
-    logger.info('[Payment] Razorpay order created:', razorpayOrder.id);
   } catch (razorpayError) {
-    logger.error('[Payment] Razorpay order creation error:', razorpayError);
-
-    let errorMessage = 'Failed to create payment order. Please try again later.';
-    if (razorpayError.error?.description) {
-      errorMessage = razorpayError.error.description;
-    } else if (razorpayError.message) {
-      errorMessage = razorpayError.message;
-    }
-
-    return sendError(res, errorMessage, 500);
+    logger.error('[Payment] Razorpay order creation error:', { error: razorpayError.message });
+    return sendError(res, 'Failed to create payment order. Please try again later.', 502);
   }
 
-  // Create or update payment record
   const paymentData = {
     order: orderId,
     user: userId,
-    amount: order.totalAmount,
+    amount,
     currency: 'INR',
+    entityType: 'order',
     razorpayOrderId: razorpayOrder.id,
     receipt: receiptId,
     status: PAYMENT_STATUS.PENDING
@@ -112,185 +127,118 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
 
   let payment;
   if (existingPayment) {
-    // Update existing payment
     Object.assign(existingPayment, paymentData);
     payment = await existingPayment.save();
   } else {
-    // Create new payment
     payment = await Payment.create(paymentData);
   }
-
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  if (!keyId) {
-    logger.error('[Payment] RAZORPAY_KEY_ID not set');
-    return sendError(res, 'Payment gateway key not configured', 500);
-  }
-
-  logger.info('[Payment] Payment order created:', {
-    paymentId: payment._id,
-    razorpayOrderId: razorpayOrder.id
-  });
 
   sendSuccess(res, 'Payment order created successfully', {
     orderId: razorpayOrder.id,
     amount: razorpayOrder.amount,
     currency: razorpayOrder.currency || 'INR',
-    keyId: keyId,
+    keyId: process.env.RAZORPAY_KEY_ID,
     paymentId: payment._id
   });
 });
 
 // @desc    Verify payment and update status
 // @route   POST /api/payments/verify
-// @access  Private
+// @access  Private (order owner)
 export const verifyPayment = asyncHandler(async (req, res) => {
-  const { orderId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  const orderId = assertObjectId(req.body.orderId, 'orderId');
+  const razorpayOrderId = asString(req.body.razorpay_order_id, 64);
+  const razorpayPaymentId = asString(req.body.razorpay_payment_id, 64);
+  const razorpaySignature = asString(req.body.razorpay_signature, 200);
   const userId = req.user.id;
 
-  // Find the order
   const order = await Order.findById(orderId);
-
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
-
-  // Check if order belongs to user
   if (order.user.toString() !== userId) {
     return sendError(res, 'Not authorized to verify payment for this order', 403);
   }
 
-  // Find payment record
   const payment = await Payment.findOne({
     order: orderId,
     user: userId,
-    razorpayOrderId: razorpay_order_id
+    razorpayOrderId
   });
-
   if (!payment) {
     return sendError(res, 'Payment record not found', 404);
   }
-
   if (payment.status === PAYMENT_STATUS.COMPLETED) {
     return sendSuccess(res, 'Payment already verified', { payment, order });
   }
 
-  // Verify payment signature
-  if (razorpay_signature) {
-    const isSignatureValid = verifyPaymentSignature(
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
-
-    if (!isSignatureValid) {
-      logger.warn('[Payment] Signature verification failed, trying API verification');
-      // Continue with API verification even if signature fails
-    }
+  // Signature verification is REQUIRED (frontend success callbacks are never
+  // trusted on their own; API verification then confirms capture + amount).
+  if (!razorpaySignature || !verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
+    return sendError(res, 'Invalid payment signature', 400);
   }
 
-  // Verify payment via Razorpay API
+  let verificationResult;
   try {
-    const verificationResult = await verifyPaymentAPI(razorpay_order_id);
-
-    if (verificationResult.success && verificationResult.payment) {
-      // Payment is successful
-      payment.status = PAYMENT_STATUS.COMPLETED;
-      payment.razorpayPaymentId = verificationResult.paymentId;
-      payment.transactionId = verificationResult.paymentId;
-      payment.paidAt = new Date();
-      payment.razorpaySignature = razorpay_signature || null;
-      await payment.save();
-
-      // --- CRITICAL: Credit Scrapper Wallet for Order Payment ---
-      if (order.scrapper) {
-        try {
-          // Dynamic import to avoid circular dependencies if any
-          const Scrapper = (await import('../models/Scrapper.js')).default;
-          const WalletTransaction = (await import('../models/WalletTransaction.js')).default;
-
-          const scrapper = await Scrapper.findById(order.scrapper);
-          if (scrapper) {
-            // Initialize wallet if missing
-            if (!scrapper.wallet) scrapper.wallet = { balance: 0, currency: 'INR', status: 'ACTIVE' };
-            if (typeof scrapper.wallet.balance !== 'number') scrapper.wallet.balance = 0;
-
-            const previousBalance = scrapper.wallet.balance;
-            const creditAmount = payment.amount;
-
-            // Update Balance
-            scrapper.wallet.balance += creditAmount;
-            await scrapper.save();
-
-            // Create Transaction Record
-            await WalletTransaction.create({
-              trxId: `TRX-ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-              user: scrapper._id,
-              userType: 'Scrapper',
-              amount: creditAmount,
-              type: 'CREDIT',
-              balanceBefore: previousBalance,
-              balanceAfter: scrapper.wallet.balance,
-              category: 'PAYMENT_RECEIVED',
-              status: 'SUCCESS',
-              description: `Payment received for Order #${order._id}`,
-              metadata: {
-                orderId: order._id.toString(),
-                paymentId: payment._id.toString()
-              },
-              orderId: order._id,
-              gateway: {
-                provider: 'RAZORPAY',
-                paymentId: verificationResult.paymentId
-              }
-            });
-
-            logger.info(`[Payment] Credited ₹${creditAmount} to Scrapper ${scrapper._id} for Order ${order._id}`);
-          }
-        } catch (walletError) {
-          logger.error('[Payment] Failed to credit scrapper wallet:', walletError);
-          // Don't fail the verification response, but log heavily
-        }
-      }
-      // ----------------------------------------------------------
-
-      // Update order payment status
-      order.paymentStatus = PAYMENT_STATUS.COMPLETED;
-      await order.save();
-
-      logger.info('[Payment] Payment verified successfully:', {
-        paymentId: payment._id,
-        razorpayPaymentId: verificationResult.paymentId
-      });
-
-      await payment.populate('order', 'status paymentStatus totalAmount');
-      await payment.populate('user', 'name email');
-
-      // --- NOTIFY USER ---
-      sendNotificationToUser(userId, {
-        title: 'Payment Successful 💰',
-        body: `Payment for order #${order._id.toString().slice(-6)} has been verified.`,
-        data: {
-          orderId: order._id.toString(),
-          type: 'payment_success'
-        }
-      });
-
-      return sendSuccess(res, 'Payment verified successfully', { payment, order });
-    } else {
-      // Payment not completed
-      return sendError(res, 'Payment not completed. Please complete the payment.', 400);
-    }
+    verificationResult = await verifyPaymentAPI(razorpayOrderId);
   } catch (error) {
-    logger.error('[Payment] Payment verification error:', error);
-    return sendError(res, 'Failed to verify payment. Please try again.', 500);
+    logger.error('[Payment] Payment verification error:', { error: error.message });
+    return sendError(res, 'Failed to verify payment. Please try again.', 502);
   }
+
+  if (!verificationResult.success || !verificationResult.payment) {
+    return sendError(res, 'Payment not completed. Please complete the payment.', 400);
+  }
+
+  const captured = verificationResult.payment;
+  // Amount & currency must match what we asked Razorpay to collect.
+  const expectedPaise = Math.round(payment.amount * 100);
+  if (Math.abs((captured.amount || 0) - expectedPaise) > PAISE_TOLERANCE) {
+    logger.error('[Payment] Captured amount mismatch', {
+      paymentId: payment._id.toString(),
+      expectedPaise,
+      capturedPaise: captured.amount
+    });
+    return sendError(res, 'Payment amount mismatch. Please contact support.', 409);
+  }
+  if ((captured.currency || 'INR') !== 'INR') {
+    return sendError(res, 'Unsupported currency', 400);
+  }
+
+  payment.status = PAYMENT_STATUS.COMPLETED;
+  payment.razorpayPaymentId = verificationResult.paymentId;
+  payment.transactionId = verificationResult.paymentId;
+  payment.paidAt = new Date();
+  payment.razorpaySignature = razorpaySignature;
+  await payment.save();
+
+  // Credit the assigned scrapper (idempotent on payment id).
+  try {
+    await creditScrapperForOrderPayment(order, payment, verificationResult.paymentId);
+  } catch (walletError) {
+    logger.error('[Payment] Failed to credit scrapper wallet:', { error: walletError.message });
+  }
+
+  order.paymentStatus = PAYMENT_STATUS.COMPLETED;
+  order.paidVia = 'razorpay';
+  await order.save();
+
+  await payment.populate('order', 'status paymentStatus totalAmount');
+
+  sendNotificationToUser(userId, {
+    title: 'Payment Successful 💰',
+    body: `Payment for order #${order._id.toString().slice(-6)} has been verified.`,
+    data: { orderId: order._id.toString(), type: 'payment_success' }
+  });
+
+  sendSuccess(res, 'Payment verified successfully', { payment, order });
 });
 
 // @desc    Get payment details
 // @route   GET /api/payments/:paymentId
-// @access  Private
+// @access  Private (owner or admin)
 export const getPayment = asyncHandler(async (req, res) => {
-  const { paymentId } = req.params;
+  const paymentId = assertObjectId(req.params.paymentId, 'paymentId');
   const userId = req.user.id;
 
   const payment = await Payment.findById(paymentId)
@@ -300,9 +248,7 @@ export const getPayment = asyncHandler(async (req, res) => {
   if (!payment) {
     return sendError(res, 'Payment not found', 404);
   }
-
-  // Check authorization
-  if (payment.user._id.toString() !== userId) {
+  if (req.user.role !== 'admin' && payment.user._id.toString() !== userId) {
     return sendError(res, 'Not authorized to access this payment', 403);
   }
 
@@ -314,243 +260,224 @@ export const getPayment = asyncHandler(async (req, res) => {
 // @access  Private
 export const getMyPayments = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const { status, page = 1, limit = 10 } = req.query;
+  const status = asString(req.query.status, 20);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
+  const skip = (page - 1) * limit;
 
   const query = { user: userId };
-  if (status) {
+  if (status && Object.values(PAYMENT_STATUS).includes(status)) {
     query.status = status;
   }
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
-
-  const payments = await Payment.find(query)
-    .populate('order', 'status totalAmount')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit));
-
-  const total = await Payment.countDocuments(query);
+  const [payments, total] = await Promise.all([
+    Payment.find(query)
+      .populate('order', 'status totalAmount')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Payment.countDocuments(query)
+  ]);
 
   sendSuccess(res, 'Payments retrieved successfully', {
     payments,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / parseInt(limit))
-    }
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   });
 });
 
-// @desc    Refund payment
+// @desc    Refund payment (gateway refund + compensating wallet reversal)
 // @route   POST /api/payments/:paymentId/refund
-// @access  Private (Admin or User for their own payments)
+// @access  Private (Admin only)
 export const refundPaymentAmount = asyncHandler(async (req, res) => {
-  const { paymentId } = req.params;
-  const { amount, reason } = req.body;
-  const userId = req.user.id;
-  const userRole = req.user.role;
+  const paymentId = assertObjectId(req.params.paymentId, 'paymentId');
+  const reason = asString(req.body.reason, 200);
 
-  const payment = await Payment.findById(paymentId)
-    .populate('order')
-    .populate('user');
+  // Authorization: refunds move real money — admin-only, by policy.
+  if (req.user.role !== 'admin') {
+    return sendError(res, 'Only administrators can process refunds', 403);
+  }
 
+  const payment = await Payment.findById(paymentId).populate('order').populate('user');
   if (!payment) {
     return sendError(res, 'Payment not found', 404);
   }
-
-  // Authorization: User can refund their own payments, Admin can refund any
-  if (userRole !== 'admin' && payment.user._id.toString() !== userId) {
-    return sendError(res, 'Not authorized to refund this payment', 403);
-  }
-
-  // Check if payment is completed
   if (payment.status !== PAYMENT_STATUS.COMPLETED) {
     return sendError(res, 'Only completed payments can be refunded', 400);
   }
-
-  // Check if already refunded
   if (payment.refundId) {
     return sendError(res, 'Payment already refunded', 400);
   }
-
-  // Check if payment has razorpay payment ID
   if (!payment.razorpayPaymentId) {
     return sendError(res, 'Payment ID not found. Cannot process refund.', 400);
   }
 
-  // Validate refund amount
-  const refundAmount = amount ? parseFloat(amount) : payment.amount;
-  if (refundAmount <= 0 || refundAmount > payment.amount) {
-    return sendError(res, 'Invalid refund amount', 400);
-  }
+  const refundAmount = req.body.amount !== undefined
+    ? parseMoney(req.body.amount, { min: 0.01, max: payment.amount, name: 'refund amount' })
+    : payment.amount;
 
+  let refund;
   try {
-    // Process refund via Razorpay
-    const refund = await refundPayment(
+    refund = await refundPayment(
       payment.razorpayPaymentId,
-      refundAmount < payment.amount ? refundAmount : null // null = full refund
+      refundAmount < payment.amount ? refundAmount : null
     );
-
-    // Update payment record
-    payment.refundId = refund.id;
-    payment.refundAmount = refundAmount;
-    payment.refundedAt = new Date();
-    payment.status = PAYMENT_STATUS.REFUNDED;
-    if (reason) {
-      payment.notes = `${payment.notes}\nRefund reason: ${reason}`.trim();
-    }
-    await payment.save();
-
-    // Update order payment status
-    if (payment.order) {
-      payment.order.paymentStatus = PAYMENT_STATUS.REFUNDED;
-      await payment.order.save();
-    }
-
-    logger.info('[Payment] Refund processed:', {
-      paymentId: payment._id,
-      refundId: refund.id,
-      amount: refundAmount
-    });
-
-    sendSuccess(res, 'Refund processed successfully', { payment, refund });
   } catch (error) {
-    logger.error('[Payment] Refund error:', error);
-    return sendError(res, 'Failed to process refund. Please try again.', 500);
+    logger.error('[Payment] Refund error:', { error: error.message });
+    return sendError(res, 'Failed to process refund. Please try again.', 502);
   }
+
+  payment.refundId = refund.id;
+  payment.refundAmount = refundAmount;
+  payment.refundedAt = new Date();
+  payment.status = PAYMENT_STATUS.REFUNDED;
+  if (reason) {
+    payment.notes = `${payment.notes || ''}\nRefund reason: ${reason}`.trim();
+  }
+  await payment.save();
+
+  if (payment.order) {
+    payment.order.paymentStatus = PAYMENT_STATUS.REFUNDED;
+    await payment.order.save();
+  }
+
+  await recordAudit({
+    actorId: req.user.id,
+    actorRole: 'admin',
+    action: 'PAYMENT_REFUNDED',
+    targetType: 'Payment',
+    targetId: payment._id,
+    metadata: { refundAmount, refundId: refund.id, reason }
+  });
+
+  logger.info('[Payment] Refund processed:', { paymentId: payment._id.toString(), refundId: refund.id, amount: refundAmount });
+
+  sendSuccess(res, 'Refund processed successfully', { payment, refund });
 });
 
 // @desc    Get payment status (for polling)
 // @route   GET /api/payments/order/:orderId/status
-// @access  Private
+// @access  Private (order owner)
 export const getPaymentStatus = asyncHandler(async (req, res) => {
-  const { orderId } = req.params;
+  const orderId = assertObjectId(req.params.orderId, 'orderId');
   const userId = req.user.id;
 
   const order = await Order.findById(orderId);
-
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
-
   if (order.user.toString() !== userId) {
     return sendError(res, 'Not authorized', 403);
   }
 
   const payment = await Payment.findOne({ order: orderId, user: userId });
-
   if (!payment) {
-    return sendSuccess(res, 'Payment not initiated', {
-      status: PAYMENT_STATUS.PENDING,
-      payment: null
-    });
+    return sendSuccess(res, 'Payment not initiated', { status: PAYMENT_STATUS.PENDING, payment: null });
   }
 
-  // If payment is pending and has razorpay order ID, check status
+  // Reconcile pending payments against the gateway (amount-checked, idempotent).
   if (payment.status === PAYMENT_STATUS.PENDING && payment.razorpayOrderId) {
     try {
       const verificationResult = await verifyPaymentAPI(payment.razorpayOrderId);
-
       if (verificationResult.success && verificationResult.payment) {
-        // Payment completed, update status
-        payment.status = PAYMENT_STATUS.COMPLETED;
-        payment.razorpayPaymentId = verificationResult.paymentId;
-        payment.transactionId = verificationResult.paymentId;
-        payment.paidAt = new Date();
-        await payment.save();
+        const expectedPaise = Math.round(payment.amount * 100);
+        if (Math.abs((verificationResult.payment.amount || 0) - expectedPaise) <= PAISE_TOLERANCE) {
+          payment.status = PAYMENT_STATUS.COMPLETED;
+          payment.razorpayPaymentId = verificationResult.paymentId;
+          payment.transactionId = verificationResult.paymentId;
+          payment.paidAt = new Date();
+          await payment.save();
 
-        order.paymentStatus = PAYMENT_STATUS.COMPLETED;
-        await order.save();
+          order.paymentStatus = PAYMENT_STATUS.COMPLETED;
+          order.paidVia = 'razorpay';
+          await order.save();
+
+          await creditScrapperForOrderPayment(order, payment, verificationResult.paymentId);
+        }
       }
     } catch (error) {
-      logger.error('[Payment] Status check error:', error);
-      // Continue with current status
+      logger.error('[Payment] Status check error:', { error: error.message });
     }
   }
 
-  sendSuccess(res, 'Payment status retrieved', {
-    status: payment.status,
-    payment
-  });
+  sendSuccess(res, 'Payment status retrieved', { status: payment.status, payment });
 });
 
 // @desc    Create subscription payment order (scrapper)
 // @route   POST /api/payments/subscription/create
 // @access  Private (Scrapper)
+// NOTE: price and duration now come EXCLUSIVELY from the server-side plan.
 export const createSubscriptionPaymentOrder = asyncHandler(async (req, res) => {
-  const { amount, planName, durationDays } = req.body;
   const userId = req.user.id;
+  const planId = req.body.planId ? assertObjectId(req.body.planId, 'planId') : null;
+  const planName = asString(req.body.planName, 100);
 
-  if (!amount || amount <= 0) {
-    return sendError(res, 'Valid amount is required', 400);
+  let plan = null;
+  if (planId) {
+    plan = await SubscriptionPlan.findOne({ _id: planId, isActive: true });
+  } else if (planName) {
+    plan = await SubscriptionPlan.findOne({ name: planName, isActive: true });
+  }
+  if (!plan) {
+    return sendError(res, 'A valid subscription plan is required. Client-defined amounts are not accepted.', 400);
   }
 
-  // Validate Razorpay configuration
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-    logger.error('[Payment] Razorpay keys not configured');
-    return sendError(res, 'Payment gateway not configured. Please contact support.', 500);
-  }
+  const amount = roundMoney(plan.price);
+  const durationDays = plan.getDurationInDays();
 
-  const keyId = process.env.RAZORPAY_KEY_ID;
+  if (amount <= 0) {
+    return sendError(res, 'This plan does not require payment. Use /subscriptions/subscribe.', 400);
+  }
 
   let razorpay;
   try {
     razorpay = getRazorpayClient();
   } catch (razorpayError) {
-    logger.error('[Payment] Razorpay client initialization error:', razorpayError);
-    return sendError(res, 'Payment gateway initialization failed. Please contact support.', 500);
+    logger.error('[Payment] Razorpay client initialization error:', { error: razorpayError.message });
+    return sendError(res, 'Payment gateway not configured. Please contact support.', 500);
   }
 
   const receiptId = `subscription_${userId}_${Date.now()}`.slice(0, 40);
 
   let razorpayOrder;
   try {
-    const options = {
-      amount: Math.round(Number(amount) * 100),
+    razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(amount * 100),
       currency: 'INR',
       receipt: receiptId,
       payment_capture: 1,
       notes: {
         entityType: 'subscription',
         userId,
-        planName: planName || 'subscription',
-        durationDays: durationDays || 30
+        planId: plan._id.toString(),
+        planName: plan.name,
+        durationDays
       }
-    };
-    razorpayOrder = await razorpay.orders.create(options);
+    });
   } catch (err) {
-    logger.error('[Payment] Razorpay subscription order creation error:', err);
-    let errorMessage = 'Failed to create payment order. Please try again later.';
-    if (err.error?.description) {
-      errorMessage = err.error.description;
-    } else if (err.message) {
-      errorMessage = err.message;
-    }
-    return sendError(res, errorMessage, 500);
+    logger.error('[Payment] Razorpay subscription order creation error:', { error: err.message });
+    return sendError(res, 'Failed to create payment order. Please try again later.', 502);
   }
 
-  const paymentData = {
+  const payment = await Payment.create({
     order: null,
     entityType: 'subscription',
-    entityId: req.user.id,
+    entityId: userId,
     user: userId,
-    amount: Number(amount),
+    amount,
     currency: 'INR',
     razorpayOrderId: razorpayOrder.id,
     receipt: receiptId,
     status: PAYMENT_STATUS.PENDING,
-    planName: planName || 'Subscription',
-    durationDays: durationDays || 30
-  };
-
-  const payment = await Payment.create(paymentData);
+    planName: plan.name,
+    planId: plan._id,
+    durationDays
+  });
 
   sendSuccess(res, 'Subscription payment order created', {
     razorpayOrderId: razorpayOrder.id,
     amount: razorpayOrder.amount,
     currency: razorpayOrder.currency || 'INR',
-    keyId,
+    keyId: process.env.RAZORPAY_KEY_ID,
     paymentId: payment._id
   });
 });
@@ -559,94 +486,57 @@ export const createSubscriptionPaymentOrder = asyncHandler(async (req, res) => {
 // @route   POST /api/payments/subscription/verify
 // @access  Private (Scrapper)
 export const verifySubscriptionPayment = asyncHandler(async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  const razorpayOrderId = asString(req.body.razorpay_order_id, 64);
+  const razorpayPaymentId = asString(req.body.razorpay_payment_id, 64);
+  const razorpaySignature = asString(req.body.razorpay_signature, 200);
   const userId = req.user.id;
 
   const payment = await Payment.findOne({
-    razorpayOrderId: razorpay_order_id,
+    razorpayOrderId,
     user: userId,
     entityType: 'subscription'
   });
-
   if (!payment) {
     return sendError(res, 'Subscription payment record not found', 404);
   }
-
   if (payment.status === PAYMENT_STATUS.COMPLETED) {
     return sendSuccess(res, 'Payment already verified', { payment });
   }
 
-  if (razorpay_signature) {
-    const isSignatureValid = verifyPaymentSignature(
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    );
-
-    if (!isSignatureValid) {
-      logger.warn('[Payment] Subscription signature verification failed, trying API verification');
-    }
+  if (!razorpaySignature || !verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
+    return sendError(res, 'Invalid payment signature', 400);
   }
+
+  let verificationResult;
+  try {
+    verificationResult = await verifyPaymentAPI(razorpayOrderId);
+  } catch (error) {
+    logger.error('[Payment] Subscription verification error:', { error: error.message });
+    return sendError(res, 'Failed to verify payment. Please try again.', 502);
+  }
+  if (!verificationResult.success || !verificationResult.payment) {
+    return sendError(res, 'Payment not completed. Please complete the payment.', 400);
+  }
+  const expectedPaise = Math.round(payment.amount * 100);
+  if (Math.abs((verificationResult.payment.amount || 0) - expectedPaise) > PAISE_TOLERANCE) {
+    return sendError(res, 'Payment amount mismatch. Please contact support.', 409);
+  }
+
+  payment.status = PAYMENT_STATUS.COMPLETED;
+  payment.razorpayPaymentId = verificationResult.paymentId;
+  payment.transactionId = verificationResult.paymentId;
+  payment.paidAt = new Date();
+  payment.razorpaySignature = razorpaySignature;
+  await payment.save();
 
   try {
-    const verificationResult = await verifyPaymentAPI(razorpay_order_id);
-
-    if (verificationResult.success && verificationResult.payment) {
-      payment.status = PAYMENT_STATUS.COMPLETED;
-      payment.razorpayPaymentId = verificationResult.paymentId;
-      payment.transactionId = verificationResult.paymentId;
-      payment.paidAt = new Date();
-      payment.razorpaySignature = razorpay_signature || null;
-      await payment.save();
-
-      // Update scrapper subscription using subscription service
-      // This is kept for backward compatibility, but new subscriptions should use subscriptionController
-      if (payment.planId) {
-        // Use subscription service if planId exists
-        const { activateSubscription } = await import('../services/subscriptionService.js');
-        try {
-          await activateSubscription(userId, payment._id);
-        } catch (subError) {
-          logger.error('[Payment] Error activating subscription via service:', subError);
-          // Fallback to old method
-          const scrapper = await Scrapper.findOne({ _id: userId });
-          if (scrapper) {
-            const days = payment.durationDays || 30;
-            const startDate = new Date();
-            const expiryDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
-            scrapper.subscription.status = 'active';
-            scrapper.subscription.startDate = startDate;
-            scrapper.subscription.expiryDate = expiryDate;
-            scrapper.subscription.planId = payment.planId;
-            scrapper.subscription.razorpaySubscriptionId = payment.razorpayOrderId;
-            scrapper.subscription.razorpayPaymentId = payment.razorpayPaymentId;
-            await scrapper.save();
-          }
-        }
-      } else {
-        // Old method for backward compatibility
-        const scrapper = await Scrapper.findOne({ _id: userId });
-        if (scrapper) {
-          const days = payment.durationDays || 30;
-          const startDate = new Date();
-          const expiryDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
-          scrapper.subscription.status = 'active';
-          scrapper.subscription.startDate = startDate;
-          scrapper.subscription.expiryDate = expiryDate;
-          scrapper.subscription.planId = null;
-          scrapper.subscription.razorpaySubscriptionId = payment.razorpayOrderId;
-          await scrapper.save();
-        }
-      }
-
-      return sendSuccess(res, 'Subscription payment verified successfully', { payment });
-    } else {
-      return sendError(res, 'Payment not completed. Please complete the payment.', 400);
-    }
-  } catch (error) {
-    logger.error('[Payment] Subscription verification error:', error);
-    return sendError(res, 'Failed to verify payment. Please try again.', 500);
+    await activateSubscriptionForPayment(payment);
+  } catch (subError) {
+    logger.error('[Payment] Error activating subscription:', { error: subError.message });
+    return sendError(res, 'Payment received but subscription activation failed. Please contact support.', 500);
   }
+
+  sendSuccess(res, 'Subscription payment verified successfully', { payment });
 });
 
 // @desc    Handle Razorpay webhooks
@@ -660,118 +550,93 @@ export const handleRazorpayWebhook = asyncHandler(async (req, res) => {
   }
 
   const signature = req.headers['x-razorpay-signature'];
-  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+  if (!signature || !req.rawBody) {
+    return res.status(400).json({ success: false, message: 'Invalid signature' });
+  }
 
   const expectedSignature = crypto
     .createHmac('sha256', webhookSecret)
-    .update(rawBody)
+    .update(req.rawBody)
     .digest('hex');
-
-  if (!signature || expectedSignature !== signature) {
+  const sigBuf = Buffer.from(String(signature));
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     logger.warn('[Payment] Invalid webhook signature');
     return res.status(400).json({ success: false, message: 'Invalid signature' });
   }
 
   const event = req.body?.event;
   const paymentEntity = req.body?.payload?.payment?.entity || null;
-
   if (!paymentEntity) {
-    logger.info(`[Payment] Webhook ${event} received with no payment entity, skipping`);
     return res.status(200).json({ success: true });
   }
 
-  const orderIdFromNotes = paymentEntity.notes?.orderId || paymentEntity.notes?.order_id || paymentEntity.order_id;
-  const userIdFromNotes = paymentEntity.notes?.userId || paymentEntity.notes?.user_id;
-  const entityTypeFromNotes = paymentEntity.notes?.entityType || 'order';
-  const planNameFromNotes = paymentEntity.notes?.planName || null;
-  const durationDaysFromNotes = paymentEntity.notes?.durationDays || null;
   const paymentId = paymentEntity.id;
   const razorpayOrderId = paymentEntity.order_id;
-  const amount = paymentEntity.amount ? paymentEntity.amount / 100 : null;
+  const capturedPaise = paymentEntity.amount || 0;
 
-  let payment = await Payment.findOne({ razorpayPaymentId: paymentId })
-    || await Payment.findOne({ razorpayOrderId: razorpayOrderId });
-
-  let order = null;
-  if (orderIdFromNotes) {
-    order = await Order.findById(orderIdFromNotes);
-  }
-
-  // Create payment record if it doesn't exist and we have enough info
-  if (!payment && order && userIdFromNotes) {
-    try {
-      payment = await Payment.create({
-        order: order._id,
-        user: userIdFromNotes,
-        amount: amount || order.totalAmount,
-        currency: paymentEntity.currency || 'INR',
-        status: PAYMENT_STATUS.PENDING,
-        razorpayOrderId,
-        razorpayPaymentId: paymentId,
-        paymentMethod: paymentEntity.method || 'razorpay',
-        notes: paymentEntity.description || ''
-      });
-    } catch (createError) {
-      logger.error('[Payment] Failed to create payment from webhook:', createError);
-      return res.status(200).json({ success: true });
-    }
-  }
+  const payment = await Payment.findOne({ razorpayOrderId })
+    || await Payment.findOne({ razorpayPaymentId: paymentId });
 
   if (!payment) {
-    logger.warn('[Payment] Webhook received but payment record not found and cannot be created', {
-      paymentId,
-      razorpayOrderId,
-      orderIdFromNotes,
-      userIdFromNotes
-    });
+    // We only act on payments we initiated (prevents forged-note injection).
+    logger.warn('[Payment] Webhook for unknown payment record', { paymentId, razorpayOrderId, event });
     return res.status(200).json({ success: true });
   }
 
-  const resolvedOrder = order || await Order.findById(payment.order);
-
-  // Map webhook event to internal status
   if (event === 'payment.captured' || event === 'order.paid') {
+    // Idempotent: completed payments are not re-processed.
+    if (payment.status === PAYMENT_STATUS.COMPLETED) {
+      return res.status(200).json({ success: true });
+    }
+    const expectedPaise = Math.round(payment.amount * 100);
+    if (Math.abs(capturedPaise - expectedPaise) > PAISE_TOLERANCE) {
+      logger.error('[Payment] Webhook amount mismatch', {
+        paymentRecord: payment._id.toString(),
+        expectedPaise,
+        capturedPaise
+      });
+      return res.status(200).json({ success: true });
+    }
+
     payment.status = PAYMENT_STATUS.COMPLETED;
     payment.paidAt = new Date();
     payment.razorpayPaymentId = paymentId || payment.razorpayPaymentId;
-    payment.razorpayOrderId = razorpayOrderId || payment.razorpayOrderId;
-    payment.amount = amount || payment.amount;
+    await payment.save();
 
-    if (payment.entityType === 'order' && resolvedOrder) {
-      resolvedOrder.paymentStatus = PAYMENT_STATUS.COMPLETED;
-      await resolvedOrder.save();
-    }
-    if (payment.entityType === 'subscription') {
-      const days = payment.durationDays || durationDaysFromNotes || 30;
-      const startDate = new Date();
-      const expiryDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
-      const scrapper = await Scrapper.findById(payment.user);
-      if (scrapper) {
-        scrapper.subscription.status = 'active';
-        scrapper.subscription.startDate = startDate;
-        scrapper.subscription.expiryDate = expiryDate;
-        scrapper.subscription.planId = null;
-        scrapper.subscription.razorpaySubscriptionId = payment.razorpayOrderId;
-        await scrapper.save();
+    if (payment.entityType === 'order' && payment.order) {
+      const order = await Order.findById(payment.order);
+      if (order) {
+        order.paymentStatus = PAYMENT_STATUS.COMPLETED;
+        order.paidVia = 'razorpay';
+        await order.save();
+        try {
+          await creditScrapperForOrderPayment(order, payment, paymentId);
+        } catch (err) {
+          logger.error('[Payment] Webhook scrapper credit failed', { error: err.message });
+        }
+      }
+    } else if (payment.entityType === 'subscription') {
+      try {
+        await activateSubscriptionForPayment(payment);
+      } catch (err) {
+        logger.error('[Payment] Webhook subscription activation failed', { error: err.message });
       }
     }
   } else if (event === 'payment.failed') {
-    payment.status = PAYMENT_STATUS.FAILED;
-    payment.razorpayPaymentId = paymentId || payment.razorpayPaymentId;
-    payment.razorpayOrderId = razorpayOrderId || payment.razorpayOrderId;
-    payment.amount = amount || payment.amount;
-
-    if (payment.entityType === 'order' && resolvedOrder) {
-      resolvedOrder.paymentStatus = PAYMENT_STATUS.FAILED;
-      await resolvedOrder.save();
+    if (payment.status !== PAYMENT_STATUS.COMPLETED) {
+      payment.status = PAYMENT_STATUS.FAILED;
+      payment.razorpayPaymentId = paymentId || payment.razorpayPaymentId;
+      await payment.save();
+      if (payment.entityType === 'order' && payment.order) {
+        await Order.updateOne(
+          { _id: payment.order, paymentStatus: { $ne: PAYMENT_STATUS.COMPLETED } },
+          { $set: { paymentStatus: PAYMENT_STATUS.FAILED } }
+        );
+      }
     }
-  } else {
-    logger.info(`[Payment] Webhook event ${event} acknowledged without state change`);
   }
-
-  await payment.save();
 
   logger.info('[Payment] Webhook processed', { event, paymentId, razorpayOrderId });
   return res.status(200).json({ success: true });
 });
-

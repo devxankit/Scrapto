@@ -1,65 +1,44 @@
 import jwt from 'jsonwebtoken';
-import logger from './logger.js';
+import { getJwtSecret, getJwtRefreshSecret } from '../config/env.js';
 
-// Default secret for development (should be overridden in production)
-const DEFAULT_JWT_SECRET = 'scrapto-dev-secret-key-change-in-production-2024';
-
-export const generateToken = (userId, role) => {
-  const secret = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
-  
-  if (!secret) {
-    logger.error('JWT_SECRET is not set in environment variables');
-    throw new Error('JWT_SECRET is not configured. Please set JWT_SECRET in your .env file.');
-  }
-
-  // Warn if using default secret
-  if (secret === DEFAULT_JWT_SECRET && process.env.NODE_ENV !== 'production') {
-    logger.warn('⚠️  WARNING: Using default JWT_SECRET. This is insecure for production!');
-  }
-
-  // Debug logging to show which secret is being used
-  const secretSource = process.env.JWT_SECRET ? 'process.env.JWT_SECRET' : 'DEFAULT_JWT_SECRET';
-  const secretPreview = secret.length > 20 ? `${secret.substring(0, 20)}...` : secret;
-  logger.info('🔑 Generating JWT Token:', {
-    userId,
-    role,
-    secretSource,
-    secretLength: secret.length,
-    secretPreview,
-    expiresIn: process.env.JWT_EXPIRE || '7d'
-  });
-
-  const token = jwt.sign(
-    { id: userId, role },
-    secret,
-    {
-      // Respect env override; default to 7 days for longer sessions
-      expiresIn: process.env.JWT_EXPIRE || '7d'
-    }
-  );
-
-  logger.info('✅ Token generated successfully:', {
-    tokenLength: token.length,
-    tokenPreview: `${token.substring(0, 30)}...`
-  });
-
-  return token;
-};
-
-export const generateRefreshToken = (userId) => {
-  const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
-  
-  if (!secret) {
-    logger.error('JWT_REFRESH_SECRET is not set in environment variables');
-    throw new Error('JWT_REFRESH_SECRET is not configured. Please set JWT_REFRESH_SECRET in your .env file.');
-  }
-
+/**
+ * Access token: short-lived, carries id + role + tokenVersion.
+ * The role in the token is ALWAYS the server-side role; it is informational —
+ * every privileged route re-checks the database role via the auth middleware.
+ */
+export const generateToken = (userId, role, tokenVersion = 0) => {
   return jwt.sign(
-    { id: userId },
-    secret,
-    {
-      expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
-    }
+    { id: String(userId), role, tv: tokenVersion, typ: 'access' },
+    getJwtSecret(),
+    { expiresIn: process.env.JWT_EXPIRE || '1d' }
   );
 };
 
+/**
+ * Refresh token: longer-lived, signed with a DIFFERENT secret, and marked with
+ * typ so it can never be accepted where an access token is expected.
+ */
+export const generateRefreshToken = (userId, tokenVersion = 0) => {
+  return jwt.sign(
+    { id: String(userId), tv: tokenVersion, typ: 'refresh' },
+    getJwtRefreshSecret(),
+    { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' }
+  );
+};
+
+export const verifyAccessToken = (token) => {
+  const decoded = jwt.verify(token, getJwtSecret());
+  if (decoded.typ && decoded.typ !== 'access') {
+    const err = new jwt.JsonWebTokenError('Wrong token type');
+    throw err;
+  }
+  return decoded;
+};
+
+export const verifyRefreshToken = (token) => {
+  const decoded = jwt.verify(token, getJwtRefreshSecret());
+  if (decoded.typ !== 'refresh') {
+    throw new jwt.JsonWebTokenError('Wrong token type');
+  }
+  return decoded;
+};

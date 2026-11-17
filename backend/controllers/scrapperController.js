@@ -7,6 +7,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { ORDER_STATUS } from '../config/constants.js';
 import logger from '../utils/logger.js';
+import { assertObjectId, asString } from '../utils/security.js';
 
 export const getMyProfile = asyncHandler(async (req, res) => {
     let scrapper = await Scrapper.findById(req.user.id);
@@ -48,13 +49,20 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     if (!scrapper) {
         const user = await User.findById(userId);
         if (user && user.role === 'scrapper') {
+            let validatedLocation = { type: 'Point', coordinates: [0, 0] };
+            if (liveLocation && Array.isArray(liveLocation.coordinates) && liveLocation.coordinates.length === 2) {
+                const [lng, lat] = liveLocation.coordinates.map(Number);
+                if (Number.isFinite(lng) && Number.isFinite(lat) && lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
+                    validatedLocation = { type: 'Point', coordinates: [lng, lat], updatedAt: new Date() };
+                }
+            }
             scrapper = await Scrapper.create({
                 _id: userId,
                 phone: user.phone,
                 name: user.name || name || 'Scrapper',
                 email: user.email,
                 vehicleInfo: vehicleInfo || { type: 'bike', number: 'NA', capacity: 0 },
-                liveLocation: liveLocation || { type: 'Point', coordinates: [0, 0] }
+                liveLocation: validatedLocation
             });
         } else {
             return sendError(res, 'Scrapper profile not found', 404);
@@ -74,7 +82,24 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
             }
         }
         
-        if (liveLocation) scrapper.liveLocation = liveLocation;
+        if (liveLocation) {
+            if (
+                typeof liveLocation !== 'object' ||
+                !Array.isArray(liveLocation.coordinates) ||
+                liveLocation.coordinates.length !== 2
+            ) {
+                return sendError(res, 'liveLocation must have coordinates [longitude, latitude]', 400);
+            }
+            const [lng, lat] = liveLocation.coordinates.map(Number);
+            if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+                return sendError(res, 'Invalid longitude or latitude coordinates', 400);
+            }
+            scrapper.liveLocation = {
+                type: 'Point',
+                coordinates: [lng, lat],
+                updatedAt: new Date()
+            };
+        }
 
         // Update Online Status
         if (availability !== undefined || isOnline !== undefined) {
@@ -116,15 +141,53 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     sendSuccess(res, 'Profile updated successfully', { scrapper });
 });
 
+/**
+ * Public-facing scrapper profile.
+ *
+ * Returns ONLY fields a counterparty needs. Wallet balance, Aadhaar data, KYC
+ * document references, FCM tokens, precise live location, subscription details
+ * and email are never exposed here. Phone is disclosed only to a user who has
+ * an active (non-terminal) order with this scrapper, or to an admin.
+ */
 export const getScrapperPublicProfile = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const scrapper = await Scrapper.findById(id).select('-earnings -kyc.aadhaarNumber');
+    const id = assertObjectId(req.params.id, 'scrapper id');
+
+    const scrapper = await Scrapper.findById(id)
+        .select('name profilePic city services vehicleInfo.type rating totalPickups isOnline createdAt kyc.status phone')
+        .lean();
 
     if (!scrapper) {
         return sendError(res, 'Scrapper not found', 404);
     }
 
-    sendSuccess(res, 'Scrapper fetched successfully', { scrapper });
+    const profile = {
+        _id: scrapper._id,
+        name: scrapper.name,
+        profilePic: scrapper.profilePic || null,
+        city: scrapper.city || null,
+        services: scrapper.services || [],
+        vehicleType: scrapper.vehicleInfo?.type || null,
+        rating: scrapper.rating || { average: 0, count: 0 },
+        totalPickups: scrapper.totalPickups || 0,
+        isOnline: !!scrapper.isOnline,
+        isVerified: scrapper.kyc?.status === 'verified',
+        memberSince: scrapper.createdAt
+    };
+
+    // Contact disclosure is tied to an actual working relationship.
+    let maySeeContact = req.user.role === 'admin' || req.user.id === String(id);
+    if (!maySeeContact && req.user.role === 'user') {
+        maySeeContact = !!(await Order.exists({
+            user: req.user.id,
+            scrapper: id,
+            status: { $in: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED] }
+        }));
+    }
+    if (maySeeContact) {
+        profile.phone = scrapper.phone;
+    }
+
+    sendSuccess(res, 'Scrapper fetched successfully', { scrapper: profile });
 });
 
 export const updateFcmToken = asyncHandler(async (req, res) => {
@@ -205,10 +268,16 @@ export const getScrapperStats = asyncHandler(async (req, res) => {
         status: 'pending'
     });
 
-    // 4. Open Items (Available marketplace requests)
-    const openItems = await MarketplaceRequest.countDocuments({
-        status: { $in: ['open', 'bidding'] }
-    });
+    // 4. Open Items (marketplace requests visible to THIS scrapper, i.e. own city)
+    const scrapperDoc = req.scrapper || await Scrapper.findById(scrapperId).select('city');
+    const openItemsFilter = { status: { $in: ['open', 'bidding'] } };
+    const city = scrapperDoc?.city?.trim();
+    if (city) {
+        openItemsFilter['location.city'] = /^(gurugram|gurgaon)$/i.test(city)
+            ? { $regex: /gurugram|gurgaon/i }
+            : new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    }
+    const openItems = city ? await MarketplaceRequest.countDocuments(openItemsFilter) : 0;
 
     sendSuccess(res, 'Scrapper stats fetched successfully', {
         stats: {

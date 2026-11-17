@@ -1,141 +1,158 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import Order from '../models/Order.js';
-import User from '../models/User.js';
 import Scrapper from '../models/Scrapper.js';
-import Payment from '../models/Payment.js';
-import WalletTransaction from '../models/WalletTransaction.js';
-import SystemSetting from '../models/SystemSetting.js';
-import { ORDER_STATUS, PAYMENT_STATUS } from '../config/constants.js';
+import Price from '../models/Price.js';
+import { ORDER_STATUS, PAYMENT_STATUS, SCRAP_CATEGORIES } from '../config/constants.js';
 import logger from '../utils/logger.js';
 import { notifyUser } from '../services/socketService.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
+import { assertTransition, isTerminal } from '../services/orderStateMachine.js';
+import { settleOrderOnCompletion } from '../services/orderSettlementService.js';
+import { withTransaction } from '../services/walletService.js';
+import {
+  AppError,
+  parsePagination,
+  parseDateParam,
+  assertObjectId,
+  asString,
+  roundMoney,
+  pickEnum
+} from '../utils/security.js';
 
-// @desc    Create new order
-// @route   POST /api/orders
-// @access  Private (User)
+const MAX_ITEM_WEIGHT_KG = 100000;
+const MAX_RATE_PER_KG = 100000;
+const MAX_ITEMS = 50;
+
+/**
+ * Server-side item pricing. Rates come from the active Price table when one is
+ * configured for the category; a client rate is only accepted (bounded) when no
+ * authoritative price exists. Totals are ALWAYS computed server-side.
+ */
+const buildScrapItems = async (rawItems, regionCode = 'IN-DL') => {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    throw new AppError('At least one scrap item is required', 400);
+  }
+  if (rawItems.length > MAX_ITEMS) {
+    throw new AppError(`At most ${MAX_ITEMS} items are allowed`, 400);
+  }
+
+  const categories = [...new Set(rawItems.map((i) => i?.category))];
+  const priceDocs = await Price.find({
+    category: { $in: categories },
+    isActive: true,
+    effectiveDate: { $lte: new Date() }
+  }).sort({ effectiveDate: -1 }).lean();
+
+  const priceMap = new Map();
+  for (const doc of priceDocs) {
+    const key = `${doc.category}`;
+    if (!priceMap.has(key)) priceMap.set(key, doc);
+  }
+
+  const validCategories = Object.values(SCRAP_CATEGORIES);
+  let totalWeight = 0;
+  let totalAmount = 0;
+  const items = rawItems.map((item, index) => {
+    const category = typeof item?.category === 'string' ? item.category : null;
+    if (!category || !validCategories.includes(category)) {
+      throw new AppError(`Item ${index + 1}: invalid category`, 400);
+    }
+    const weight = Number(item.weight);
+    if (!Number.isFinite(weight) || weight <= 0 || weight > MAX_ITEM_WEIGHT_KG) {
+      throw new AppError(`Item ${index + 1}: invalid weight`, 400);
+    }
+    const authoritative = priceMap.get(category);
+    let rate;
+    if (authoritative && Number(authoritative.pricePerKg) > 0) {
+      rate = roundMoney(authoritative.pricePerKg);
+    } else {
+      rate = Number(item.rate);
+      if (!Number.isFinite(rate) || rate < 0 || rate > MAX_RATE_PER_KG) {
+        throw new AppError(`Item ${index + 1}: invalid rate`, 400);
+      }
+      rate = roundMoney(rate);
+    }
+    const total = roundMoney(weight * rate);
+    totalWeight += weight;
+    totalAmount += total;
+    return { category, weight, rate, total };
+  });
+
+  return { items, totalWeight: roundMoney(totalWeight), totalAmount: roundMoney(totalAmount) };
+};
+
+const buildLocation = (pickupAddress) => {
+  const lat = Number(pickupAddress?.coordinates?.lat);
+  const lng = Number(pickupAddress?.coordinates?.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0)) {
+    return { type: 'Point', coordinates: [lng, lat] };
+  }
+  return undefined;
+};
+
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Private (User)
 export const createOrder = asyncHandler(async (req, res) => {
-  const {
-    scrapItems,
-    pickupAddress,
-    preferredTime,
-    pickupSlot,
-    images,
-    notes,
-    orderType, // New field
-    serviceDetails, // New field
-    serviceFee // New field
-  } = req.body;
+  const { scrapItems, pickupAddress, preferredTime, pickupSlot, images, notes, orderType } = req.body;
   const userId = req.user.id;
 
-  // New Wallet Check for Cleaning Service (DISABLED)
   if (orderType === 'cleaning_service') {
     return sendError(res, 'Cleaning Services are currently unavailable', 400);
-
-    /* Original Logic:
-    const user = await User.findById(userId);
-    if (!user) return sendError(res, 'User not found', 404);
-    if (!user.wallet || user.wallet.balance < 100) {
-      return sendError(res, 'Insufficient wallet balance. Minimum ₹100 required...', 403);
-    }
-    */
   }
 
-  // Calculate totals
-  let totalWeight = 0;
-  let totalAmount = 0;
-
-  if (orderType === 'cleaning_service') {
-    // For service, amount is fixed fee
-    totalAmount = serviceFee || 0;
-    // totalWeight stays 0
-  } else {
-    // Default scrap logic
-    if (scrapItems && Array.isArray(scrapItems)) {
-      scrapItems.forEach(item => {
-        totalWeight += item.weight || 0;
-        totalAmount += item.total || 0;
-      });
-    }
-  }
+  const { items, totalWeight, totalAmount } = await buildScrapItems(scrapItems);
 
   const orderPayload = {
     user: userId,
-    scrapItems: scrapItems || [],
+    scrapItems: items,
     totalWeight,
     totalAmount,
     pickupAddress,
-    preferredTime,
+    preferredTime: asString(preferredTime, 100),
     pickupSlot,
-    images: images || [],
-    notes: notes || '',
+    images: Array.isArray(images) ? images.slice(0, 10) : [],
+    notes: asString(notes, 500) || '',
     assignmentStatus: 'unassigned',
     status: ORDER_STATUS.PENDING
   };
 
-  // Add new fields if present
-  if (orderType) orderPayload.orderType = orderType;
-  if (serviceDetails) orderPayload.serviceDetails = serviceDetails;
-  if (serviceFee) orderPayload.serviceFee = serviceFee;
-
-  // Set GeoJSON location for distance-based queries (25km radius)
-  if (pickupAddress && pickupAddress.coordinates && pickupAddress.coordinates.lat && pickupAddress.coordinates.lng) {
-    orderPayload.location = {
-      type: 'Point',
-      coordinates: [pickupAddress.coordinates.lng, pickupAddress.coordinates.lat]
-    };
-  }
+  const location = buildLocation(pickupAddress);
+  if (location) orderPayload.location = location;
 
   const order = await Order.create(orderPayload);
-
-  // Populate user details
   await order.populate('user', 'name phone email');
 
-  logger.info(`Order created: ${order._id} by user: ${userId} (Type: ${order.orderType || 'scrap'})`);
+  logger.info(`Order created: ${order._id} by user: ${userId}`);
 
-  // --- NOTIFY ONLINE SCRAPPERS ---
+  // --- NOTIFY ONLINE, ACTIVE, KYC-VERIFIED SCRAPPERS NEARBY ---
   try {
-    // 1. Find Scrappers who are Online, Active, Verified, and within 25km Radius
     const scrapperQuery = {
       isOnline: true,
       status: 'active',
       'kyc.status': 'verified'
     };
-
-    // Apply distance filter if order has valid coordinates
-    if (order.location && order.location.coordinates[0] !== 0) {
+    if (order.location?.coordinates?.[0] || order.location?.coordinates?.[1]) {
       scrapperQuery.liveLocation = {
         $nearSphere: {
-          $geometry: {
-            type: 'Point',
-            coordinates: order.location.coordinates
-          },
-          $maxDistance: 25000 // 25,000 meters = 25km
+          $geometry: { type: 'Point', coordinates: order.location.coordinates },
+          $maxDistance: 25000
         }
       };
     }
 
-    const onlineScrappers = await Scrapper.find(scrapperQuery).select('_id fcmTokens fcmTokenApp');
+    const onlineScrappers = await Scrapper.find(scrapperQuery).select('_id').limit(100);
 
     if (onlineScrappers.length > 0) {
       const notificationPayload = {
         title: 'New Order Request 🔔',
         body: 'A new pickup request is available near you!',
-        data: {
-          orderId: order._id.toString(),
-          type: 'new_order'
-        }
+        data: { orderId: order._id.toString(), type: 'new_order' }
       };
-
-      // Batch send notifications to all online scrappers
-      const scrapperIds = onlineScrappers.map(s => s._id.toString());
-      
-      // A. Send Socket Events (Individual)
-      onlineScrappers.forEach(scrapper => {
-        notifyUser(scrapper._id.toString(), 'new_order_request', {
+      const scrapperIds = onlineScrappers.map((s) => s._id.toString());
+      scrapperIds.forEach((id) => {
+        notifyUser(id, 'new_order_request', {
           orderId: order._id,
           pickupAddress: order.pickupAddress,
           orderType: order.orderType || 'scrap_pickup',
@@ -143,28 +160,18 @@ export const createOrder = asyncHandler(async (req, res) => {
           message: 'New pickup request available!'
         });
       });
-
-      // B. Send Batch Push Notifications
       const { sendNotificationToMultipleUsers } = await import('../utils/pushNotificationHelper.js');
       sendNotificationToMultipleUsers(scrapperIds, notificationPayload);
-
       logger.info(`Notified ${onlineScrappers.length} online scrappers for Order ${order._id}`);
-    } else {
-      logger.info(`No online scrappers found for Order ${order._id}`);
     }
   } catch (notifyError) {
-    logger.error('Error notifying scrappers:', notifyError);
-    // Do not fail the request if notification fails
+    logger.error('Error notifying scrappers:', { error: notifyError.message });
   }
 
-  // --- NOTIFY USER ---
   sendNotificationToUser(userId, {
     title: 'Order Created 📦',
     body: `Your pickup request #${order._id.toString().slice(-6)} has been created successfully.`,
-    data: {
-      orderId: order._id.toString(),
-      type: 'order_created'
-    }
+    data: { orderId: order._id.toString(), type: 'order_created' }
   });
 
   sendSuccess(res, 'Order created successfully', { order }, 201);
@@ -175,31 +182,24 @@ export const createOrder = asyncHandler(async (req, res) => {
 // @access  Private (User)
 export const getMyOrders = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const { status, page = 1, limit = 10 } = req.query;
+  const { page, limit, skip } = parsePagination(req.query);
+  const status = pickEnum(req.query.status, Object.values(ORDER_STATUS));
 
   const query = { user: userId };
-  if (status) {
-    query.status = status;
-  }
+  if (status) query.status = status;
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
-
-  const orders = await Order.find(query)
-    .populate('scrapper', 'name phone email vehicleInfo')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit));
-
-  const total = await Order.countDocuments(query);
+  const [orders, total] = await Promise.all([
+    Order.find(query)
+      .populate('scrapper', 'name phone vehicleInfo rating profilePic')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(query)
+  ]);
 
   sendSuccess(res, 'Orders retrieved successfully', {
     orders,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / parseInt(limit))
-    }
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   });
 });
 
@@ -207,67 +207,42 @@ export const getMyOrders = asyncHandler(async (req, res) => {
 // @route   GET /api/orders/available
 // @access  Private (Scrapper)
 export const getAvailableOrders = asyncHandler(async (req, res) => {
-  // Get orders that are:
-  // 1. Unassigned
-  // 2. Status is pending
-  // 3. Not already assigned to this scrapper
-  // 4. Matches scrapper's service types
   const scrapperId = req.user.id;
 
-  // Fetch scrapper profile to check services
-  const scrapper = await Scrapper.findById(scrapperId);
+  const scrapper = req.scrapper || await Scrapper.findById(scrapperId);
   if (!scrapper) {
     return sendError(res, 'Scrapper profile not found', 404);
   }
 
-  const services = scrapper.services || ['scrap_pickup']; // Default to scrap only if not set
+  const services = scrapper.services?.length ? scrapper.services : ['scrap_pickup'];
 
-  // Build query
   const query = {
     status: ORDER_STATUS.PENDING,
-    assignmentStatus: 'unassigned',
-    scrapper: { $ne: scrapperId }
+    assignmentStatus: 'unassigned'
   };
 
-  // Service filtering logic
   const allowedOrderTypes = [];
-
   if (services.includes('scrap_pickup')) {
-    // Regular scrap orders usually don't have orderType or is 'scrap_pickup' or 'scrap'
-    allowedOrderTypes.push(null, undefined, 'scrap_pickup', 'scrap', 'scrap_sell');
+    allowedOrderTypes.push(null, 'scrap_pickup', 'scrap', 'scrap_sell');
   }
-
   if (services.includes('home_cleaning')) {
     allowedOrderTypes.push('cleaning_service');
   }
-
-  // Apply filter
   query.orderType = { $in: allowedOrderTypes };
 
-  // Apply location filter (Strict 25km radius)
-  if (scrapper.liveLocation && scrapper.liveLocation.coordinates && scrapper.liveLocation.coordinates[0] !== 0) {
-    query.location = {
-      $nearSphere: {
-        $geometry: {
-          type: 'Point',
-          coordinates: scrapper.liveLocation.coordinates
-        },
-        $maxDistance: 25000 // 25km
-      }
-    };
-  } else {
-    // Strict GPS enforcement: if no valid GPS coordinates, do not return any orders.
+  // Strict 25km radius from the scrapper's live GPS position.
+  const [lng, lat] = scrapper.liveLocation?.coordinates || [0, 0];
+  if (!lng && !lat) {
     return sendSuccess(res, 'Available orders retrieved successfully', { orders: [] });
   }
+  query.location = {
+    $nearSphere: {
+      $geometry: { type: 'Point', coordinates: [lng, lat] },
+      $maxDistance: 25000
+    }
+  };
 
-  let dbQuery = Order.find(query).populate('user', 'name phone');
-
-  // Since we enforced location filter, no need for the fallback sorting logic, but kept for consistency
-  if (!query.location) {
-    dbQuery = dbQuery.sort({ createdAt: -1 });
-  }
-
-  const orders = await dbQuery.limit(20);
+  const orders = await Order.find(query).populate('user', 'name phone').limit(20);
 
   sendSuccess(res, 'Available orders retrieved successfully', { orders });
 });
@@ -277,423 +252,319 @@ export const getAvailableOrders = asyncHandler(async (req, res) => {
 // @access  Private (Scrapper)
 export const getMyAssignedOrders = asyncHandler(async (req, res) => {
   const scrapperId = req.user.id;
-  const { status } = req.query;
+  const status = pickEnum(req.query.status, Object.values(ORDER_STATUS));
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50 });
 
   const query = { scrapper: scrapperId };
-  if (status) {
-    query.status = status;
-  }
+  if (status) query.status = status;
 
   const orders = await Order.find(query)
     .populate('user', 'name phone email')
     .populate('scrapper', 'name phone')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
   sendSuccess(res, 'Assigned orders retrieved successfully', { orders });
 });
 
 // @desc    Get order by ID
 // @route   GET /api/orders/:id
-// @access  Private
+// @access  Private (owner user, assigned scrapper, admin)
 export const getOrderById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const id = assertObjectId(req.params.id, 'order id');
   const userId = req.user.id;
-  const scrapperId = req.user.scrapperId || req.user.id;
   const userRole = req.user.role;
 
   const order = await Order.findById(id)
     .populate('user', 'name phone email')
-    .populate('scrapper', 'name phone liveLocation');
+    .populate('scrapper', 'name phone liveLocation vehicleInfo rating profilePic');
 
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
 
-  // Check access: User can only see their orders, Scrapper can see assigned orders
   if (userRole === 'user' && order.user._id.toString() !== userId) {
     return sendError(res, 'Not authorized to access this order', 403);
   }
-
-  if (userRole === 'scrapper' && order.scrapper && order.scrapper._id.toString() !== scrapperId) {
-    return sendError(res, 'Not authorized to access this order', 403);
+  if (userRole === 'scrapper') {
+    const isAssigned = order.scrapper && order.scrapper._id.toString() === userId;
+    const isOpen = order.status === ORDER_STATUS.PENDING && order.assignmentStatus === 'unassigned';
+    if (!isAssigned && !isOpen) {
+      return sendError(res, 'Not authorized to access this order', 403);
+    }
   }
 
   sendSuccess(res, 'Order retrieved successfully', { order });
 });
 
-// @desc    Accept order (Scrapper)
+// @desc    Accept order (Scrapper) — atomic first-wins assignment
 // @route   POST /api/orders/:id/accept
-// @access  Private (Scrapper)
+// @access  Private (Scrapper, active + KYC-verified)
 export const acceptOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const scrapperId = req.user.scrapperId || req.user.id;
+  const id = assertObjectId(req.params.id, 'order id');
+  const scrapperId = req.user.id;
 
-  const order = await Order.findById(id);
-
-  if (!order) {
-    return sendError(res, 'Order not found', 404);
-  }
-
-  // Idempotency check: If already accepted by THIS scrapper, return success
-  if (order.status === ORDER_STATUS.CONFIRMED && order.scrapper && order.scrapper.toString() === scrapperId) {
-    logger.info(`[AcceptOrder] Order ${id} already accepted by this scrapper. Returning success.`);
-    return sendSuccess(res, 'Order already accepted', { order });
-  }
-
-  // Check if order is available
-  if (order.status !== ORDER_STATUS.PENDING) {
-    logger.warn(`[AcceptOrder] Failed: Order ${id} status is ${order.status}, expected ${ORDER_STATUS.PENDING}`);
-    return sendError(res, `Order is not available for acceptance (Status: ${order.status})`, 400);
-  }
-
-  if (order.assignmentStatus === 'accepted' || (order.scrapper && order.scrapper.toString() !== scrapperId)) {
-    logger.warn(`[AcceptOrder] Failed: Order ${id} already accepted/assigned. Status: ${order.assignmentStatus}, Scrapper: ${order.scrapper}`);
-    return sendError(res, 'Order is already accepted by another scrapper', 400);
-  }
-
-  // Check Scrapper Wallet Balance
+  // Eligibility checks (profile status/KYC handled by middleware).
   const scrapper = await Scrapper.findById(scrapperId).populate('subscription.planId');
   if (!scrapper) {
     return sendError(res, 'Scrapper profile not found', 404);
   }
-
-  // Minimum balance check (₹100)
-  if (scrapper.wallet.balance < 100) {
+  if (scrapper.status !== 'active') {
+    return sendError(res, 'Your account is blocked or suspended.', 403);
+  }
+  if (scrapper.kyc?.status !== 'verified') {
+    return sendError(res, 'KYC verification required before accepting orders.', 403);
+  }
+  if ((scrapper.wallet?.balance || 0) < 100) {
     return sendError(res, 'Insufficient wallet balance. You need minimum ₹100 to accept orders. Please recharge your wallet.', 403);
   }
-
-  // Active Subscription Check
-  const now = new Date();
-  const isSubscribed = scrapper.subscription &&
-    scrapper.subscription.status === 'active' &&
-    new Date(scrapper.subscription.expiryDate) > now;
-
-  if (!isSubscribed) {
+  if (!scrapper.hasActiveSubscription()) {
     return sendError(res, 'Active subscription required to accept orders. Please subscribe first.', 403);
   }
-
-  // Check Pickup Limit (maxPickups)
-  if (scrapper.subscription.planId && scrapper.subscription.planId.maxPickups !== null) {
-    const limit = scrapper.subscription.planId.maxPickups;
+  const maxPickups = scrapper.subscription.planId?.maxPickups;
+  if (maxPickups !== null && maxPickups !== undefined) {
     const used = scrapper.subscription.usedPickups || 0;
-    
-    if (used >= limit) {
-      return sendError(res, `Your current plan limit (${limit} pickups) has been reached. Please upgrade your subscription to continue accepting orders.`, 403);
+    if (used >= maxPickups) {
+      return sendError(res, `Your current plan limit (${maxPickups} pickups) has been reached. Please upgrade your subscription to continue accepting orders.`, 403);
     }
   }
 
-  // Assign scrapper to order
-  order.scrapper = scrapperId;
-  order.assignmentStatus = 'accepted';
-  order.status = ORDER_STATUS.CONFIRMED;
-  order.assignedAt = new Date();
-  order.acceptedAt = new Date();
+  // ATOMIC assignment: only succeeds when the order is still pending AND
+  // unassigned. Two concurrent scrappers can never both win.
+  const now = new Date();
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: id,
+      status: ORDER_STATUS.PENDING,
+      assignmentStatus: 'unassigned',
+      scrapper: null
+    },
+    {
+      $set: {
+        scrapper: scrapperId,
+        assignmentStatus: 'accepted',
+        status: ORDER_STATUS.CONFIRMED,
+        assignedAt: now,
+        acceptedAt: now
+      },
+      $push: {
+        assignmentHistory: { scrapper: scrapperId, assignedAt: now, status: 'accepted' }
+      }
+    },
+    { new: true }
+  );
 
-  // Add to assignment history
-  order.assignmentHistory.push({
-    scrapper: scrapperId,
-    assignedAt: new Date(),
-    status: 'accepted'
-  });
-
-  await order.save();
+  if (!order) {
+    const existing = await Order.findById(id).select('status scrapper');
+    if (!existing) return sendError(res, 'Order not found', 404);
+    if (existing.scrapper && existing.scrapper.toString() === scrapperId) {
+      const populated = await Order.findById(id).populate('user', 'name phone').populate('scrapper', 'name phone');
+      return sendSuccess(res, 'Order already accepted', { order: populated });
+    }
+    if (existing.status !== ORDER_STATUS.PENDING) {
+      return sendError(res, `Order is not available for acceptance (Status: ${existing.status})`, 409);
+    }
+    return sendError(res, 'Order is already accepted by another scrapper', 409);
+  }
 
   await order.populate('user', 'name phone');
   await order.populate('scrapper', 'name phone');
 
   logger.info(`Order ${id} accepted by scrapper ${scrapperId}`);
 
-  // --- NOTIFY USER ---
   sendNotificationToUser(order.user._id.toString(), {
     title: 'Order Accepted 🤝',
     body: `Scrapper ${scrapper.name} has accepted your order.`,
-    data: {
-      orderId: order._id.toString(),
-      type: 'order_accepted'
-    }
+    data: { orderId: order._id.toString(), type: 'order_accepted' }
+  });
+  notifyUser(order.user._id.toString(), 'order_accepted', {
+    orderId: order._id,
+    scrapper: { name: scrapper.name, phone: scrapper.phone }
   });
 
   sendSuccess(res, 'Order accepted successfully', { order });
 });
 
-// @desc    Update order status
+// @desc    Update order status (state-machine enforced)
 // @route   PUT /api/orders/:id/status
-// @access  Private
+// @access  Private (assigned scrapper, admin)
 export const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+  const id = assertObjectId(req.params.id, 'order id');
+  const status = pickEnum(req.body.status, Object.values(ORDER_STATUS));
+  const paymentStatus = pickEnum(req.body.paymentStatus, Object.values(PAYMENT_STATUS));
   const userId = req.user.id;
   const userRole = req.user.role;
 
-  const order = await Order.findById(id);
-
-  if (!order) {
-    return sendError(res, 'Order not found', 404);
-  }
-
-  // Authorization checks
-  if (userRole === 'user' && order.user.toString() !== userId) {
-    return sendError(res, 'Not authorized to update this order', 403);
-  }
-
-  if (userRole === 'scrapper' && order.scrapper && order.scrapper.toString() !== userId) {
-    return sendError(res, 'Not authorized to update this order', 403);
-  }
-
-  // Validate status transition
-  const validStatuses = Object.values(ORDER_STATUS);
-  if (!validStatuses.includes(status)) {
+  if (!status) {
     return sendError(res, 'Invalid order status', 400);
   }
 
-  // Update status
-  order.status = status;
+  try {
+    const result = await withTransaction(async (session) => {
+      const order = await Order.findById(id).session(session);
+      if (!order) throw new AppError('Order not found', 404);
 
-  // Update paymentStatus if provided (e.g. for cash payments)
-  const { paymentStatus } = req.body;
-  if (paymentStatus) {
-    const validPaymentStatuses = Object.values(PAYMENT_STATUS);
-    if (!validPaymentStatuses.includes(paymentStatus)) {
-      return sendError(res, 'Invalid payment status', 400);
-    }
-    order.paymentStatus = paymentStatus;
-  }
-
-  // Update totalAmount if provided (e.g. final negotiated price)
-  const { totalAmount } = req.body;
-  if (totalAmount !== undefined && totalAmount !== null) {
-    order.totalAmount = Number(totalAmount);
-  }
-
-  // Set completion date if completed
-  if (status === ORDER_STATUS.COMPLETED) {
-    order.completedDate = new Date();
-
-    // ---------------------------------------------------------
-    // WALLET & COMMISSION LOGIC
-    // ---------------------------------------------------------
-
-    // Case A: Cleaning Service (User pays Scrapper)
-    // Commission: User pays 1% platform fee
-    if (order.orderType === 'cleaning_service') {
-      const user = await User.findById(order.user);
-      if (user) {
-        // Calculate 1% Commission
-        const commissionAmount = Math.max(1, Math.round(order.totalAmount * 0.01));
-        const balanceBefore = user.wallet.balance;
-
-        // Deduct Commission from User Wallet
-        user.wallet.balance -= commissionAmount;
-        await user.save();
-
-        const balanceAfter = user.wallet.balance;
-
-        // Log the commission transaction
-        await WalletTransaction.create({
-          trxId: `TRX-COMM-${Date.now()}-${order._id.toString().slice(-4)}`,
-          user: user._id,
-          userType: 'User',
-          amount: commissionAmount,
-          type: 'DEBIT',
-          balanceBefore: balanceBefore,
-          balanceAfter: balanceAfter,
-          category: 'COMMISSION',
-          status: 'SUCCESS',
-          description: `Platform Fee (1%) for Cleaning Request #${order._id}`,
-          orderId: order._id,
-          gateway: { provider: 'SYSTEM' }
-        });
-
-        logger.info(`[Commission] Deducted ₹${commissionAmount} from User ${user._id} for Cleaning Order ${order._id}`);
-      }
-    }
-    // Case B: Scrap Sell (Scrapper pays User)
-    // Action 1: Deduct Order Amount from Scrapper Wallet (Payment to User)
-    // Action 2: Deduct 1% Commission from Scrapper Wallet (Platform Fee)
-    // Action 3: Increment Subscription Usage
-    else if (order.scrapper) {
-      const scrapper = await Scrapper.findById(order.scrapper).populate('subscription.planId');
-      if (scrapper) {
-        // ---------------------------------------------------------
-        // 3. Increment Subscription Usage (New Logic)
-        // ---------------------------------------------------------
-        if (scrapper.subscription && scrapper.subscription.status === 'active') {
-          scrapper.subscription.usedPickups = (scrapper.subscription.usedPickups || 0) + 1;
-          
-          // Check if limit reached
-          if (scrapper.subscription.planId && scrapper.subscription.planId.maxPickups !== null) {
-            if (scrapper.subscription.usedPickups >= scrapper.subscription.planId.maxPickups) {
-              scrapper.subscription.status = 'expired';
-              logger.info(`[Subscription] Plan limit reached for scrapper ${scrapper._id}. Subscription marked as expired.`);
-            }
-          }
+      // Authorization: only the assigned scrapper or an admin may drive status.
+      if (userRole === 'scrapper') {
+        if (!order.scrapper || order.scrapper.toString() !== userId) {
+          throw new AppError('Not authorized to update this order', 403);
         }
-        // ---------------------------------------------------------
+      } else if (userRole === 'user') {
+        // Users cancel through /cancel; direct status writes are not allowed.
+        throw new AppError('Not authorized to update order status', 403);
+      }
 
-        // 1. Deduct Order Amount (Payment to User)
-        const orderAmount = order.totalAmount || 0;
+      if (order.status === status) {
+        return { order, idempotent: true };
+      }
 
-        // FIX: Only deduct if payment has NOT been completed yet
-        // If paid via wallet/online, paymentStatus is already 'completed', so we skip this
-        if (orderAmount > 0 && order.paymentStatus !== 'completed') {
-          const balanceBeforePay = scrapper.wallet.balance;
-          scrapper.wallet.balance -= orderAmount;
-          await scrapper.save();
+      assertTransition(order, status, userRole);
 
-          await WalletTransaction.create({
-            trxId: `TRX-PAY-${Date.now()}-${order._id.toString().slice(-4)}`,
-            user: scrapper._id,
-            userType: 'Scrapper',
-            amount: orderAmount,
-            type: 'DEBIT',
-            balanceBefore: balanceBeforePay,
-            balanceAfter: scrapper.wallet.balance, // Updated balance
-            category: 'PAYMENT_SENT', // Indicates money went OUT to User
-            status: 'SUCCESS',
-            description: `Payment to User for Order #${order._id}`,
-            orderId: order._id,
-            gateway: { provider: 'WALLET' }
+      // Final amount: only the assigned scrapper (before completion) or admin.
+      if (req.body.totalAmount !== undefined && req.body.totalAmount !== null) {
+        const amount = Number(req.body.totalAmount);
+        if (!Number.isFinite(amount) || amount < 0 || amount > 500000) {
+          throw new AppError('Invalid totalAmount', 400);
+        }
+        if (isTerminal(order.status)) {
+          throw new AppError('Cannot change amount of a finalised order', 409);
+        }
+        order.totalAmount = roundMoney(amount);
+      }
+
+      // Payment marker (cash collection flow).
+      if (paymentStatus) {
+        if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && paymentStatus !== PAYMENT_STATUS.COMPLETED) {
+          throw new AppError('Cannot revert a completed payment', 409);
+        }
+        if (paymentStatus === PAYMENT_STATUS.COMPLETED && order.paymentStatus !== PAYMENT_STATUS.COMPLETED) {
+          order.paidVia = order.paidVia || 'cash';
+        }
+        order.paymentStatus = paymentStatus;
+      }
+
+      order.status = status;
+
+      if (status === ORDER_STATUS.COMPLETED) {
+        order.completedDate = new Date();
+        await settleOrderOnCompletion(order, session);
+      }
+      if (status === ORDER_STATUS.CANCELLED) {
+        order.cancelledAt = new Date();
+        order.cancelledBy = userRole;
+      }
+
+      await order.save({ session });
+      return { order };
+    });
+
+    const order = result.order;
+    await order.populate('user', 'name phone');
+    await order.populate('scrapper', 'name phone');
+
+    logger.info(`Order ${id} status -> ${status} by ${userRole} ${userId}`);
+
+    const shortId = order._id.toString().slice(-6);
+    if (!result.idempotent) {
+      if (status === ORDER_STATUS.IN_PROGRESS) {
+        sendNotificationToUser(order.user._id.toString(), {
+          title: 'Scrapper is on the way! 🚚',
+          body: `Your pickup #${shortId} is now in progress.`,
+          data: { orderId: order._id.toString(), type: 'order_status' }
+        });
+      } else if (status === ORDER_STATUS.COMPLETED) {
+        sendNotificationToUser(order.user._id.toString(), {
+          title: 'Order Completed ✅',
+          body: `Your order #${shortId} has been completed. Thank you!`,
+          data: { orderId: order._id.toString(), type: 'order_completed' }
+        });
+        if (order.scrapper) {
+          sendNotificationToUser(order.scrapper._id.toString(), {
+            title: 'Order Completed ✅',
+            body: `Pickup #${shortId} completed successfully.`,
+            data: { orderId: order._id.toString(), type: 'order_completed' }
           });
-          logger.info(`[Wallet] Deducted ₹${orderAmount} from Scrapper ${scrapper._id} for Order Payment`);
         }
-
-        // 2. Deduct Dynamic Commission
-        // Fetch commission rate from settings (default to 1% if not found)
-        const commissionSetting = await SystemSetting.findOne({ key: 'scrap_commission_percentage' });
-        const commissionRate = commissionSetting ? (Number(commissionSetting.value) / 100) : 0.01;
-        
-        const commissionAmount = Math.max(1, Math.round(orderAmount * commissionRate));
-        const balanceBeforeComm = scrapper.wallet.balance;
-
-        scrapper.wallet.balance -= commissionAmount;
-        await scrapper.save();
-
-        await WalletTransaction.create({
-          trxId: `TRX-COMM-${Date.now()}-${order._id.toString().slice(-4)}`,
-          user: scrapper._id,
-          userType: 'Scrapper',
-          amount: commissionAmount,
-          type: 'DEBIT',
-          balanceBefore: balanceBeforeComm,
-          balanceAfter: scrapper.wallet.balance,
-          category: 'COMMISSION',
-          status: 'SUCCESS',
-          description: `Platform Fee (${commissionRate * 100}%) for Order #${order._id}`,
-          orderId: order._id,
-          gateway: { provider: 'SYSTEM' }
-        });
-
-        logger.info(`[Commission] Deducted ₹${commissionAmount} from Scrapper ${scrapper._id} for Order #${order._id}`);
       }
     }
-  }
 
-  await order.save();
-
-  await order.populate('user', 'name phone');
-  await order.populate('scrapper', 'name phone');
-
-  logger.info(`Order ${id} status updated to ${status} (Payment: ${order.paymentStatus}) by ${userRole} ${userId}`);
-
-  // --- NOTIFY on Status Change ---
-  if (status === ORDER_STATUS.CONFIRMED) {
-    sendNotificationToUser(order.user.toString(), {
-      title: 'Order Confirmed! ✅',
-      body: `Your order #${order._id.toString().slice(-6)} has been confirmed for pickup.`,
-      data: { orderId: order._id.toString(), type: 'order_status' }
-    });
-  } else if (status === ORDER_STATUS.IN_PROGRESS) {
-    sendNotificationToUser(order.user.toString(), {
-      title: 'Scrapper is on the way! 🚚',
-      body: `Your pickup #${order._id.toString().slice(-6)} is now in progress.`,
-      data: { orderId: order._id.toString(), type: 'order_status' }
-    });
-  }
-
-  // --- NOTIFY on Order Completion ---
-  if (status === ORDER_STATUS.COMPLETED) {
-    sendNotificationToUser(order.user.toString(), {
-      title: 'Order Completed ✅',
-      body: `Your order #${order._id.toString().slice(-6)} has been completed. Thank you!`,
-      data: {
-        orderId: order._id.toString(),
-        type: 'order_completed'
-      }
-    });
-    
-    if (order.scrapper) {
-      sendNotificationToUser(order.scrapper.toString(), {
-        title: 'Order Completed ✅',
-        body: `Pickup #${order._id.toString().slice(-6)} completed successfully.`,
-        data: {
-          orderId: order._id.toString(),
-          type: 'order_completed'
-        }
-      });
+    sendSuccess(res, 'Order status updated successfully', { order });
+  } catch (error) {
+    if (error.statusCode) {
+      return sendError(res, error.message, error.statusCode);
     }
+    throw error;
   }
-
-  sendSuccess(res, 'Order status updated successfully', { order });
 });
 
 // @desc    Cancel order
 // @route   POST /api/orders/:id/cancel
-// @access  Private
+// @access  Private (owner user, assigned scrapper, admin)
 export const cancelOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { reason } = req.body;
+  const id = assertObjectId(req.params.id, 'order id');
+  const reason = asString(req.body.reason, 200);
   const userId = req.user.id;
   const userRole = req.user.role;
 
   const order = await Order.findById(id);
-
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
 
-  // Authorization: User can cancel their orders, Scrapper can cancel assigned orders
   if (userRole === 'user' && order.user.toString() !== userId) {
     return sendError(res, 'Not authorized to cancel this order', 403);
   }
-
-  if (userRole === 'scrapper' && order.scrapper && order.scrapper.toString() !== userId) {
+  if (userRole === 'scrapper' && (!order.scrapper || order.scrapper.toString() !== userId)) {
     return sendError(res, 'Not authorized to cancel this order', 403);
   }
 
-  // Check if order can be cancelled
   if (order.status === ORDER_STATUS.COMPLETED) {
     return sendError(res, 'Cannot cancel completed order', 400);
   }
-
   if (order.status === ORDER_STATUS.CANCELLED) {
     return sendError(res, 'Order is already cancelled', 400);
   }
+  if (order.paymentStatus === PAYMENT_STATUS.COMPLETED) {
+    return sendError(res, 'Order has a completed payment. Please contact support for cancellation and refund.', 409);
+  }
 
-  // Cancel order
-  order.status = ORDER_STATUS.CANCELLED;
-  order.assignmentStatus = 'unassigned';
-  order.scrapper = null;
+  const previousScrapper = order.scrapper ? order.scrapper.toString() : null;
+
+  if (userRole === 'scrapper') {
+    // Scrapper cancellation releases the order back to the pool.
+    order.status = ORDER_STATUS.PENDING;
+    order.assignmentStatus = 'unassigned';
+    order.scrapper = null;
+    order.assignedAt = null;
+    order.acceptedAt = null;
+    order.assignmentHistory.push({ scrapper: userId, assignedAt: new Date(), status: 'rejected' });
+  } else {
+    order.status = ORDER_STATUS.CANCELLED;
+    order.assignmentStatus = 'unassigned';
+    order.scrapper = null;
+    order.cancelledAt = new Date();
+    order.cancelledBy = userRole;
+  }
   if (reason) {
-    order.notes = `${order.notes}\nCancellation reason: ${reason}`.trim();
+    order.cancellationReason = reason;
   }
 
   await order.save();
 
-  logger.info(`Order ${id} cancelled by ${userRole} ${userId}`);
+  logger.info(`Order ${id} ${userRole === 'scrapper' ? 'released' : 'cancelled'} by ${userRole} ${userId}`);
 
-  // --- NOTIFY other party on Cancellation ---
-  if (userRole === 'user' && order.scrapper) {
-    // Notify Scrapper if User cancels
-    sendNotificationToUser(order.scrapper.toString(), {
+  const shortId = order._id.toString().slice(-6);
+  if (userRole === 'user' && previousScrapper) {
+    sendNotificationToUser(previousScrapper, {
       title: 'Order Cancelled ⚠️',
-      body: `Order #${order._id.toString().slice(-6)} has been cancelled by the customer.`,
+      body: `Order #${shortId} has been cancelled by the customer.`,
       data: { orderId: order._id.toString(), type: 'order_cancelled' }
     });
   } else if (userRole === 'scrapper') {
-    // Notify User if Scrapper cancels
     sendNotificationToUser(order.user.toString(), {
       title: 'Order Cancelled ⚠️',
-      body: `The scrapper has cancelled your pickup #${order._id.toString().slice(-6)}. It is now available for other scrappers.`,
+      body: `The scrapper has cancelled your pickup #${shortId}. It is now available for other scrappers.`,
       data: { orderId: order._id.toString(), type: 'order_cancelled' }
     });
   }
@@ -705,62 +576,42 @@ export const cancelOrder = asyncHandler(async (req, res) => {
 // @route   PUT /api/orders/:id
 // @access  Private (User)
 export const updateOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const id = assertObjectId(req.params.id, 'order id');
   const userId = req.user.id;
   const { scrapItems, pickupAddress, preferredTime, pickupSlot, images, notes } = req.body;
 
   const order = await Order.findById(id);
-
   if (!order) {
     return sendError(res, 'Order not found', 404);
   }
-
-  // Only user can update their own orders
   if (order.user.toString() !== userId) {
     return sendError(res, 'Not authorized to update this order', 403);
   }
-
-  // Can only update pending orders
   if (order.status !== ORDER_STATUS.PENDING) {
     return sendError(res, 'Can only update pending orders', 400);
   }
 
-  // Update fields
   if (scrapItems) {
-    order.scrapItems = scrapItems;
-    // Recalculate totals
-    let totalWeight = 0;
-    let totalAmount = 0;
-    scrapItems.forEach(item => {
-      totalWeight += item.weight || 0;
-      totalAmount += item.total || 0;
-    });
+    const { items, totalWeight, totalAmount } = await buildScrapItems(scrapItems);
+    order.scrapItems = items;
     order.totalWeight = totalWeight;
     order.totalAmount = totalAmount;
   }
 
   if (pickupAddress) {
     order.pickupAddress = pickupAddress;
-    // Sync GeoJSON location for radius filtering
-    if (pickupAddress.coordinates && pickupAddress.coordinates.lat && pickupAddress.coordinates.lng) {
-      order.location = {
-        type: 'Point',
-        coordinates: [pickupAddress.coordinates.lng, pickupAddress.coordinates.lat]
-      };
-    }
+    const location = buildLocation(pickupAddress);
+    if (location) order.location = location;
   }
-  if (preferredTime) order.preferredTime = preferredTime;
+  if (preferredTime) order.preferredTime = asString(preferredTime, 100);
   if (pickupSlot) order.pickupSlot = pickupSlot;
-  if (images) order.images = images;
-  if (notes !== undefined) order.notes = notes;
+  if (Array.isArray(images)) order.images = images.slice(0, 10);
+  if (notes !== undefined) order.notes = asString(notes, 500) || '';
 
   await order.save();
-
   await order.populate('user', 'name phone');
-  await order.populate('scrapper', 'name phone');
 
   logger.info(`Order ${id} updated by user ${userId}`);
 
   sendSuccess(res, 'Order updated successfully', { order });
 });
-

@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import HelpTicket from '../models/HelpTicket.js';
 import logger from '../utils/logger.js';
-import { PAGINATION } from '../config/constants.js';
+import { parsePagination, safeSearchRegex, assertObjectId, pickEnum, asString } from '../utils/security.js';
 
 // @desc    Create a new support ticket
 // @route   POST /api/support
@@ -11,14 +11,23 @@ export const createTicket = asyncHandler(async (req, res) => {
     try {
         const { subject, message, type, priority, name, email, role } = req.body;
 
+        const cleanSubject = asString(subject, 200);
+        const cleanMessage = asString(message, 5000);
+        if (!cleanSubject || !cleanMessage) {
+            return sendError(res, 'Subject and message are required', 400);
+        }
+
+        const validTypes = ['issue', 'feedback', 'general', 'payment', 'account'];
+        const validPriorities = ['low', 'medium', 'high', 'urgent'];
+
         const ticketData = {
-            subject,
-            message,
-            type: type || 'general',
-            priority: priority || 'medium',
-            role: role || 'guest',
-            name,
-            email
+            subject: cleanSubject,
+            message: cleanMessage,
+            type: pickEnum(type, validTypes) || 'general',
+            priority: pickEnum(priority, validPriorities) || 'medium',
+            role: 'guest',
+            name: asString(name, 100),
+            email: asString(email, 150)
         };
 
         // If authenticated, attach user/scrapper ID
@@ -26,13 +35,13 @@ export const createTicket = asyncHandler(async (req, res) => {
             if (req.user.role === 'scrapper') {
                 ticketData.scrapper = req.user.id;
                 ticketData.role = 'scrapper';
-                ticketData.name = req.user.name;
-                ticketData.email = req.user.email;
+                ticketData.name = req.user.name || ticketData.name;
+                ticketData.email = req.user.email || ticketData.email;
             } else {
                 ticketData.user = req.user.id;
                 ticketData.role = 'user';
-                ticketData.name = req.user.name;
-                ticketData.email = req.user.email;
+                ticketData.name = req.user.name || ticketData.name;
+                ticketData.email = req.user.email || ticketData.email;
             }
         }
 
@@ -50,32 +59,31 @@ export const createTicket = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const getAllTickets = asyncHandler(async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-        const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-        const skip = (page - 1) * limit;
+        const { page, limit, skip } = parsePagination(req.query);
 
         const filter = {};
-        if (req.query.status && req.query.status !== 'all') {
-            filter.status = req.query.status;
-        }
-        if (req.query.priority && req.query.priority !== 'all') {
-            filter.priority = req.query.priority;
-        }
-        if (req.query.type && req.query.type !== 'all') {
-            filter.type = req.query.type;
-        }
-        if (req.query.search) {
+        const status = pickEnum(req.query.status, ['open', 'in_progress', 'resolved', 'closed']);
+        if (status) filter.status = status;
+
+        const priority = pickEnum(req.query.priority, ['low', 'medium', 'high', 'urgent']);
+        if (priority) filter.priority = priority;
+
+        const type = pickEnum(req.query.type, ['issue', 'feedback', 'general', 'payment', 'account']);
+        if (type) filter.type = type;
+
+        const searchRegex = safeSearchRegex(req.query.search);
+        if (searchRegex) {
             filter.$or = [
-                { subject: { $regex: req.query.search, $options: 'i' } },
-                { message: { $regex: req.query.search, $options: 'i' } },
-                { name: { $regex: req.query.search, $options: 'i' } },
-                { email: { $regex: req.query.search, $options: 'i' } }
+                { subject: searchRegex },
+                { message: searchRegex },
+                { name: searchRegex },
+                { email: searchRegex }
             ];
         }
 
         const [tickets, total] = await Promise.all([
             HelpTicket.find(filter)
-                .sort({ createdAt: -1 }) // Newest first
+                .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit),
             HelpTicket.countDocuments(filter)
@@ -122,10 +130,14 @@ export const getMyTickets = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateTicketStatus = asyncHandler(async (req, res) => {
     try {
-        const { status } = req.body;
+        const id = assertObjectId(req.params.id, 'ticket id');
+        const status = pickEnum(req.body.status, ['open', 'in_progress', 'resolved', 'closed']);
+        if (!status) {
+            return sendError(res, 'Invalid ticket status. Must be open, in_progress, resolved, or closed', 400);
+        }
 
         const ticket = await HelpTicket.findByIdAndUpdate(
-            req.params.id,
+            id,
             { status },
             { new: true }
         );
@@ -136,6 +148,9 @@ export const updateTicketStatus = asyncHandler(async (req, res) => {
 
         sendSuccess(res, 'Ticket status updated successfully', { ticket });
     } catch (error) {
+        if (error.statusCode) {
+            return sendError(res, error.message, error.statusCode);
+        }
         logger.error('[Support] Error updating ticket status:', error);
         sendError(res, 'Failed to update status', 500);
     }

@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-import { USER_ROLES } from '../config/constants.js';
+
+const kycDocumentSchema = new mongoose.Schema({
+  // Cloudinary public id of a PRIVATE (type=authenticated) asset. Never a public URL.
+  publicId: { type: String, default: null },
+  resourceType: { type: String, default: 'image' },
+  format: { type: String, default: null },
+  bytes: { type: Number, default: null },
+  uploadedAt: { type: Date, default: null }
+}, { _id: false });
 
 const scrapperSchema = new mongoose.Schema({
   phone: {
@@ -19,12 +26,15 @@ const scrapperSchema = new mongoose.Schema({
     type: String,
     lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+    maxlength: [254, 'Email is too long'],
+    match: [/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Please provide a valid email']
   },
+  // Optional at creation; mandatory before a scrapper can go online.
   city: {
     type: String,
-    required: [true, 'City is required'],
-    trim: true
+    trim: true,
+    maxlength: [80, 'City is too long'],
+    default: null
   },
   profilePic: {
     type: String,
@@ -44,7 +54,8 @@ const scrapperSchema = new mongoose.Schema({
     number: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      maxlength: 20
     },
     capacity: {
       type: Number,
@@ -53,27 +64,41 @@ const scrapperSchema = new mongoose.Schema({
     }
   },
   kyc: {
+    // AES-256-GCM encrypted at the application layer (utils/fieldEncryption.js).
     aadhaarNumber: {
       type: String,
-      // Encrypted in application layer
       select: false
     },
-    aadhaarPhotoUrl: {
+    // Last 4 digits only, for display ("XXXX-XXXX-1234").
+    aadhaarLast4: {
       type: String,
       default: null
     },
-    selfieUrl: {
-      type: String,
-      default: null
+    // Private document references. Resolved to short-lived signed URLs on demand
+    // for the owner and for admins only.
+    documents: {
+      type: {
+        aadhaar: { type: kycDocumentSchema, default: undefined },
+        selfie: { type: kycDocumentSchema, default: undefined },
+        license: { type: kycDocumentSchema, default: undefined }
+      },
+      select: false,
+      default: undefined
     },
-    licenseUrl: {
-      type: String,
-      default: null
-    },
+    // LEGACY public URLs (pre-remediation uploads). Hidden by default; only read by
+    // the privacy migration script and by admin views until migration completes.
+    aadhaarPhotoUrl: { type: String, default: null, select: false },
+    selfieUrl: { type: String, default: null, select: false },
+    licenseUrl: { type: String, default: null, select: false },
+    // New scrappers are NOT verified until an admin reviews their documents.
     status: {
       type: String,
       enum: ['not_submitted', 'pending', 'verified', 'rejected'],
-      default: 'verified'
+      default: 'not_submitted'
+    },
+    submittedAt: {
+      type: Date,
+      default: null
     },
     verifiedAt: {
       type: Date,
@@ -244,21 +269,13 @@ const scrapperSchema = new mongoose.Schema({
     enum: ['active', 'blocked', 'suspended'],
     default: 'active'
   },
-  phoneVerificationOTP: {
+  statusReason: {
     type: String,
-    select: false
-  },
-  otpExpiresAt: {
-    type: Date,
-    select: false
+    default: null
   },
   isPhoneVerified: {
     type: Boolean,
     default: false
-  },
-  password: {
-    type: String,
-    select: false
   },
   // FCM Tokens
   fcmTokens: {
@@ -275,60 +292,47 @@ const scrapperSchema = new mongoose.Schema({
 
 // Geospatial index for location queries
 scrapperSchema.index({ liveLocation: '2dsphere' });
-scrapperSchema.index({ isOnline: 1, 'kyc.status': 1, 'subscription.status': 1, 'marketSubscription.status': 1 });
+scrapperSchema.index({ isOnline: 1, status: 1, 'kyc.status': 1 });
+scrapperSchema.index({ 'kyc.status': 1, createdAt: -1 });
+scrapperSchema.index({ 'subscription.status': 1, 'subscription.expiryDate': 1 });
+scrapperSchema.index({ status: 1, createdAt: -1 });
 
-// Hash password before saving
-scrapperSchema.pre('save', async function (next) {
-  if (!this.isModified('password') || !this.password) {
-    next();
-    return;
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-// Compare password method
-scrapperSchema.methods.matchPassword = async function (enteredPassword) {
-  if (!this.password) {
-    return false;
-  }
-  return await bcrypt.compare(enteredPassword, this.password);
+/**
+ * Subscription entitlement: an active (or cancelled-but-not-yet-expired)
+ * subscription whose expiry date is in the future.
+ */
+scrapperSchema.methods.hasActiveSubscription = function (now = new Date()) {
+  const sub = this.subscription;
+  if (!sub || !sub.expiryDate) return false;
+  if (sub.status !== 'active' && sub.status !== 'cancelled') return false;
+  return new Date(sub.expiryDate) > now;
 };
 
-// Generate OTP for phone verification
-scrapperSchema.methods.generateOTP = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  this.phoneVerificationOTP = otp;
-  this.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-  return otp;
+scrapperSchema.methods.isInGoodStanding = function () {
+  return this.status === 'active';
 };
 
-// Verify OTP
-scrapperSchema.methods.verifyOTP = function (otp) {
-  if (!this.phoneVerificationOTP || !this.otpExpiresAt) {
-    return false;
-  }
-
-  if (this.otpExpiresAt < new Date()) {
-    return false;
-  }
-
-  return this.phoneVerificationOTP === otp;
+scrapperSchema.methods.isKycVerified = function () {
+  return this.kyc?.status === 'verified';
 };
 
-// Remove sensitive data from JSON output
-scrapperSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  delete obj.password;
-  delete obj.phoneVerificationOTP;
-  if (obj.kyc) {
-    delete obj.kyc.aadhaarNumber;
+const stripSensitive = (doc, ret) => {
+  delete ret.password;
+  delete ret.phoneVerificationOTP;
+  delete ret.otpExpiresAt;
+  delete ret.fcmTokens;
+  delete ret.fcmTokenApp;
+  delete ret.__v;
+  if (ret.kyc) {
+    delete ret.kyc.aadhaarNumber;
+    delete ret.kyc.documents;
   }
-  return obj;
+  return ret;
 };
+
+scrapperSchema.set('toJSON', { transform: stripSensitive });
+scrapperSchema.set('toObject', { transform: stripSensitive });
 
 const Scrapper = mongoose.model('Scrapper', scrapperSchema);
 
 export default Scrapper;
-

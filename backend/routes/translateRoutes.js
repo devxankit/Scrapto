@@ -1,7 +1,11 @@
 import express from 'express';
 import { translateText } from '../controllers/translateController.js';
+import { translateRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
+
+// Apply dedicated rate limiter to prevent abuse of external translation API
+router.use(translateRateLimiter);
 
 // POST /api/translate
 router.post('/', translateText);

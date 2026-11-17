@@ -29,7 +29,12 @@ class ReviewService {
     }
 
     // 3. Check if scrapper matches
-    if (order.scrapper.toString() !== scrapperId) {
+    if (!order.scrapper) {
+      const error = new Error('This order has no assigned scrapper to review');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (order.scrapper.toString() !== String(scrapperId)) {
       const error = new Error('Scrapper does not match order');
       error.statusCode = 400;
       throw error;
@@ -77,7 +82,7 @@ class ReviewService {
 
     const total = await Review.countDocuments(finder);
     const reviews = await Review.find(finder)
-      .populate('user', 'firstName lastName profilePic')
+      .populate('user', 'name profileImage')
       .sort({ createdAt: -1 })
       .skip(startIndex)
       .limit(limit);
@@ -120,7 +125,7 @@ class ReviewService {
 
   async getReviewById(reviewId) {
     const review = await Review.findById(reviewId)
-      .populate('user', 'firstName lastName profilePic')
+      .populate('user', 'name profileImage')
       .populate('scrapper', 'name profilePic');
 
     if (!review) {
@@ -206,7 +211,7 @@ class ReviewService {
 
     const total = await Review.countDocuments(finder);
     const reviews = await Review.find(finder)
-      .populate('user', 'firstName lastName email profilePic')
+      .populate('user', 'name email profileImage')
       .populate('scrapper', 'name email profilePic')
       .sort({ createdAt: -1 })
       .skip(startIndex)

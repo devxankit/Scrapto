@@ -62,18 +62,31 @@ export const createOrder = async (amount, currency = 'INR', receipt = null, note
 
 // Verify payment signature
 export const verifyPaymentSignature = (razorpay_order_id, razorpay_payment_id, razorpay_signature) => {
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return false;
+  }
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    logger.error('[Razorpay] RAZORPAY_KEY_SECRET is not configured');
+    return false;
+  }
   const body = razorpay_order_id + '|' + razorpay_payment_id;
   const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .createHmac('sha256', secret)
     .update(body.toString())
     .digest('hex');
 
-  const isAuthentic = expectedSignature === razorpay_signature;
-  
+  const expBuf = Buffer.from(expectedSignature, 'utf8');
+  const sigBuf = Buffer.from(razorpay_signature, 'utf8');
+  if (expBuf.length !== sigBuf.length) {
+    logger.warn('[Razorpay] Payment signature length mismatch');
+    return false;
+  }
+
+  const isAuthentic = crypto.timingSafeEqual(expBuf, sigBuf);
   if (!isAuthentic) {
     logger.warn('[Razorpay] Payment signature verification failed');
   }
-  
   return isAuthentic;
 };
 

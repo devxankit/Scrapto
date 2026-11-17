@@ -10,6 +10,7 @@ import {
   verifySubscriptionPayment
 } from '../controllers/paymentController.js';
 import { protect, isAdmin, isScrapper } from '../middleware/auth.js';
+import { financialRateLimiter } from '../middleware/rateLimiter.js';
 import { validate } from '../middleware/validator.js';
 import {
   createPaymentOrderValidator,
@@ -25,12 +26,12 @@ const router = express.Router();
 router.use(protect);
 
 // Payment routes
-router.post('/create-order', createPaymentOrderValidator, validate, createPaymentOrder);
-router.post('/verify', verifyPaymentValidator, validate, verifyPayment);
+router.post('/create-order', financialRateLimiter, createPaymentOrderValidator, validate, createPaymentOrder);
+router.post('/verify', financialRateLimiter, verifyPaymentValidator, validate, verifyPayment);
 router.get('/my-payments', getMyPayments);
 router.get('/order/:orderId/status', getPaymentStatus);
 router.get('/:paymentId', getPayment);
-router.post('/:paymentId/refund', refundPaymentValidator, validate, refundPaymentAmount);
+router.post('/:paymentId/refund', isAdmin, financialRateLimiter, refundPaymentValidator, validate, refundPaymentAmount);
 
 // Subscription payments (scrapper)
 router.post(

@@ -94,6 +94,18 @@ const orderSchema = new mongoose.Schema({
       }
     }
   },
+  // Top-level GeoJSON point used for $nearSphere radius queries.
+  // (Previously controllers wrote `location` but the schema lacked the path, so
+  // strict mode silently dropped it and geo filtering matched nothing.)
+  location: {
+    type: {
+      type: String,
+      enum: ['Point']
+    },
+    coordinates: {
+      type: [Number] // [longitude, latitude]
+    }
+  },
   preferredTime: {
     type: String,
     default: null
@@ -141,6 +153,31 @@ const orderSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: ''
+  },
+  cancelledAt: {
+    type: Date,
+    default: null
+  },
+  cancelledBy: {
+    type: String,
+    enum: ['user', 'scrapper', 'admin', null],
+    default: null
+  },
+  cancellationReason: {
+    type: String,
+    default: null
+  },
+  // How the final payment settled ('wallet' | 'razorpay' | 'cash')
+  paidVia: {
+    type: String,
+    enum: ['wallet', 'razorpay', 'cash', null],
+    default: null
+  },
+  // Set once the completion-time wallet/commission settlement has run.
+  // Guarantees settlement is applied at most once per order.
+  settlementDone: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
@@ -151,8 +188,9 @@ orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ scrapper: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ paymentStatus: 1 });
-orderSchema.index({ location: '2dsphere' });
+orderSchema.index({ location: '2dsphere' }, { sparse: true });
 orderSchema.index({ orderType: 1 });
+orderSchema.index({ status: 1, assignmentStatus: 1, createdAt: -1 });
 
 const Order = mongoose.model('Order', orderSchema);
 

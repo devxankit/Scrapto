@@ -1,6 +1,7 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, requireScrapperInGoodStanding } from '../middleware/auth.js';
 import { uploadMultiple } from '../services/uploadService.js';
+import { uploadRateLimiter } from '../middleware/rateLimiter.js';
 import {
   createMarketplaceRequests,
   getMarketplaceRequests,
@@ -16,7 +17,7 @@ import {
 const router = express.Router();
 
 // Upload images for marketplace
-router.post('/upload', protect, authorize('admin'), uploadMultiple('images', 5), uploadMarketplaceImages);
+router.post('/upload', protect, authorize('admin'), uploadRateLimiter, uploadMultiple('images', 5), uploadMarketplaceImages);
 
 // Publicly authenticated routes
 router.use(protect);
@@ -32,9 +33,9 @@ router.get('/my-requests', authorize('user'), getMyMarketplaceRequests);
 router.get('/requests', authorize('scrapper', 'admin'), getMarketplaceRequests);
 router.get('/requests/:id', getMarketplaceRequestById);
 
-// Scrapper only routes
-router.post('/requests/:id/bids', authorize('scrapper'), placeBid);
-router.post('/requests/:id/report', authorize('scrapper'), reportMarketplaceRequest);
+// Scrapper only routes (active + KYC-verified enforced by middleware)
+router.post('/requests/:id/bids', authorize('scrapper'), requireScrapperInGoodStanding(), placeBid);
+router.post('/requests/:id/report', authorize('scrapper'), requireScrapperInGoodStanding(), reportMarketplaceRequest);
 
 // Admin/User: Accept bid
 router.patch('/bids/:bidId/accept', authorize('admin', 'user'), acceptBid);

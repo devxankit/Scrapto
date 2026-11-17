@@ -56,7 +56,7 @@ export const PAGINATION = {
 
 export const ORDER_TYPES = {
   SCRAP_SELL: 'scrap_sell',
-  // CLEANING_SERVICE: 'cleaning_service'
+  CLEANING_SERVICE: 'cleaning_service'
 };
 
 export const PRICE_TYPES = {

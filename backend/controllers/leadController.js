@@ -2,26 +2,25 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import ScrapperLead from '../models/ScrapperLead.js';
 import logger from '../utils/logger.js';
-import { PAGINATION } from '../config/constants.js';
+import { parsePagination, safeSearchRegex, assertObjectId } from '../utils/security.js';
 
 // @desc    Get all leads
 // @route   GET /api/admin/leads
 // @access  Private (Admin)
 export const getAllLeads = asyncHandler(async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-        const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-        const skip = (page - 1) * limit;
+        const { page, limit, skip } = parsePagination(req.query);
 
         const filter = {};
         if (req.query.status && req.query.status !== 'all') {
             filter.status = req.query.status;
         }
-        if (req.query.search) {
+        const searchRegex = safeSearchRegex(req.query.search);
+        if (searchRegex) {
             filter.$or = [
-                { name: { $regex: req.query.search, $options: 'i' } },
-                { phone: { $regex: req.query.search, $options: 'i' } },
-                { area: { $regex: req.query.search, $options: 'i' } }
+                { name: searchRegex },
+                { phone: searchRegex },
+                { area: searchRegex }
             ];
         }
 
@@ -82,9 +81,10 @@ export const createLead = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateLead = asyncHandler(async (req, res) => {
     try {
+        const id = assertObjectId(req.params.id, 'lead id');
         const { name, phone, area, vehicleInfo, notes, status } = req.body;
 
-        let lead = await ScrapperLead.findById(req.params.id);
+        let lead = await ScrapperLead.findById(id);
         if (!lead) {
             return sendError(res, 'Lead not found', 404);
         }
@@ -104,6 +104,9 @@ export const updateLead = asyncHandler(async (req, res) => {
         if (error.code === 11000) {
             return sendError(res, 'Phone number already exists', 400);
         }
+        if (error.name === 'ValidationError') {
+            return sendError(res, error.message, 400);
+        }
         sendError(res, 'Failed to update lead', 500);
     }
 });
@@ -113,7 +116,8 @@ export const updateLead = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const deleteLead = asyncHandler(async (req, res) => {
     try {
-        const lead = await ScrapperLead.findById(req.params.id);
+        const id = assertObjectId(req.params.id, 'lead id');
+        const lead = await ScrapperLead.findById(id);
         if (!lead) {
             return sendError(res, 'Lead not found', 404);
         }

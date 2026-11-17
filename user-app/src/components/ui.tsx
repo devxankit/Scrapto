@@ -1,3 +1,4 @@
+import { USE_MOCK } from '../config/env';
 /**
  * Scraptox UI kit, drawn from the design canvas (board "01 · Design system").
  * Tokens only; no raw hex in screens.
@@ -460,6 +461,9 @@ export function EmptyState({ icon, title, text, action }: { icon: React.ReactNod
 
 /** Small line that says what is simulated in the demo build. */
 export function DemoNote({ text }: { text: string }) {
+  // "Demo build: ..." notes describe the on-device mock. Hide them whenever the
+  // app talks to the real backend, where they would be false.
+  if (!USE_MOCK && /^Demo build/i.test(text)) return null;
   return (
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: colors.goldSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.gold }} />

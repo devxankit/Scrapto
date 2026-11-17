@@ -27,7 +27,7 @@ export type RootParams = {
   Language: undefined;
   Login: undefined;
   Otp: { phone: string; isNewUser: boolean };
-  Signup: { phone: string; otp: string };
+  Signup: { phone: string; otp?: string };
   Kyc: undefined;
   KycStatus: undefined;
   Plans: undefined;

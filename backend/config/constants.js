@@ -38,8 +38,36 @@ export const SCRAP_CATEGORIES = {
   ACTION_TOYS: 'action toys',
   OUTDOOR: 'outdoor',
   PUZZLE: 'puzzle',
-  OTHER: 'other'
+  OTHER: 'other',
+
+  // Categories used by the user and partner apps (src/data/catalog.ts).
+  // Values are lowercase; every comparison normalises with normalizeCategory().
+  NEWSPAPER: 'newspaper',
+  CARDBOARD: 'cardboard',
+  COPPER: 'copper',
+  BRASS: 'brass',
+  ALUMINIUM: 'aluminium',
+  IRON: 'iron',
+  STEEL: 'steel',
+  WIRE_CABLE: 'wire & cable',
+  E_WASTE: 'e-waste',
+  BATTERY: 'battery',
+  SPLIT_AC: 'split ac',
+  REFRIGERATOR: 'refrigerator',
+  WASHING_MACHINE: 'washing machine',
+  COOLER: 'cooler',
+  CEILING_FAN: 'ceiling fan',
+  GEYSER: 'geyser',
+  MICROWAVE: 'microwave',
+  TV_MONITOR: 'tv / monitor',
+  TYRES: 'tyres',
+  OLD_VEHICLE: 'old vehicle',
+  WOODEN_FURNITURE: 'wooden furniture'
 };
+
+/** Case/whitespace-insensitive category key ("  Copper " -> "copper"). */
+export const normalizeCategory = (value) =>
+  typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toLowerCase() : null;
 
 export const FILE_TYPES = {
   IMAGE: ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/heic', 'image/heif'],

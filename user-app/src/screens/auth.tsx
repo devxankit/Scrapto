@@ -233,7 +233,7 @@ export function LoginScreen({ navigation }: P<'Login'>) {
 
 export function OtpScreen({ route, navigation }: P<'Otp'>) {
   const { phone, isNewUser } = route.params;
-  const { verifyOtp, requestOtp } = useStore();
+  const { verifyOtp, requestOtp, registerUser } = useStore();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [code, setCode] = useState('');
@@ -242,6 +242,8 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
   const [ref, setRef] = useState('');
   const [heard, setHeard] = useState<string | null>(null);
   const [left, setLeft] = useState(30);
+  // Existing numbers were texted by /auth/login-otp; new ones only after register.
+  const [sent, setSent] = useState(!isNewUser);
   const [busy, setBusy] = useState(false);
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   useFocusAfterTransition(input);
@@ -251,14 +253,32 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
     return () => clearInterval(id);
   }, []);
 
-  const emailOk = !email || /^\S+@\S+\.\S+$/.test(email);
-  const ready = code.length === 6 && (!isNewUser || (name.trim().length >= 2 && emailOk));
+  // The backend requires an email to create an account.
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
+  const emailOk = !email || emailValid;
+  const profileOk = name.trim().length >= 2 && emailValid;
+  const ready = isNewUser && !sent ? profileOk : code.length === 6 && (!isNewUser || profileOk);
+
+  const profile = () => ({ name: name.trim(), email: email.trim(), referralCode: ref.trim() || undefined, heardFrom: heard ?? undefined });
 
   const verify = async () => {
     if (!ready) return;
     setBusy(true);
+    if (isNewUser && !sent) {
+      // Step 1 for a new number: create the account, which texts the code.
+      try {
+        await registerUser(phone, profile());
+        setSent(true);
+        setLeft(30);
+        input.current?.focus();
+      } catch (e: any) {
+        Alert.alert('Could not send the code', e.message);
+      }
+      setBusy(false);
+      return;
+    }
     try {
-      await verifyOtp(phone, code, isNewUser ? { name: name.trim(), email: email.trim() || undefined, referralCode: ref.trim() || undefined, heardFrom: heard ?? undefined } : undefined);
+      await verifyOtp(phone, code, isNewUser ? profile() : undefined);
     } catch (e: any) {
       Alert.alert('Could not verify', e.message);
       setBusy(false);
@@ -278,7 +298,7 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
         <View style={{ gap: 8 }}>
           <T size={26} w="extrabold" style={{ letterSpacing: -0.4 }}>{t('otp.title')}</T>
           <T size={14} color={colors.muted} lh={20}>
-            Code sent to <T size={14} w="bold" raw>{`+91 ${phoneLabel(phone)}`}</T>
+            {sent ? 'Code sent to ' : "We'll text a code to "}<T size={14} w="bold" raw>{`+91 ${phoneLabel(phone)}`}</T>
             {'  '}
             <T size={14} w="bold" color={colors.primary} onPress={() => navigation.goBack()}>Edit</T>
           </T>
@@ -307,6 +327,7 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
           />
         </Pressable>
 
+        {sent ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Clock size={16} color={colors.muted} />
           {left > 0 ? (
@@ -328,13 +349,14 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
             </T>
           )}
         </View>
+        ) : null}
         <DemoNote text="Demo build: any 6-digit code works" />
 
         {isNewUser ? (
           <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 16, gap: 14 }}>
             <T size={15} w="extrabold">First time here? Add your details</T>
             <Field label="Full name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
-            <Field label="Email (optional)" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" error={emailOk ? undefined : 'Please check the email address'} />
+            <Field label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" error={emailOk ? undefined : 'Please check the email address'} />
             <Field label="Referral code (optional)" value={ref} onChangeText={(v) => setRef(v.toUpperCase())} placeholder="USER-XXXX" autoCapitalize="characters" />
             <View style={{ gap: 8 }}>
               <T size={13} w="semibold" color={colors.ink2}>How did you hear about us?</T>
@@ -350,7 +372,7 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
         ) : null}
       </ScrollView>
       <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12) + 8 }}>
-        <Button label={t('otp.verify')} disabled={!ready} loading={busy} onPress={verify} />
+        <Button label={isNewUser && !sent ? 'Send code' : t('otp.verify')} disabled={!ready} loading={busy} onPress={verify} />
       </View>
     </KeyboardSafe>
   );

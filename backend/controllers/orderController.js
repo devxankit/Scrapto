@@ -3,7 +3,7 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import Order from '../models/Order.js';
 import Scrapper from '../models/Scrapper.js';
 import Price from '../models/Price.js';
-import { ORDER_STATUS, PAYMENT_STATUS, SCRAP_CATEGORIES } from '../config/constants.js';
+import { ORDER_STATUS, PAYMENT_STATUS, SCRAP_CATEGORIES, normalizeCategory } from '../config/constants.js';
 import logger from '../utils/logger.js';
 import { notifyUser } from '../services/socketService.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
@@ -37,16 +37,18 @@ const buildScrapItems = async (rawItems, regionCode = 'IN-DL') => {
     throw new AppError(`At most ${MAX_ITEMS} items are allowed`, 400);
   }
 
-  const categories = [...new Set(rawItems.map((i) => i?.category))];
+  const categories = [...new Set(rawItems.map((i) => normalizeCategory(i?.category)).filter(Boolean))];
+  // Strength-2 collation: "Copper" in the admin price list matches "copper".
+  // Without it an order silently fell back to the client-supplied rate.
   const priceDocs = await Price.find({
     category: { $in: categories },
     isActive: true,
     effectiveDate: { $lte: new Date() }
-  }).sort({ effectiveDate: -1 }).lean();
+  }).collation({ locale: 'en', strength: 2 }).sort({ effectiveDate: -1 }).lean();
 
   const priceMap = new Map();
   for (const doc of priceDocs) {
-    const key = `${doc.category}`;
+    const key = normalizeCategory(doc.category);
     if (!priceMap.has(key)) priceMap.set(key, doc);
   }
 
@@ -54,7 +56,7 @@ const buildScrapItems = async (rawItems, regionCode = 'IN-DL') => {
   let totalWeight = 0;
   let totalAmount = 0;
   const items = rawItems.map((item, index) => {
-    const category = typeof item?.category === 'string' ? item.category : null;
+    const category = normalizeCategory(item?.category);
     if (!category || !validCategories.includes(category)) {
       throw new AppError(`Item ${index + 1}: invalid category`, 400);
     }

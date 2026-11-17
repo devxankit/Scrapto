@@ -286,7 +286,7 @@ export function LeaderboardScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
           <Image source={images.podium} style={{ width: '100%', height: 150, borderRadius: radius.lg }} resizeMode="cover" />
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
-            {[d.leaders[1], d.leaders[0], d.leaders[2]].map((l: any) => (
+            {[d.leaders[1], d.leaders[0], d.leaders[2]].filter(Boolean).map((l: any) => (
               <Card key={l.rank} style={{ flex: 1, alignItems: 'center', gap: 6, paddingVertical: l.rank === 1 ? 22 : 14 }}>
                 <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: medal(l.rank), alignItems: 'center', justifyContent: 'center' }}>
                   <T size={14} w="extrabold" color={colors.white} raw>{String(l.rank)}</T>

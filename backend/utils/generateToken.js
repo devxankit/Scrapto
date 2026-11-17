@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret, getJwtRefreshSecret } from '../config/env.js';
 
@@ -18,13 +19,16 @@ export const generateToken = (userId, role, tokenVersion = 0) => {
  * Refresh token: longer-lived, signed with a DIFFERENT secret, and marked with
  * typ so it can never be accepted where an access token is expected.
  */
-export const generateRefreshToken = (userId, tokenVersion = 0) => {
+export const generateRefreshToken = (userId, tokenVersion = 0, jti = undefined) => {
   return jwt.sign(
-    { id: String(userId), tv: tokenVersion, typ: 'refresh' },
+    { id: String(userId), tv: tokenVersion, typ: 'refresh', ...(jti ? { jti } : {}) },
     getJwtRefreshSecret(),
     { expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d' }
   );
 };
+
+/** New refresh-token id. Each id is single-use (see authController.refreshToken). */
+export const newRefreshId = () => crypto.randomUUID();
 
 export const verifyAccessToken = (token) => {
   const decoded = jwt.verify(token, getJwtSecret());

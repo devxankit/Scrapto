@@ -7,7 +7,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nManager } from 'react-native';
 import i18n from '../i18n';
-import { api, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
+import { api, getRefreshToken, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
 import { resetMock } from '../api/mock';
 import { connectSocket, disconnectSocket } from '../api/socket';
 import { clearQueryCache } from '../hooks/useQuery';
@@ -49,6 +49,7 @@ type Store = {
   lang: string | null;
   setLang: (l: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<{ isNewUser: boolean }>;
+  registerUser: (phone: string, profile: { name: string; email?: string; referralCode?: string; heardFrom?: string }) => Promise<void>;
   verifyOtp: (phone: string, otp: string, profile?: { name: string; email?: string; referralCode?: string; heardFrom?: string }) => Promise<void>;
   updateProfile: (p: { name: string; email?: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -151,15 +152,32 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestOtp = useCallback(async (phone: string) => {
-    const r = await api('/auth/login-otp', { method: 'POST', body: { phone, role: 'user' } });
-    return { isNewUser: !!r.data?.isNewUser };
+    // The backend has no "isNewUser" flag: POST /auth/login-otp answers 404
+    // for a phone number it does not know. Treat that as "needs sign-up" and
+    // send the OTP through /auth/register instead (done by verifyOtp).
+    try {
+      await api('/auth/login-otp', { method: 'POST', body: { phone, role: 'user' } });
+      return { isNewUser: false };
+    } catch (e: any) {
+      if (e?.status === 404) return { isNewUser: true };
+      throw e;
+    }
+  }, []);
+
+  // A new number gets its first code from POST /auth/register (login-otp
+  // answers 404 and sends nothing), so sign-up registers BEFORE the code step.
+  const registerUser = useCallback(async (phone: string, profile: { name: string; email?: string; referralCode?: string; heardFrom?: string }) => {
+    await api('/auth/register', { method: 'POST', body: { ...profile, phone, role: 'user' } });
   }, []);
 
   const verifyOtp = useCallback(async (phone: string, otp: string, profile?: { name: string; email?: string; referralCode?: string; heardFrom?: string }) => {
-    if (profile) await api('/auth/register', { method: 'POST', body: { ...profile, phone, role: 'user' } });
-    const r = await api('/auth/verify-otp', { method: 'POST', body: { phone, otp, purpose: profile ? 'register' : 'login', role: 'user', profile } });
-    const { token, user: u } = r.data;
-    await setToken(token);
+    // New accounts were created (and texted their code) by registerUser().
+    // NOTE: the backend verifyOTPValidator accepts only "login" or
+    // "verification" for the purpose field - sending "register" fails with
+    // HTTP 400. A new account verifies its phone, so use "verification".
+    const r = await api('/auth/verify-otp', { method: 'POST', body: { phone, otp, purpose: profile ? 'verification' : 'login', role: 'user', profile } });
+    const { token, refreshToken, user: u } = r.data;
+    await setToken(token, refreshToken ?? null);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
     connectSocket(token);
     setUser(u);
@@ -174,7 +192,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api('/auth/logout', { method: 'POST' });
+      await api('/auth/logout', { method: 'POST', body: { refreshToken: getRefreshToken() } });
     } catch {
       // signing out locally is enough
     }
@@ -188,13 +206,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const saveAddress = useCallback(async (a: Omit<Address, '_id'> & { _id?: string }) => {
     const r = a._id ? await api(`/addresses/${a._id}`, { method: 'PUT', body: a }) : await api('/addresses', { method: 'POST', body: a });
-    await loadAddresses();
+    // The write returns the full list, so no follow-up GET is needed.
+    if (r.data?.addresses) setAddresses(r.data.addresses);
+    else await loadAddresses();
     return r.data.address as Address;
   }, [loadAddresses]);
 
   const deleteAddress = useCallback(async (id: string) => {
-    await api(`/addresses/${id}`, { method: 'DELETE' });
-    await loadAddresses();
+    const r = await api(`/addresses/${id}`, { method: 'DELETE' });
+    if (r.data?.addresses) setAddresses(r.data.addresses);
+    else await loadAddresses();
   }, [loadAddresses]);
 
   const setDraft = useCallback((fn: (d: SellDraft) => SellDraft) => setDraftState(fn), []);
@@ -206,8 +227,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<Store>(
-    () => ({ ready, user, lang, setLang, requestOtp, verifyOtp, updateProfile, logout, resetDemo, prices, loadPrices, addresses, loadAddresses, saveAddress, deleteAddress, draft, setDraft, resetDraft }),
-    [ready, user, lang, setLang, requestOtp, verifyOtp, updateProfile, logout, resetDemo, prices, loadPrices, addresses, loadAddresses, saveAddress, deleteAddress, draft, setDraft, resetDraft],
+    () => ({ ready, user, lang, setLang, requestOtp, registerUser, verifyOtp, updateProfile, logout, resetDemo, prices, loadPrices, addresses, loadAddresses, saveAddress, deleteAddress, draft, setDraft, resetDraft }),
+    [ready, user, lang, setLang, requestOtp, registerUser, verifyOtp, updateProfile, logout, resetDemo, prices, loadPrices, addresses, loadAddresses, saveAddress, deleteAddress, draft, setDraft, resetDraft],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

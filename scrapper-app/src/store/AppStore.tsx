@@ -7,7 +7,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nManager } from 'react-native';
 import i18n from '../i18n';
-import { api, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
+import { api, getRefreshToken, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
 import { resetMock } from '../api/mock';
 import { connectSocket, disconnectSocket } from '../api/socket';
 import { clearQueryCache } from '../hooks/useQuery';
@@ -74,6 +74,7 @@ type Store = {
   lang: string | null;
   setLang: (l: string) => Promise<void>;
   requestOtp: (phone: string) => Promise<{ isNewUser: boolean }>;
+  registerUser: (phone: string, profile: SignupProfile) => Promise<void>;
   verifyOtp: (phone: string, otp: string, profile?: SignupProfile) => Promise<void>;
   refreshMe: () => Promise<Partner | null>;
   updateProfile: (p: Partial<Pick<Partner, 'name' | 'email' | 'city' | 'services' | 'vehicleInfo'>>) => Promise<void>;
@@ -166,14 +167,30 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestOtp = useCallback(async (phone: string) => {
-    const r = await api('/auth/login-otp', { method: 'POST', body: { phone, role: 'scrapper' } });
-    return { isNewUser: !!r.data?.isNewUser };
+    // The backend has no "isNewUser" flag: POST /auth/login-otp answers 404
+    // for a phone number it does not know. Treat that as "needs sign-up".
+    try {
+      await api('/auth/login-otp', { method: 'POST', body: { phone, role: 'scrapper' } });
+      return { isNewUser: false };
+    } catch (e: any) {
+      if (e?.status === 404) return { isNewUser: true };
+      throw e;
+    }
+  }, []);
+
+  // A new number gets its first code from POST /auth/register (login-otp
+  // answers 404 and sends nothing), so sign-up registers BEFORE the code step.
+  const registerUser = useCallback(async (phone: string, profile: SignupProfile) => {
+    await api('/auth/register', { method: 'POST', body: { ...profile, phone, role: 'scrapper' } });
   }, []);
 
   const verifyOtp = useCallback(async (phone: string, otp: string, profile?: SignupProfile) => {
-    if (profile) await api('/auth/register', { method: 'POST', body: { ...profile, phone, role: 'scrapper' } });
-    const r = await api('/auth/verify-otp', { method: 'POST', body: { phone, otp, purpose: profile ? 'register' : 'login', role: 'scrapper', profile } });
-    await setToken(r.data.token);
+    // New accounts were created (and texted their code) by registerUser().
+    // NOTE: the backend verifyOTPValidator accepts only "login" or
+    // "verification" for the purpose field - sending "register" fails with
+    // HTTP 400. A new account verifies its phone, so use "verification".
+    const r = await api('/auth/verify-otp', { method: 'POST', body: { phone, otp, purpose: profile ? 'verification' : 'login', role: 'scrapper', profile } });
+    await setToken(r.data.token, r.data.refreshToken ?? null);
     connectSocket(r.data.token);
     keep(r.data.user);
   }, [keep]);
@@ -204,7 +221,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       if (user?.isOnline) await api('/scrappers/me', { method: 'PUT', body: { isOnline: false } });
-      await api('/auth/logout', { method: 'POST' });
+      await api('/auth/logout', { method: 'POST', body: { refreshToken: getRefreshToken() } });
     } catch {
       // signing out locally is enough
     }
@@ -217,8 +234,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [signedOut]);
 
   const value = useMemo<Store>(
-    () => ({ ready, user, lang, setLang, requestOtp, verifyOtp, refreshMe, updateProfile, setOnline, logout, resetDemo, prices, here, locate }),
-    [ready, user, lang, setLang, requestOtp, verifyOtp, refreshMe, updateProfile, setOnline, logout, resetDemo, prices, here, locate],
+    () => ({ ready, user, lang, setLang, requestOtp, registerUser, verifyOtp, refreshMe, updateProfile, setOnline, logout, resetDemo, prices, here, locate }),
+    [ready, user, lang, setLang, requestOtp, registerUser, verifyOtp, refreshMe, updateProfile, setOnline, logout, resetDemo, prices, here, locate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

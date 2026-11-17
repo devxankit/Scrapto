@@ -8,7 +8,8 @@ import {
   resendOTP,
   sendLoginOTP,
   refreshToken,
-  logoutAll
+  logoutAll,
+  logout
 } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { validate } from '../middleware/validator.js';
@@ -41,6 +42,7 @@ router.post('/login-otp', otpSendIpLimiter, otpSendPhoneLimiter, sendLoginOTPVal
 router.post('/refresh-token', refreshRateLimiter, refreshTokenValidator, validate, refreshToken);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
+router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 
 export default router;

@@ -51,6 +51,14 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Live refresh-token ids, one per signed-in device (most recent 10). A
+  // refresh consumes its id; presenting a consumed id is treated as token
+  // theft and revokes every session (tokenVersion++).
+  refreshSessions: {
+    type: [{ _id: false, jti: String, expiresAt: Date }],
+    default: [],
+    select: false
+  },
   profileImage: {
     type: String,
     default: null
@@ -65,6 +73,24 @@ const userSchema = new mongoose.Schema({
       lng: Number
     }
   },
+  // Saved address book (pickup locations). The legacy single `address` above is
+  // kept for backward compatibility with existing documents and admin views.
+  addresses: [
+    {
+      type: { type: String, enum: ['home', 'office', 'other'], default: 'home' },
+      label: { type: String, trim: true, maxlength: 60 },
+      street: { type: String, trim: true, maxlength: 250 },
+      landmark: { type: String, trim: true, maxlength: 120 },
+      city: { type: String, trim: true, maxlength: 80 },
+      state: { type: String, trim: true, maxlength: 80 },
+      pincode: { type: String, trim: true },
+      coordinates: {
+        lat: { type: Number, min: -90, max: 90 },
+        lng: { type: Number, min: -180, max: 180 }
+      },
+      isDefault: { type: Boolean, default: false }
+    }
+  ],
   resetPasswordToken: { type: String, select: false },
   resetPasswordExpire: { type: Date, select: false },
   verificationToken: { type: String, select: false },
@@ -139,7 +165,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ referredBy: 1 }, { sparse: true });
 
-// Hash password before saving — ONLY when it actually changed.
+// Hash password before saving â€” ONLY when it actually changed.
 // (Previously a missing `return` re-hashed the existing hash on every save,
 // silently corrupting credentials.)
 userSchema.pre('save', async function () {
@@ -200,6 +226,10 @@ const REFERRAL_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // Pre-save hook to generate referral code
 userSchema.pre('save', async function () {
   if (this.referralCode) return;
+  // A document loaded with a projection that omits referralCode only LOOKS
+  // empty. Generating here would overwrite the user's real, already-shared
+  // code (seen when saving an address with select('addresses')).
+  if (!this.isNew && !this.isSelected('referralCode')) return;
   const prefix = this.role === 'scrapper' ? 'SCRAP' : 'USER';
   for (let attempt = 0; attempt < 10; attempt += 1) {
     let randomStr = '';

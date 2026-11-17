@@ -1,5 +1,6 @@
-import User from '../models/User.js';
+﻿import User from '../models/User.js';
 import Scrapper from '../models/Scrapper.js';
+import Notification from '../models/Notification.js';
 import { sendPushNotification } from '../services/firebaseService.js';
 import logger from './logger.js';
 
@@ -10,6 +11,22 @@ import logger from './logger.js';
  * @param {boolean} includeApp - Whether to include app tokens
  */
 export const sendNotificationToUser = async (userId, payload, includeApp = true) => {
+    // Persist first so the in-app Notifications list reflects the event even
+    // when the device has no FCM token registered (or push delivery fails).
+    try {
+        if (payload?.title) {
+            await Notification.create({
+                recipient: userId,
+                title: String(payload.title).slice(0, 140),
+                body: payload.body ? String(payload.body).slice(0, 1000) : '',
+                data: payload.data || {}
+            });
+        }
+    } catch (error) {
+        logger.error(`Error persisting notification for ${userId}:`, error.message);
+        // Non-critical: fall through to push delivery.
+    }
+
     try {
         // Try to find in User model first
         let user = await User.findById(userId);

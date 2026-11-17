@@ -6,7 +6,7 @@
  * in this module, so they keep working across reconnects and sign-ins.
  */
 import { io, Socket } from 'socket.io-client';
-import { getApiUrl, USE_MOCK } from './client';
+import { api, getApiUrl, getToken, USE_MOCK } from './client';
 
 let socket: Socket | null = null;
 let currentKey = '';
@@ -23,7 +23,10 @@ export function connectSocket(token: string) {
   currentKey = key;
   socket = io(getApiUrl(), {
     path: '/socket.io',
-    auth: { token },
+    // Read the token on every (re)connect. A fixed object would replay the
+    // access token from sign-in forever, and after a refresh rotates it the
+    // next reconnect would be refused.
+    auth: (cb) => cb({ token: getToken() ?? token }),
     // Websocket only: React Native's long-polling fallback is slow and flaky.
     transports: ['websocket'],
     reconnection: true,
@@ -32,6 +35,24 @@ export function connectSocket(token: string) {
     timeout: 10000,
   });
   socket.onAny(dispatch);
+  // A handshake refused by the server's auth middleware is NOT retried by
+  // socket.io-client. Renew the session once through the REST client (which
+  // refreshes on 401 and signs out on revocation/blocking), then reconnect.
+  let recovering = false;
+  socket.on('connect_error', (err: Error) => {
+    if (recovering || !/Authentication error/i.test(err?.message || '')) return;
+    if (/revoked|blocked|unavailable/i.test(err.message)) return; // REST layer signs out
+    recovering = true;
+    const s = socket;
+    api('/auth/me')
+      .then(() => {
+        if (s && s === socket && !s.connected) s.connect();
+      })
+      .catch(() => {})
+      .finally(() => {
+        recovering = false;
+      });
+  });
   socket.on('connect', () => statusListeners.forEach((l) => l(true)));
   socket.on('disconnect', () => statusListeners.forEach((l) => l(false)));
 }

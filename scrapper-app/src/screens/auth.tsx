@@ -136,7 +136,9 @@ export function LoginScreen({ navigation }: P<'Login'>) {
     setBusy(true);
     try {
       const r = await requestOtp(digits);
-      navigation.navigate('Otp', { phone: digits, isNewUser: r.isNewUser });
+      // A new number has no code yet: sign up first (register texts the code).
+      if (r.isNewUser) navigation.navigate('Signup', { phone: digits });
+      else navigation.navigate('Otp', { phone: digits, isNewUser: false });
     } catch (e: any) {
       Alert.alert('Could not send the code', e.message);
     } finally {
@@ -348,9 +350,9 @@ export function OtpScreen({ route, navigation }: P<'Otp'>) {
 
 const VEHICLE_ICON = { bike: Bike, auto: Truck, truck: Truck };
 
-export function SignupScreen({ route }: P<'Signup'>) {
-  const { phone, otp } = route.params;
-  const { verifyOtp } = useStore();
+export function SignupScreen({ route, navigation }: P<'Signup'>) {
+  const { phone } = route.params;
+  const { registerUser } = useStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [vehicle, setVehicle] = useState<Partner['vehicleInfo']['type']>('auto');
@@ -364,10 +366,13 @@ export function SignupScreen({ route }: P<'Signup'>) {
   const [cityOpen, setCityOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const emailOk = !email || /^\S+@\S+\.\S+$/.test(email);
+  // The backend requires an email to create an account.
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
+  const emailOk = !email || emailValid;
   const numberOk = VEHICLE_NO.test(number.trim().toUpperCase());
-  const refOk = !ref || /^SCRAP-[A-Z0-9]{4}$/.test(ref);
-  const ready = name.trim().length >= 2 && emailOk && numberOk && !!city && services.length > 0 && refOk && agree;
+  // Backend codes are SCRAP-/USER- plus 8 characters (models/User.js).
+  const refOk = !ref || /^(SCRAP|USER)-[A-Z0-9]{4,12}$/.test(ref);
+  const ready = name.trim().length >= 2 && emailValid && numberOk && !!city && services.length > 0 && refOk && agree;
 
   const toggleService = (sid: Partner['services'][number]) =>
     setServices((s) => (s.includes(sid) ? s.filter((x) => x !== sid) : [...s, sid]));
@@ -377,7 +382,7 @@ export function SignupScreen({ route }: P<'Signup'>) {
     setBusy(true);
     try {
       const v = VEHICLES.find((x) => x.id === vehicle)!;
-      await verifyOtp(phone, otp, {
+      await registerUser(phone, {
         name: name.trim(),
         email: email.trim() || undefined,
         vehicleInfo: { type: vehicle, number: number.trim().toUpperCase(), capacity: v.capacity },
@@ -386,6 +391,9 @@ export function SignupScreen({ route }: P<'Signup'>) {
         heardFrom: heard === 'Other' ? heardOther.trim() || 'Other' : heard ?? undefined,
         referralCode: ref || undefined,
       });
+      // Account created and code texted: verify it next.
+      setBusy(false);
+      navigation.navigate('Otp', { phone, isNewUser: false });
     } catch (e: any) {
       Alert.alert('Could not create your account', e.message);
       setBusy(false);
@@ -398,7 +406,7 @@ export function SignupScreen({ route }: P<'Signup'>) {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
         <View style={{ gap: 12 }}>
           <Field label="Full name (as on Aadhaar)" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
-          <Field label="Email (optional)" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" error={emailOk ? undefined : 'Please check the email address'} />
+          <Field label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" error={emailOk ? undefined : 'Please check the email address'} />
         </View>
 
         <View style={{ gap: 10 }}>

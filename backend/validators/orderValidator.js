@@ -1,5 +1,5 @@
 import { body } from 'express-validator';
-import { SCRAP_CATEGORIES, ORDER_STATUS, ORDER_TYPES } from '../config/constants.js';
+import { SCRAP_CATEGORIES, ORDER_STATUS, ORDER_TYPES, normalizeCategory } from '../config/constants.js';
 
 export const createOrderValidator = [
   body('scrapItems')
@@ -11,6 +11,8 @@ export const createOrderValidator = [
         if (!item.category) {
           throw new Error(`Item ${index + 1}: Category is required`);
         }
+        // Admin price names are free text ("Copper"); match case-insensitively.
+        item.category = normalizeCategory(item.category);
         if (!Object.values(SCRAP_CATEGORIES).includes(item.category)) {
           throw new Error(`Item ${index + 1}: Invalid category`);
         }

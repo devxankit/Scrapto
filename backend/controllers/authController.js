@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
-import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/generateToken.js';
+import { generateToken, generateRefreshToken, verifyRefreshToken, newRefreshId } from '../utils/generateToken.js';
 import User from '../models/User.js';
 import Scrapper from '../models/Scrapper.js';
 import { issueOtp, checkOtp, sendOTP, isTestNumber } from '../utils/otpService.js';
@@ -22,10 +22,34 @@ const LOCK_MINUTES = 15;
  */
 const SELF_ASSIGNABLE_ROLES = new Set([USER_ROLES.USER, USER_ROLES.SCRAPPER]);
 
-const issueSession = (user) => ({
-  token: generateToken(user._id, user.role, user.tokenVersion || 0),
-  refreshToken: generateRefreshToken(user._id, user.tokenVersion || 0)
-});
+const VEHICLE_TYPES = new Set(['bike', 'auto', 'truck']);
+/** The vehicle a partner picks at sign-up, validated; null when unusable. */
+const sanitizeVehicle = (v) => {
+  if (!v || typeof v !== 'object' || !VEHICLE_TYPES.has(v.type)) return null;
+  const number = typeof v.number === 'string' ? v.number.trim().toUpperCase().slice(0, 20) : '';
+  if (!number) return null;
+  const capacity = Number(v.capacity);
+  return { type: v.type, number, capacity: Number.isFinite(capacity) && capacity >= 0 && capacity <= 100000 ? capacity : 0 };
+};
+
+const MAX_REFRESH_SESSIONS = 10;
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Issues an access token and a single-use refresh token, recording the refresh
+ * token's id on the account (most recent ${MAX_REFRESH_SESSIONS} devices kept).
+ */
+const issueSession = async (user) => {
+  const jti = newRefreshId();
+  await User.updateOne(
+    { _id: user._id },
+    { $push: { refreshSessions: { $each: [{ jti, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) }], $slice: -MAX_REFRESH_SESSIONS } } }
+  );
+  return {
+    token: generateToken(user._id, user.role, user.tokenVersion || 0),
+    refreshToken: generateRefreshToken(user._id, user.tokenVersion || 0, jti)
+  };
+};
 
 const sendOtpOrFail = async (res, user, phone, context) => {
   let code;
@@ -119,7 +143,8 @@ export const register = asyncHandler(async (req, res) => {
         services: Array.isArray(req.body.services)
           ? req.body.services.filter((s) => ['scrap_pickup', 'home_cleaning'].includes(s))
           : ['scrap_pickup'],
-        vehicleInfo: { type: 'bike', number: 'NA', capacity: 0 },
+        // Keep the vehicle chosen at sign-up (it used to be discarded).
+        vehicleInfo: sanitizeVehicle(req.body.vehicleInfo) || { type: 'bike', number: 'NA', capacity: 0 },
         kyc: { status: 'not_submitted' } // KYC starts unverified — admin must approve
       });
     } catch (scrapperError) {
@@ -191,7 +216,7 @@ export const login = asyncHandler(async (req, res) => {
     return sendError(res, 'Please use OTP login for this account', 400);
   }
 
-  const { token, refreshToken } = issueSession(user);
+  const { token, refreshToken } = await issueSession(user);
 
   logger.info('[auth] Admin login', { userId: user._id.toString() });
 
@@ -295,7 +320,7 @@ export const verifyOTP = asyncHandler(async (req, res) => {
     await Scrapper.updateOne({ _id: user._id }, { $set: { isPhoneVerified: true } }).catch(() => {});
   }
 
-  const { token, refreshToken } = issueSession(user);
+  const { token, refreshToken } = await issueSession(user);
 
   const userData = user.toObject();
   if (user.role === USER_ROLES.SCRAPPER) {
@@ -390,7 +415,22 @@ export const refreshToken = asyncHandler(async (req, res) => {
     return sendError(res, 'Session is no longer valid. Please log in again.', 401);
   }
 
-  const session = issueSession(user);
+  // Single use: atomically consume this token's id. Losing the race, or
+  // presenting an id that was already consumed, means the token was replayed
+  // (stolen or leaked) - revoke every session for the account.
+  // Tokens issued before ids existed (no jti) are accepted once and migrated.
+  if (decoded.jti) {
+    const consumed = await User.updateOne(
+      { _id: user._id, 'refreshSessions.jti': decoded.jti },
+      { $pull: { refreshSessions: { jti: decoded.jti } } }
+    );
+    if (consumed.modifiedCount !== 1) {
+      await User.updateOne({ _id: user._id }, { $inc: { tokenVersion: 1 }, $set: { refreshSessions: [] } });
+      return res.status(401).json({ success: false, message: 'Session is no longer valid. Please log in again.', code: 'REFRESH_TOKEN_REUSED' });
+    }
+  }
+
+  const session = await issueSession(user);
 
   sendSuccess(res, 'Token refreshed successfully', {
     token: session.token,
@@ -402,6 +442,39 @@ export const refreshToken = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/auth/logout-all
 // @access  Private
 export const logoutAll = asyncHandler(async (req, res) => {
-  await User.updateOne({ _id: req.user.id }, { $inc: { tokenVersion: 1 } });
+  await User.updateOne({ _id: req.user.id }, { $inc: { tokenVersion: 1 }, $set: { refreshSessions: [] } });
   sendSuccess(res, 'Logged out of all sessions');
+});
+
+// @desc    Log out of the current device
+// @route   POST /api/v1/auth/logout
+// @access  Private
+// NOTE: access tokens are stateless and `tokenVersion` is per-account, so
+// bumping it here would sign the account out on every device. This endpoint
+// therefore unregisters the calling device's push token and acknowledges the
+// sign-out; the client discards its stored tokens. Use /auth/logout-all to
+// actually revoke every outstanding token for the account.
+export const logout = asyncHandler(async (req, res) => {
+  const fcmToken = typeof req.body?.fcmToken === 'string' ? req.body.fcmToken : null;
+
+  // Revoke this device's refresh token when the client supplies it.
+  if (typeof req.body?.refreshToken === 'string') {
+    try {
+      const d = verifyRefreshToken(req.body.refreshToken);
+      if (d.jti && String(d.id) === String(req.user.id)) {
+        await User.updateOne({ _id: req.user.id }, { $pull: { refreshSessions: { jti: d.jti } } });
+      }
+    } catch {
+      // An invalid token has nothing to revoke.
+    }
+  }
+
+  if (fcmToken) {
+    await User.updateOne(
+      { _id: req.user.id },
+      { $pull: { fcmTokens: fcmToken, fcmTokenApp: fcmToken } }
+    );
+  }
+
+  sendSuccess(res, 'Logged out successfully');
 });

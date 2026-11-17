@@ -8,23 +8,28 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mockApi } from './mock';
+import { USE_MOCK, DEFAULT_API_URL } from '../config/env';
 
-export const USE_MOCK = true;
-
-/** Live API (Render). For local testing set it from the hidden server dialog. */
-export const DEFAULT_API_URL = 'https://scrapto-1.onrender.com';
+export { USE_MOCK, DEFAULT_API_URL } from '../config/env';
 
 const URL_KEY = 'scraptox.partner.apiUrl.v1';
 const TOKEN_KEY = 'scraptox.partnerToken';
+const REFRESH_KEY = 'scraptox.partnerRefreshToken';
 
 let baseUrl = DEFAULT_API_URL;
 let token: string | null = null;
+let refreshToken: string | null = null;
 let onUnauthorized: () => void = () => {};
 
 export async function loadConnection() {
-  const [u, t] = await Promise.all([AsyncStorage.getItem(URL_KEY), AsyncStorage.getItem(TOKEN_KEY)]);
+  const [u, t, r] = await Promise.all([
+    AsyncStorage.getItem(URL_KEY),
+    AsyncStorage.getItem(TOKEN_KEY),
+    AsyncStorage.getItem(REFRESH_KEY),
+  ]);
   if (u) baseUrl = u;
   token = t;
+  refreshToken = r;
   return { url: baseUrl, token };
 }
 
@@ -35,11 +40,21 @@ export async function setApiUrl(url: string) {
   await AsyncStorage.setItem(URL_KEY, baseUrl);
 }
 
-export async function setToken(t: string | null) {
+export async function setToken(t: string | null, r?: string | null) {
   token = t;
   if (t) await AsyncStorage.setItem(TOKEN_KEY, t);
   else await AsyncStorage.removeItem(TOKEN_KEY);
+
+  // Passing an explicit refresh token stores it; signing out (t === null)
+  // clears it so no stale credential survives logout.
+  if (r !== undefined || t === null) {
+    refreshToken = t === null ? null : r ?? refreshToken;
+    if (refreshToken) await AsyncStorage.setItem(REFRESH_KEY, refreshToken);
+    else await AsyncStorage.removeItem(REFRESH_KEY);
+  }
 }
+
+export const getRefreshToken = () => refreshToken;
 
 export const hasToken = () => !!token;
 export const getToken = () => token;
@@ -60,7 +75,7 @@ export class ApiError extends Error {
 
 export type Opts = { method?: string; body?: unknown; query?: Record<string, string | number | undefined | null>; timeout?: number };
 
-export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
+async function rawApi<T = any>(path: string, opts: Opts = {}): Promise<T> {
   if (USE_MOCK) {
     try {
       return (await mockApi(path, opts)) as T;
@@ -101,15 +116,100 @@ export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
   }
   if (!res.ok || data.success === false) {
     const code = data.code as string | undefined;
-    if (res.status === 401) onUnauthorized();
     const fallback = res.status >= 502 && res.status <= 504
       ? 'The server is busy or updating. Please try again in a minute.'
       : res.status === 413
         ? 'That file is too large. Please choose a smaller photo.'
         : `Something went wrong (${res.status}).`;
-    throw new ApiError(data.message || fallback, res.status, code || (res.status >= 502 && res.status <= 504 ? 'SERVER_BUSY' : undefined));
+    // Controllers send `message`; middleware (middleware/auth.js) sends
+    // `error`. Accept both so the user sees the real reason.
+    throw new ApiError(data.message || data.error || fallback, res.status, code || (res.status >= 502 && res.status <= 504 ? 'SERVER_BUSY' : undefined));
   }
   return data as T;
+}
+
+/* ------------------------------------------------------------------ refresh */
+
+/**
+ * In-flight refresh, shared by every caller.
+ *
+ * Without this, N concurrent 401s would fire N refresh calls; because the
+ * backend ROTATES the refresh token on each use (controllers/authController.js
+ * -> refreshToken), the later calls would present an already-consumed token,
+ * be rejected, and sign a perfectly good session out. Sharing one promise
+ * means exactly one rotation per expiry.
+ */
+let refreshing: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  const current = getRefreshToken();
+  if (!current) return false;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/auth/refresh-token`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: current }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.success === false || !data?.data?.token) return false;
+
+    await setToken(data.data.token, data.data.refreshToken ?? null);
+    return true;
+  } catch {
+    // Offline: keep the session and let the caller surface a network error.
+    return false;
+  }
+}
+
+/** Coalesces concurrent refresh attempts into one network call. */
+function refreshOnce(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = refreshSession().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
+
+/**
+ * Public API wrapper: on a 401 it refreshes the session once and replays the
+ * request. A second 401 (or no refresh token) signs the user out.
+ */
+export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
+  try {
+    return await rawApi<T>(path, opts);
+  } catch (e) {
+    const err = e as ApiError;
+
+    // 403 + an account-state code means the session is finished: no refresh can
+    // rescue it. Ordinary authorization 403s must NOT sign the user out.
+    if (err?.status === 403 && (err.code === 'ACCOUNT_DEACTIVATED' || err.code === 'SCRAPPER_BLOCKED')) {
+      if (!USE_MOCK) onUnauthorized();
+      throw err;
+    }
+
+    if (err?.status !== 401 || USE_MOCK) throw err;
+
+    // Never try to refresh the refresh call itself.
+    if (path.startsWith('/auth/refresh-token')) {
+      onUnauthorized();
+      throw err;
+    }
+
+    const ok = await refreshOnce();
+    if (!ok) {
+      onUnauthorized();
+      throw err;
+    }
+
+    try {
+      return await rawApi<T>(path, opts);
+    } catch (again) {
+      if ((again as ApiError)?.status === 401) onUnauthorized();
+      throw again;
+    }
+  }
 }
 
 /**

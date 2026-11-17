@@ -84,3 +84,7 @@ release/*.aab
 
 # local build logs
 *-build.log
+
+# Debug-only JS bundle + assets generated for on-device testing without Metro
+android/app/src/debug/assets/
+android/app/src/debug/res/

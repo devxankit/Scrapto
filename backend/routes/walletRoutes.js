@@ -1,12 +1,15 @@
 import express from 'express';
-import { protect, isScrapper } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
+import { financialRateLimiter } from '../middleware/rateLimiter.js';
 import {
     getWalletProfile,
     getWalletTransactions,
     createRechargeOrder,
     verifyRecharge,
     payOrderViaWallet,
-    requestWithdrawal
+    requestWithdrawal,
+    applyCoupon,
+    getAvailableCoupons
 } from '../controllers/walletController.js';
 
 const router = express.Router();
@@ -15,20 +18,17 @@ router.get('/profile', protect, getWalletProfile);
 router.get('/transactions', protect, getWalletTransactions);
 
 // Recharge
-router.post('/recharge/create', protect, createRechargeOrder);
-router.post('/recharge/verify', protect, verifyRecharge);
+router.post('/recharge/create', protect, financialRateLimiter, createRechargeOrder);
+router.post('/recharge/verify', protect, financialRateLimiter, verifyRecharge);
 
 // Payments
-router.post('/pay-order', protect, payOrderViaWallet);
+router.post('/pay-order', protect, financialRateLimiter, payOrderViaWallet);
 
 // Withdrawals
-// Withdrawals
-router.post('/withdraw', protect, requestWithdrawal);
+router.post('/withdraw', protect, financialRateLimiter, requestWithdrawal);
 
 // Coupons
-// Coupons
-import { applyCoupon, getAvailableCoupons } from '../controllers/walletController.js';
-router.post('/apply-coupon', protect, applyCoupon);
+router.post('/apply-coupon', protect, financialRateLimiter, applyCoupon);
 router.get('/coupons', protect, getAvailableCoupons);
 
 export default router;

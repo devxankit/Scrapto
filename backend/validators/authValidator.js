@@ -24,15 +24,36 @@ export const registerValidator = [
     .withMessage('Please provide a valid phone number'),
   
   body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-    .isLength({ min: 6 })
+    .optional()
+    .isString()
+    .withMessage('Password must be a string')
+    .isLength({ min: 6, max: 128 })
     .withMessage('Password must be at least 6 characters long'),
-  
+
   body('role')
     .optional()
+    .isString()
     .isIn(['user', 'scrapper'])
-    .withMessage('Role must be either user or scrapper')
+    .withMessage('Role must be either user or scrapper'),
+
+  body('referralCode')
+    .optional({ values: 'falsy' })
+    .isString()
+    .trim()
+    .isLength({ max: 20 })
+    .withMessage('Invalid referral code'),
+
+  body('city')
+    .optional({ values: 'falsy' })
+    .isString()
+    .trim()
+    .isLength({ max: 80 })
+    .withMessage('Invalid city'),
+
+  body('services')
+    .optional()
+    .isArray({ max: 2 })
+    .withMessage('Invalid services')
 ];
 
 export const loginValidator = [
@@ -80,6 +101,8 @@ export const verifyOTPValidator = [
     .withMessage('Please provide a valid phone number'),
   
   body('otp')
+    .isString()
+    .withMessage('OTP must be a string')
     .trim()
     .notEmpty()
     .withMessage('OTP is required')
@@ -87,7 +110,13 @@ export const verifyOTPValidator = [
     .withMessage('OTP must be 6 digits')
     .isNumeric()
     .withMessage('OTP must be numeric'),
-  
+
+  body('role')
+    .optional()
+    .isString()
+    .isIn(['user', 'scrapper'])
+    .withMessage('Invalid role'),
+
   body('purpose')
     .optional()
     .isIn(['login', 'verification'])
@@ -109,7 +138,13 @@ export const sendLoginOTPValidator = [
     .notEmpty()
     .withMessage('Phone number is required')
     .isMobilePhone('en-IN')
-    .withMessage('Please provide a valid phone number')
+    .withMessage('Please provide a valid phone number'),
+
+  body('role')
+    .optional()
+    .isString()
+    .isIn(['user', 'scrapper'])
+    .withMessage('Invalid role')
 ];
 
 export const refreshTokenValidator = [

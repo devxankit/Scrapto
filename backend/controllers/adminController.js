@@ -7,14 +7,38 @@ import Payment from '../models/Payment.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import Price from '../models/Price.js';
 import WalletTransaction from '../models/WalletTransaction.js';
-import { USER_ROLES, ORDER_STATUS, PAYMENT_STATUS, PAGINATION } from '../config/constants.js';
-import logger from '../utils/logger.js';
-import mongoose from 'mongoose';
-import { createContact, createFundAccount, initiatePayout } from '../services/payoutService.js';
 import WithdrawalRequest from '../models/WithdrawalRequest.js';
 import SystemSetting from '../models/SystemSetting.js';
-import { getIO } from '../services/socketService.js';
+import { USER_ROLES, ORDER_STATUS, PAYMENT_STATUS } from '../config/constants.js';
+import logger from '../utils/logger.js';
+import { createContact, createFundAccount, initiatePayout } from '../services/payoutService.js';
 import { sendPushNotification } from '../services/firebaseService.js';
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
+import { disconnectUser } from '../services/socketService.js';
+import { creditWallet, withTransaction } from '../services/walletService.js';
+import { recordAudit, listAudits } from '../services/auditService.js';
+import {
+  AppError,
+  parsePagination,
+  parseDateParam,
+  safeSearchRegex,
+  assertObjectId,
+  asString,
+  parseMoney,
+  pickEnum,
+  roundMoney
+} from '../utils/security.js';
+
+const audit = (req, action, targetType, targetId, metadata = {}) =>
+  recordAudit({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    action,
+    targetType,
+    targetId,
+    metadata,
+    ip: req.ip
+  });
 
 // ============================================
 // DASHBOARD & ANALYTICS
@@ -25,86 +49,67 @@ import { sendPushNotification } from '../services/firebaseService.js';
 // @access  Private (Admin)
 export const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    // Automatically update expired subscriptions on dashboard load
-    try {
-      const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
-      await checkExpiredSubscriptions();
-    } catch (err) {
-      logger.error('[Admin] Error running checkExpiredSubscriptions in getDashboardStats:', err);
-    }
+    const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
+    await checkExpiredSubscriptions().catch((err) =>
+      logger.error('[Admin] checkExpiredSubscriptions failed:', { error: err.message })
+    );
+
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     const [
       totalUsers,
+      activeUsers,
       totalScrappers,
+      activeScrappers,
+      verifiedScrappers,
+      pendingKyc,
       totalOrders,
+      pendingOrders,
+      inProgressOrders,
+      completedOrders,
+      todayOrders,
       totalPayments,
       activeSubscriptions,
-      pendingKyc,
-      todayOrders,
       todayRevenue,
       monthlyRevenue
     ] = await Promise.all([
       User.countDocuments({ role: USER_ROLES.USER }),
+      User.countDocuments({ role: USER_ROLES.USER, isActive: true }),
       Scrapper.countDocuments(),
+      Scrapper.countDocuments({ status: 'active' }),
+      Scrapper.countDocuments({ 'kyc.status': 'verified' }),
+      Scrapper.countDocuments({ 'kyc.status': 'pending' }),
       Order.countDocuments(),
+      Order.countDocuments({ status: ORDER_STATUS.PENDING }),
+      Order.countDocuments({ status: ORDER_STATUS.IN_PROGRESS }),
+      Order.countDocuments({ status: ORDER_STATUS.COMPLETED }),
+      Order.countDocuments({ createdAt: { $gte: todayStart } }),
       Payment.countDocuments({ status: PAYMENT_STATUS.COMPLETED }),
       Scrapper.countDocuments({ 'subscription.status': 'active' }),
-      Scrapper.countDocuments({ 'kyc.status': 'pending' }),
-      Order.countDocuments({
-        createdAt: {
-          $gte: new Date(new Date().setHours(0, 0, 0, 0))
-        }
-      }),
       Payment.aggregate([
-        {
-          $match: {
-            status: PAYMENT_STATUS.COMPLETED,
-            paidAt: {
-              $gte: new Date(new Date().setHours(0, 0, 0, 0))
-            }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$amount' }
-          }
-        }
+        { $match: { status: PAYMENT_STATUS.COMPLETED, paidAt: { $gte: todayStart } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
       Payment.aggregate([
-        {
-          $match: {
-            status: PAYMENT_STATUS.COMPLETED,
-            paidAt: {
-              $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-            }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$amount' }
-          }
-        }
+        { $match: { status: PAYMENT_STATUS.COMPLETED, paidAt: { $gte: monthStart } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
       ])
     ]);
 
     const stats = {
-      users: {
-        total: totalUsers,
-        active: await User.countDocuments({ role: USER_ROLES.USER, isActive: true })
-      },
+      users: { total: totalUsers, active: activeUsers },
       scrappers: {
         total: totalScrappers,
-        active: await Scrapper.countDocuments({ status: 'active' }),
-        verified: await Scrapper.countDocuments({ 'kyc.status': 'verified' }),
+        active: activeScrappers,
+        verified: verifiedScrappers,
         pendingKyc
       },
       orders: {
         total: totalOrders,
-        pending: await Order.countDocuments({ status: ORDER_STATUS.PENDING }),
-        inProgress: await Order.countDocuments({ status: ORDER_STATUS.IN_PROGRESS }),
-        completed: await Order.countDocuments({ status: ORDER_STATUS.COMPLETED }),
+        pending: pendingOrders,
+        inProgress: inProgressOrders,
+        completed: completedOrders,
         today: todayOrders
       },
       payments: {
@@ -112,14 +117,12 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         todayRevenue: todayRevenue[0]?.total || 0,
         monthlyRevenue: monthlyRevenue[0]?.total || 0
       },
-      subscriptions: {
-        active: activeSubscriptions
-      }
+      subscriptions: { active: activeSubscriptions }
     };
 
     sendSuccess(res, 'Dashboard statistics retrieved successfully', { stats });
   } catch (error) {
-    logger.error('[Admin] Error fetching dashboard stats:', error);
+    logger.error('[Admin] Error fetching dashboard stats:', { error: error.message });
     sendError(res, 'Failed to fetch dashboard statistics', 500);
   }
 });
@@ -131,212 +134,208 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 // @desc    Get all users with pagination and filters
 // @route   GET /api/admin/users
 // @access  Private (Admin)
-// @desc    Get all users with pagination and filters
-// @route   GET /api/admin/users
-// @access  Private (Admin)
 export const getAllUsers = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query);
 
-    // Build filter
-    const filter = { role: USER_ROLES.USER };
-    if (req.query.isActive !== undefined) {
-      filter.isActive = req.query.isActive === 'true';
-    }
-    if (req.query.search) {
-      filter.$or = [
-        { name: { $regex: req.query.search, $options: 'i' } },
-        { email: { $regex: req.query.search, $options: 'i' } },
-        { phone: { $regex: req.query.search, $options: 'i' } }
-      ];
-    }
+  const filter = { role: USER_ROLES.USER };
+  if (req.query.isActive !== undefined) {
+    filter.isActive = req.query.isActive === 'true';
+  }
+  const search = safeSearchRegex(req.query.search);
+  if (search) {
+    filter.$or = [{ name: search }, { email: search }, { phone: search }];
+  }
 
-    // Get total count
-    const total = await User.countDocuments(filter);
-
-    // Aggregate users with dynamic data
-    const users = await User.aggregate([
+  const [total, users] = await Promise.all([
+    User.countDocuments(filter),
+    User.aggregate([
       { $match: filter },
-      // Lookup orders to calculate stats
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      // Count orders without pulling entire order documents into memory.
       {
         $lookup: {
           from: 'orders',
-          localField: '_id',
-          foreignField: 'user',
-          as: 'userOrders'
+          let: { userId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$user', '$$userId'] } } },
+            { $count: 'count' }
+          ],
+          as: 'orderStats'
         }
       },
       {
         $addFields: {
-          totalOrders: { $size: '$userOrders' },
-          // Calculate total spent (walletBalance) from completed orders
-          walletBalance: {
-            $reduce: {
-              input: {
-                $filter: {
-                  input: '$userOrders',
-                  as: 'order',
-                  cond: { $eq: ['$$order.status', 'completed'] }
-                }
-              },
-              initialValue: 0,
-              in: { $add: ['$$value', { $ifNull: ['$$this.totalAmount', 0] }] }
-            }
-          }
+          totalOrders: { $ifNull: [{ $arrayElemAt: ['$orderStats.count', 0] }, 0] },
+          // walletBalance is the ACTUAL wallet balance (was: sum of order totals).
+          walletBalance: { $ifNull: ['$wallet.balance', 0] }
         }
       },
-      // Remove sensitive fields and heavy arrays
       {
         $project: {
           password: 0,
           phoneVerificationOTP: 0,
+          otpExpiresAt: 0,
+          otpAttempts: 0,
+          otpLastSentAt: 0,
+          otpSendWindowStart: 0,
+          otpSendCount: 0,
+          failedLoginAttempts: 0,
+          lockUntil: 0,
           resetPasswordToken: 0,
           verificationToken: 0,
-          userOrders: 0
+          tokenVersion: 0,
+          fcmTokens: 0,
+          fcmTokenApp: 0,
+          orderStats: 0
         }
-      },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ]);
-
-    sendSuccess(res, 'Users retrieved successfully', {
-      users,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
       }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching users:', error);
-    sendError(res, 'Failed to fetch users', 500);
-  }
+    ])
+  ]);
+
+  sendSuccess(res, 'Users retrieved successfully', {
+    users,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 // @desc    Get user by ID
 // @route   GET /api/admin/users/:id
 // @access  Private (Admin)
 export const getUserById = asyncHandler(async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id)
-      .select('-password -phoneVerificationOTP -resetPasswordToken -verificationToken');
-
-    if (!user) {
-      return sendError(res, 'User not found', 404);
-    }
-
-    // Get user's orders count
-    const ordersCount = await Order.countDocuments({ user: user._id });
-
-    sendSuccess(res, 'User retrieved successfully', {
-      user: {
-        ...user.toObject(),
-        ordersCount
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching user:', error);
-    sendError(res, 'Failed to fetch user', 500);
+  const id = assertObjectId(req.params.id, 'user id');
+  const user = await User.findById(id);
+  if (!user) {
+    return sendError(res, 'User not found', 404);
   }
+
+  const ordersCount = await Order.countDocuments({ user: user._id });
+
+  sendSuccess(res, 'User retrieved successfully', {
+    user: { ...user.toObject(), ordersCount }
+  });
 });
 
-// @desc    Update user
+// @desc    Update user (never role / wallet / password through this route)
 // @route   PUT /api/admin/users/:id
 // @access  Private (Admin)
 export const updateUser = asyncHandler(async (req, res) => {
+  const userId = assertObjectId(req.params.id, 'user id');
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return sendError(res, 'User not found', 404);
+  }
+  if (user.role === USER_ROLES.ADMIN && user._id.toString() !== req.user.id) {
+    return sendError(res, 'Admin accounts cannot be modified through this endpoint', 403);
+  }
+
+  const name = asString(req.body.name, 50);
+  const email = asString(req.body.email, 254);
+  const phone = asString(req.body.phone, 15);
+  if (name) user.name = name;
+  if (email) user.email = email.toLowerCase();
+  if (phone) user.phone = phone;
+  if (req.body.isActive !== undefined) {
+    user.isActive = req.body.isActive === true || req.body.isActive === 'true';
+    if (!user.isActive) user.tokenVersion = (user.tokenVersion || 0) + 1;
+  }
+  if (req.body.address && typeof req.body.address === 'object' && !Array.isArray(req.body.address)) {
+    user.address = { ...user.toObject().address, ...req.body.address };
+  }
+
   try {
-    const { name, email, phone, isActive, address } = req.body;
-    const userId = req.params.id;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return sendError(res, 'User not found', 404);
-    }
-
-    // Update fields
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (phone) user.phone = phone;
-    if (isActive !== undefined) user.isActive = isActive;
-    if (address) user.address = { ...user.address, ...address };
-
     await user.save();
-
-    sendSuccess(res, 'User updated successfully', {
-      user: user.toObject()
-    });
   } catch (error) {
-    logger.error('[Admin] Error updating user:', error);
     if (error.code === 11000) {
       return sendError(res, 'Email or phone already exists', 400);
     }
-    sendError(res, 'Failed to update user', 500);
+    throw error;
   }
+
+  await audit(req, 'USER_UPDATED', 'User', userId, { fields: Object.keys(req.body) });
+
+  sendSuccess(res, 'User updated successfully', { user: user.toObject() });
 });
 
-// @desc    Block/Unblock user
+// @desc    Block/Unblock user (revokes all existing sessions on block)
 // @route   PATCH /api/admin/users/:id/block
 // @access  Private (Admin)
 export const blockUser = asyncHandler(async (req, res) => {
-  try {
-    const { isActive } = req.body;
-    const userId = req.params.id;
+  const userId = assertObjectId(req.params.id, 'user id');
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return sendError(res, 'User not found', 404);
-    }
-
-    user.isActive = isActive !== undefined ? isActive : !user.isActive;
-    await user.save();
-
-    sendSuccess(res, `User ${user.isActive ? 'unblocked' : 'blocked'} successfully`, {
-      user: user.toObject()
-    });
-  } catch (error) {
-    logger.error('[Admin] Error blocking user:', error);
-    sendError(res, 'Failed to block/unblock user', 500);
+  const user = await User.findById(userId);
+  if (!user) {
+    return sendError(res, 'User not found', 404);
   }
+  if (user.role === USER_ROLES.ADMIN) {
+    return sendError(res, 'Admin accounts cannot be blocked through this endpoint', 403);
+  }
+
+  const { isActive } = req.body;
+  user.isActive = isActive !== undefined ? isActive === true || isActive === 'true' : !user.isActive;
+  // Revoke all outstanding tokens either way; on unblock the user logs in afresh.
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  await user.save();
+
+  // Keep scrapper profile in sync.
+  if (user.role === USER_ROLES.SCRAPPER) {
+    await Scrapper.updateOne(
+      { _id: user._id },
+      { $set: { status: user.isActive ? 'active' : 'blocked', isOnline: false } }
+    );
+  }
+
+  if (!user.isActive) await disconnectUser(userId);
+  await audit(req, user.isActive ? 'USER_UNBLOCKED' : 'USER_BLOCKED', 'User', userId);
+
+  sendSuccess(res, `User ${user.isActive ? 'unblocked' : 'blocked'} successfully`, {
+    user: user.toObject()
+  });
 });
 
 // @desc    Delete user
 // @route   DELETE /api/admin/users/:id
 // @access  Private (Admin)
 export const deleteUser = asyncHandler(async (req, res) => {
-  try {
-    const userId = req.params.id;
+  const userId = assertObjectId(req.params.id, 'user id');
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return sendError(res, 'User not found', 404);
-    }
-
-    // Check if user has orders (either as user or scrapper)
-    const ordersCount = await Order.countDocuments({ 
-      $or: [{ user: userId }, { scrapper: userId }] 
-    });
-    
-    if (ordersCount > 0) {
-      return sendError(res, 'Cannot delete user with existing orders. Please cancel or complete them first.', 400);
-    }
-
-    // If user is a scrapper, delete scrapper profile too
-    if (user.role === USER_ROLES.SCRAPPER || user.role === 'scrapper') {
-      await Scrapper.findByIdAndDelete(userId);
-    }
-
-    await User.findByIdAndDelete(userId);
-
-    logger.info(`[Admin] User ${userId} (${user.name}) deleted by admin`);
-    sendSuccess(res, 'User deleted successfully', {});
-  } catch (error) {
-    logger.error('[Admin] Error deleting user:', error);
-    sendError(res, 'Failed to delete user', 500);
+  const user = await User.findById(userId);
+  if (!user) {
+    return sendError(res, 'User not found', 404);
   }
+  // Admin accounts can never be deleted through user management.
+  if (user.role === USER_ROLES.ADMIN) {
+    return sendError(res, 'Admin accounts cannot be deleted', 403);
+  }
+
+  const ordersCount = await Order.countDocuments({
+    $or: [{ user: userId }, { scrapper: userId }],
+    status: { $in: [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS] }
+  });
+  if (ordersCount > 0) {
+    return sendError(res, 'Cannot delete user with open orders. Please cancel or complete them first.', 400);
+  }
+
+  const balance = roundMoney(user.wallet?.balance || 0);
+  if (balance > 0) {
+    return sendError(res, `Cannot delete user with wallet balance ₹${balance}. Settle the balance first.`, 400);
+  }
+  const pendingWithdrawals = await WithdrawalRequest.countDocuments({ user: userId, status: { $in: ['PENDING', 'APPROVED'] } });
+  if (pendingWithdrawals > 0) {
+    return sendError(res, 'Cannot delete user with pending withdrawals.', 400);
+  }
+
+  if (user.role === USER_ROLES.SCRAPPER) {
+    await Scrapper.findByIdAndDelete(userId);
+  }
+  await User.findByIdAndDelete(userId);
+  // Ledger and order history are intentionally preserved for audit.
+
+  await audit(req, 'USER_DELETED', 'User', userId, { role: user.role });
+  logger.info(`[Admin] User ${userId} deleted by admin ${req.user.id}`);
+  sendSuccess(res, 'User deleted successfully', {});
 });
 
 // ============================================
@@ -346,270 +345,225 @@ export const deleteUser = asyncHandler(async (req, res) => {
 // @desc    Get all scrappers with pagination and filters
 // @route   GET /api/admin/scrappers
 // @access  Private (Admin)
-// @desc    Get all scrappers with pagination and filters
-// @route   GET /api/admin/scrappers
-// @access  Private (Admin)
-// @desc    Get all scrappers with pagination and filters
-// @route   GET /api/admin/scrappers
-// @access  Private (Admin)
-// @desc    Get all scrappers with pagination and filters
-// @route   GET /api/admin/scrappers
-// @access  Private (Admin)
 export const getAllScrappers = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query);
 
-    // Build filter
-    const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-    if (req.query.kycStatus) {
-      filter['kyc.status'] = req.query.kycStatus;
-    }
-    if (req.query.subscriptionStatus) {
-      filter['subscription.status'] = req.query.subscriptionStatus;
-    }
-    if (req.query.search) {
-      filter.$or = [
-        { name: { $regex: req.query.search, $options: 'i' } },
-        { email: { $regex: req.query.search, $options: 'i' } },
-        { phone: { $regex: req.query.search, $options: 'i' } }
-      ];
-    }
+  const filter = {};
+  const status = pickEnum(req.query.status, ['active', 'blocked', 'suspended']);
+  if (status) filter.status = status;
+  const kycStatus = pickEnum(req.query.kycStatus, ['not_submitted', 'pending', 'verified', 'rejected']);
+  if (kycStatus) filter['kyc.status'] = kycStatus;
+  const subscriptionStatus = pickEnum(req.query.subscriptionStatus, ['active', 'expired', 'cancelled', 'none']);
+  if (subscriptionStatus) filter['subscription.status'] = subscriptionStatus;
+  const search = safeSearchRegex(req.query.search);
+  if (search) {
+    filter.$or = [{ name: search }, { email: search }, { phone: search }];
+  }
 
-    // Get total count
-    const total = await Scrapper.countDocuments(filter);
-
-    // Aggregate data
-    const scrappers = await Scrapper.aggregate([
+  const [total, scrappers] = await Promise.all([
+    Scrapper.countDocuments(filter),
+    Scrapper.aggregate([
       { $match: filter },
-      // Lookup Orders
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
       {
         $lookup: {
           from: 'orders',
-          localField: '_id',
-          foreignField: 'scrapper',
-          as: 'scrapperOrders'
-        }
-      },
-      // Lookup Reviews
-      {
-        $lookup: {
-          from: 'reviews',
-          localField: '_id',
-          foreignField: 'scrapper',
-          as: 'scrapperReviews'
+          let: { sid: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$scrapper', '$$sid'] }, { $eq: ['$status', 'completed'] }] } } },
+            { $group: { _id: null, count: { $sum: 1 }, total: { $sum: { $ifNull: ['$totalAmount', 0] } } } }
+          ],
+          as: 'orderStats'
         }
       },
       {
         $addFields: {
-          // Filter completed orders
-          completedOrders: {
-            $filter: {
-              input: '$scrapperOrders',
-              as: 'order',
-              cond: { $eq: ['$$order.status', 'completed'] }
-            }
-          },
-          // Calculate Rating
-          rating: {
-            $ifNull: [{ $avg: '$scrapperReviews.rating' }, 0]
-          }
+          totalPickups: { $ifNull: [{ $arrayElemAt: ['$orderStats.count', 0] }, 0] },
+          'earnings.total': { $ifNull: [{ $arrayElemAt: ['$orderStats.total', 0] }, 0] },
+          rating: { $ifNull: ['$rating.average', 0] }
         }
       },
-      {
-        $addFields: {
-          totalPickups: { $size: '$completedOrders' },
-          // Flatten earnings total
-          'earnings.total': {
-            $reduce: {
-              input: '$completedOrders',
-              initialValue: 0,
-              in: { $add: ['$$value', { $ifNull: ['$$this.totalAmount', 0] }] }
-            }
-          }
-        }
-      },
-      // Clean up output
       {
         $project: {
-          scrapperOrders: 0,
-          scrapperReviews: 0,
-          completedOrders: 0,
+          orderStats: 0,
           'kyc.aadhaarNumber': 0,
-          'kyc.licenseNumber': 0
+          'kyc.documents': 0,
+          'kyc.aadhaarPhotoUrl': 0,
+          'kyc.selfieUrl': 0,
+          'kyc.licenseUrl': 0,
+          fcmTokens: 0,
+          fcmTokenApp: 0,
+          phoneVerificationOTP: 0
         }
-      },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ]);
-
-    sendSuccess(res, 'Scrappers retrieved successfully', {
-      scrappers,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
       }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching scrappers:', error);
-    sendError(res, 'Failed to fetch scrappers', 500);
-  }
+    ])
+  ]);
+
+  sendSuccess(res, 'Scrappers retrieved successfully', {
+    scrappers,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
-// @desc    Get scrapper by ID
-// @route   GET /api/admin/scrappers/:id
-// @access  Private (Admin)
-// @desc    Get scrapper by ID
+// @desc    Get scrapper by ID (admin sees masked Aadhaar, not the full number)
 // @route   GET /api/admin/scrappers/:id
 // @access  Private (Admin)
 export const getScrapperById = asyncHandler(async (req, res) => {
-  try {
-    // Admin needs to see full details including hidden fields like aadhaarNumber
-    const scrapper = await Scrapper.findById(req.params.id)
-      .select('+kyc.aadhaarNumber')
-      .populate('subscription.planId', 'name price')
-      .populate('marketSubscription.planId', 'name price')
-      .lean();
+  const id = assertObjectId(req.params.id, 'scrapper id');
+  const scrapper = await Scrapper.findById(id)
+    .populate('subscription.planId', 'name price')
+    .lean();
 
-    if (!scrapper) {
-      return sendError(res, 'Scrapper not found', 404);
-    }
-
-    // Get scrapper's orders count
-    const ordersCount = await Order.countDocuments({ scrapper: scrapper._id });
-
-    sendSuccess(res, 'Scrapper retrieved successfully', {
-      scrapper: {
-        ...scrapper,
-        ordersCount
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching scrapper:', error);
-    sendError(res, 'Failed to fetch scrapper', 500);
+  if (!scrapper) {
+    return sendError(res, 'Scrapper not found', 404);
   }
+
+  const ordersCount = await Order.countDocuments({ scrapper: scrapper._id });
+
+  // Expose the masked Aadhaar only; full numbers require the dedicated KYC
+  // document endpoint which is separately audited.
+  if (scrapper.kyc) {
+    delete scrapper.kyc.aadhaarNumber;
+    delete scrapper.kyc.documents;
+    scrapper.kyc.aadhaarMasked = scrapper.kyc.aadhaarLast4 ? `XXXX-XXXX-${scrapper.kyc.aadhaarLast4}` : null;
+  }
+  delete scrapper.fcmTokens;
+  delete scrapper.fcmTokenApp;
+
+  sendSuccess(res, 'Scrapper retrieved successfully', {
+    scrapper: { ...scrapper, ordersCount }
+  });
 });
 
 // @desc    Update scrapper
 // @route   PUT /api/admin/scrappers/:id
 // @access  Private (Admin)
 export const updateScrapper = asyncHandler(async (req, res) => {
+  const scrapperId = assertObjectId(req.params.id, 'scrapper id');
+
+  const scrapper = await Scrapper.findById(scrapperId);
+  if (!scrapper) {
+    return sendError(res, 'Scrapper not found', 404);
+  }
+
+  const name = asString(req.body.name, 50);
+  const email = asString(req.body.email, 254);
+  const phone = asString(req.body.phone, 15);
+  const city = asString(req.body.city, 80);
+  const status = pickEnum(req.body.status, ['active', 'blocked', 'suspended']);
+
+  if (name) scrapper.name = name;
+  if (email) scrapper.email = email.toLowerCase();
+  if (phone) scrapper.phone = phone;
+  if (city) scrapper.city = city;
+  if (status) scrapper.status = status;
+  if (req.body.vehicleInfo && typeof req.body.vehicleInfo === 'object') {
+    scrapper.vehicleInfo = { ...scrapper.toObject().vehicleInfo, ...req.body.vehicleInfo };
+  }
+
   try {
-    const { name, email, phone, status, vehicleInfo, address } = req.body;
-    const scrapperId = req.params.id;
-
-    const scrapper = await Scrapper.findById(scrapperId);
-    if (!scrapper) {
-      return sendError(res, 'Scrapper not found', 404);
-    }
-
-    // Update fields
-    if (name) scrapper.name = name;
-    if (email) scrapper.email = email;
-    if (phone) scrapper.phone = phone;
-    if (status) scrapper.status = status;
-    if (vehicleInfo) scrapper.vehicleInfo = { ...scrapper.vehicleInfo, ...vehicleInfo };
-    if (address) scrapper.address = { ...scrapper.address, ...address };
-
     await scrapper.save();
-
-    sendSuccess(res, 'Scrapper updated successfully', {
-      scrapper: scrapper.toObject()
-    });
   } catch (error) {
-    logger.error('[Admin] Error updating scrapper:', error);
     if (error.code === 11000) {
       return sendError(res, 'Email or phone already exists', 400);
     }
-    sendError(res, 'Failed to update scrapper', 500);
+    throw error;
   }
+
+  // Keep the auth record in sync when identity fields or status change.
+  const userSync = {};
+  if (name) userSync.name = name;
+  if (email) userSync.email = email.toLowerCase();
+  if (phone) userSync.phone = phone;
+  if (status) userSync.isActive = status === 'active';
+  if (Object.keys(userSync).length > 0) {
+    const update = { $set: userSync };
+    if (status && status !== 'active') update.$inc = { tokenVersion: 1 };
+    await User.updateOne({ _id: scrapperId }, update);
+  }
+
+  await audit(req, 'SCRAPPER_UPDATED', 'Scrapper', scrapperId, { fields: Object.keys(req.body) });
+
+  sendSuccess(res, 'Scrapper updated successfully', { scrapper: scrapper.toObject() });
 });
 
-// @desc    Block/Unblock/Suspend scrapper
-// @route   PATCH /api/admin/scrappers/:id/status
-// @access  Private (Admin)
-// @desc    Block/Unblock/Suspend scrapper
-// @route   PATCH /api/admin/scrappers/:id/status
-// @access  Private (Admin)
-// @desc    Block/Unblock/Suspend scrapper
+// @desc    Block/Unblock/Suspend scrapper (syncs auth account + revokes tokens)
 // @route   PATCH /api/admin/scrappers/:id/status
 // @access  Private (Admin)
 export const updateScrapperStatus = asyncHandler(async (req, res) => {
-  try {
-    const { status } = req.body;
-    const scrapperId = req.params.id;
+  const scrapperId = assertObjectId(req.params.id, 'scrapper id');
+  const status = pickEnum(req.body.status, ['active', 'blocked', 'suspended']);
+  const reason = asString(req.body.reason, 200);
 
-    if (!status) {
-      return sendError(res, 'Status is required', 400);
-    }
-
-    if (!['active', 'blocked', 'suspended'].includes(status)) {
-      return sendError(res, 'Invalid status. Must be: active, blocked, or suspended', 400);
-    }
-
-    const scrapper = await Scrapper.findByIdAndUpdate(
-      scrapperId,
-      { status },
-      { new: true, runValidators: true }
-    );
-
-    if (!scrapper) {
-      return sendError(res, 'Scrapper not found', 404);
-    }
-
-    sendSuccess(res, `Scrapper status updated to ${status}`, {
-      scrapper: scrapper.toObject()
-    });
-  } catch (error) {
-    logger.error('[Admin] Error updating scrapper status:', error);
-    if (error.name === 'CastError') {
-      return sendError(res, 'Invalid Scrapper ID', 400);
-    }
-    if (error.name === 'ValidationError') {
-      return sendError(res, error.message, 400);
-    }
-    // Return actual error message for debugging
-    sendError(res, `Failed to update scrapper status: ${error.message}`, 500);
+  if (!status) {
+    return sendError(res, 'Invalid status. Must be: active, blocked, or suspended', 400);
   }
+
+  const scrapper = await Scrapper.findByIdAndUpdate(
+    scrapperId,
+    { $set: { status, statusReason: reason || null, ...(status !== 'active' ? { isOnline: false } : {}) } },
+    { new: true, runValidators: true }
+  );
+  if (!scrapper) {
+    return sendError(res, 'Scrapper not found', 404);
+  }
+
+  // CRITICAL SYNC: User.isActive mirrors scrapper status, and tokenVersion is
+  // bumped so existing sessions die immediately when blocked/suspended.
+  await User.updateOne(
+    { _id: scrapperId },
+    {
+      $set: { isActive: status === 'active' },
+      $inc: { tokenVersion: 1 }
+    }
+  );
+
+  if (status !== 'active') await disconnectUser(scrapperId);
+  await audit(req, `SCRAPPER_STATUS_${status.toUpperCase()}`, 'Scrapper', scrapperId, { reason });
+
+  sendSuccess(res, `Scrapper status updated to ${status}`, { scrapper: scrapper.toObject() });
 });
 
 // @desc    Delete scrapper
 // @route   DELETE /api/admin/scrappers/:id
 // @access  Private (Admin)
 export const deleteScrapper = asyncHandler(async (req, res) => {
-  try {
-    const scrapperId = req.params.id;
+  const scrapperId = assertObjectId(req.params.id, 'scrapper id');
 
-    const scrapper = await Scrapper.findById(scrapperId);
-    if (!scrapper) {
-      return sendError(res, 'Scrapper not found', 404);
-    }
-
-    // Check if scrapper has orders
-    const ordersCount = await Order.countDocuments({ scrapper: scrapperId });
-    if (ordersCount > 0) {
-      return sendError(res, 'Cannot delete scrapper with existing orders. Please reassign or complete them first.', 400);
-    }
-
-    // Delete scrapper profile
-    await Scrapper.findByIdAndDelete(scrapperId);
-    
-    // Also delete associated user record for authentication
-    await User.findByIdAndDelete(scrapperId);
-
-    logger.info(`[Admin] Scrapper ${scrapperId} (${scrapper.name}) deleted by admin`);
-    sendSuccess(res, 'Scrapper and associated user account deleted successfully', {});
-  } catch (error) {
-    logger.error('[Admin] Error deleting scrapper:', error);
-    sendError(res, 'Failed to delete scrapper', 500);
+  const scrapper = await Scrapper.findById(scrapperId);
+  if (!scrapper) {
+    return sendError(res, 'Scrapper not found', 404);
   }
+
+  const openOrders = await Order.countDocuments({
+    scrapper: scrapperId,
+    status: { $in: [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS] }
+  });
+  if (openOrders > 0) {
+    return sendError(res, 'Cannot delete scrapper with open orders. Please reassign or complete them first.', 400);
+  }
+  const balance = roundMoney(scrapper.wallet?.balance || 0);
+  if (balance > 0) {
+    return sendError(res, `Cannot delete scrapper with wallet balance ₹${balance}. Settle the balance first.`, 400);
+  }
+  const pendingWithdrawals = await WithdrawalRequest.countDocuments({ user: scrapperId, status: { $in: ['PENDING', 'APPROVED'] } });
+  if (pendingWithdrawals > 0) {
+    return sendError(res, 'Cannot delete scrapper with pending withdrawals.', 400);
+  }
+
+  const linkedUser = await User.findById(scrapperId).select('role');
+  if (linkedUser && linkedUser.role === USER_ROLES.ADMIN) {
+    return sendError(res, 'Cannot delete an admin account', 403);
+  }
+
+  await Scrapper.findByIdAndDelete(scrapperId);
+  await User.findByIdAndDelete(scrapperId);
+
+  await audit(req, 'SCRAPPER_DELETED', 'Scrapper', scrapperId);
+  logger.info(`[Admin] Scrapper ${scrapperId} deleted by admin ${req.user.id}`);
+  sendSuccess(res, 'Scrapper and associated user account deleted successfully', {});
 });
 
 // ============================================
@@ -620,253 +574,221 @@ export const deleteScrapper = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/orders
 // @access  Private (Admin)
 export const getAllOrders = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query);
 
-    // Build filter
-    const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-    if (req.query.paymentStatus) {
-      filter.paymentStatus = req.query.paymentStatus;
-    }
-    if (req.query.userId) {
-      filter.user = req.query.userId;
-    }
-    if (req.query.scrapperId) {
-      filter.scrapper = req.query.scrapperId;
-    }
-    if (req.query.dateFrom || req.query.dateTo) {
-      filter.createdAt = {};
-      if (req.query.dateFrom) {
-        filter.createdAt.$gte = new Date(req.query.dateFrom);
-      }
-      if (req.query.dateTo) {
-        filter.createdAt.$lte = new Date(req.query.dateTo);
-      }
-    }
+  const filter = {};
+  const status = pickEnum(req.query.status, Object.values(ORDER_STATUS));
+  if (status) filter.status = status;
+  const paymentStatus = pickEnum(req.query.paymentStatus, Object.values(PAYMENT_STATUS));
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+  if (req.query.userId) filter.user = assertObjectId(req.query.userId, 'userId');
+  if (req.query.scrapperId) filter.scrapper = assertObjectId(req.query.scrapperId, 'scrapperId');
 
-    const [orders, total] = await Promise.all([
-      Order.find(filter)
-        .populate('user', 'name email phone')
-        .populate('scrapper', 'name phone vehicleInfo')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Order.countDocuments(filter)
-    ]);
-
-    sendSuccess(res, 'Orders retrieved successfully', {
-      orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching orders:', error);
-    sendError(res, 'Failed to fetch orders', 500);
+  const dateFrom = parseDateParam(req.query.dateFrom, 'dateFrom');
+  const dateTo = parseDateParam(req.query.dateTo, 'dateTo');
+  if (dateFrom || dateTo) {
+    filter.createdAt = {};
+    if (dateFrom) filter.createdAt.$gte = dateFrom;
+    if (dateTo) filter.createdAt.$lte = dateTo;
   }
+
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .populate('user', 'name email phone')
+      .populate('scrapper', 'name phone vehicleInfo')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(filter)
+  ]);
+
+  sendSuccess(res, 'Orders retrieved successfully', {
+    orders,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 // @desc    Get order by ID
 // @route   GET /api/admin/orders/:id
 // @access  Private (Admin)
 export const getOrderById = asyncHandler(async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id)
-      .populate('user', 'name email phone address')
-      .populate('scrapper', 'name phone email vehicleInfo address');
+  const id = assertObjectId(req.params.id, 'order id');
+  const order = await Order.findById(id)
+    .populate('user', 'name email phone address')
+    .populate('scrapper', 'name phone email vehicleInfo');
 
-    if (!order) {
-      return sendError(res, 'Order not found', 404);
-    }
-
-    // Get payment details if exists
-    const payment = await Payment.findOne({ order: order._id });
-
-    sendSuccess(res, 'Order retrieved successfully', {
-      order: {
-        ...order.toObject(),
-        payment
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching order:', error);
-    sendError(res, 'Failed to fetch order', 500);
+  if (!order) {
+    return sendError(res, 'Order not found', 404);
   }
+
+  const payment = await Payment.findOne({ order: order._id });
+
+  sendSuccess(res, 'Order retrieved successfully', {
+    order: { ...order.toObject(), payment }
+  });
 });
 
-// @desc    Update order
+// @desc    Update order (admin)
 // @route   PUT /api/admin/orders/:id
 // @access  Private (Admin)
 export const updateOrder = asyncHandler(async (req, res) => {
-  try {
-    const { status, paymentStatus, scrapper, totalAmount, scrapItems } = req.body;
-    const orderId = req.params.id;
+  const orderId = assertObjectId(req.params.id, 'order id');
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return sendError(res, 'Order not found', 404);
-    }
-
-    // Update fields
-    if (status) order.status = status;
-    if (paymentStatus) order.paymentStatus = paymentStatus;
-    if (scrapper) order.scrapper = scrapper;
-    if (totalAmount) order.totalAmount = totalAmount;
-    if (scrapItems) {
-      order.scrapItems = scrapItems;
-      // Recalculate total weight
-      order.totalWeight = scrapItems.reduce((sum, item) => sum + item.weight, 0);
-    }
-
-    await order.save();
-
-    sendSuccess(res, 'Order updated successfully', {
-      order: order.toObject()
-    });
-  } catch (error) {
-    logger.error('[Admin] Error updating order:', error);
-    sendError(res, 'Failed to update order', 500);
+  const order = await Order.findById(orderId);
+  if (!order) {
+    return sendError(res, 'Order not found', 404);
   }
+
+  const status = pickEnum(req.body.status, Object.values(ORDER_STATUS));
+  const paymentStatus = pickEnum(req.body.paymentStatus, Object.values(PAYMENT_STATUS));
+
+  if (req.body.scrapper) {
+    const scrapperId = assertObjectId(req.body.scrapper, 'scrapper id');
+    const scrapper = await Scrapper.findById(scrapperId).select('status kyc.status');
+    if (!scrapper) return sendError(res, 'Scrapper not found', 404);
+    if (order.status === ORDER_STATUS.COMPLETED || order.status === ORDER_STATUS.CANCELLED) {
+      return sendError(res, `Cannot assign a ${order.status} order`, 409);
+    }
+    order.scrapper = scrapperId;
+  }
+  if (req.body.totalAmount !== undefined) {
+    order.totalAmount = parseMoney(req.body.totalAmount, { min: 0, max: 500000, name: 'totalAmount' });
+  }
+  if (Array.isArray(req.body.scrapItems)) {
+    order.scrapItems = req.body.scrapItems;
+    order.totalWeight = req.body.scrapItems.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
+  }
+  if (paymentStatus) order.paymentStatus = paymentStatus;
+  if (status) {
+    order.status = status;
+    if (status === ORDER_STATUS.COMPLETED && !order.completedDate) order.completedDate = new Date();
+    if (status === ORDER_STATUS.CANCELLED && !order.cancelledAt) {
+      order.cancelledAt = new Date();
+      order.cancelledBy = 'admin';
+    }
+  }
+
+  await order.save();
+
+  await audit(req, 'ORDER_UPDATED', 'Order', orderId, { fields: Object.keys(req.body) });
+
+  sendSuccess(res, 'Order updated successfully', { order: order.toObject() });
 });
 
 // @desc    Manually assign order to scrapper
 // @route   POST /api/admin/orders/:id/assign
 // @access  Private (Admin)
 export const assignOrder = asyncHandler(async (req, res) => {
-  try {
-    const { scrapperId } = req.body;
-    const orderId = req.params.id;
+  const orderId = assertObjectId(req.params.id, 'order id');
+  const scrapperId = assertObjectId(req.body.scrapperId, 'scrapperId');
 
-    if (!scrapperId) {
-      return sendError(res, 'Scrapper ID is required', 400);
-    }
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return sendError(res, 'Order not found', 404);
-    }
-
-    const scrapper = await Scrapper.findById(scrapperId);
-    if (!scrapper) {
-      return sendError(res, 'Scrapper not found', 404);
-    }
-
-    // Check if scrapper is active and has verified KYC
-    if (scrapper.status !== 'active') {
-      return sendError(res, 'Scrapper is not active', 400);
-    }
-
-    if (scrapper.kyc.status !== 'verified') {
-      return sendError(res, 'Scrapper KYC is not verified', 400);
-    }
-
-    // Check if scrapper has active subscription
-    if (scrapper.subscription.status !== 'active') {
-      return sendError(res, 'Scrapper does not have active subscription', 400);
-    }
-
-    // Assign order
-    order.scrapper = scrapperId;
-    order.status = ORDER_STATUS.CONFIRMED;
-    order.assignedAt = new Date();
-
-    // Add to assignment history
-    order.assignmentHistory.push({
-      scrapper: scrapperId,
-      assignedAt: new Date(),
-      status: 'assigned'
-    });
-
-    await order.save();
-
-    sendSuccess(res, 'Order assigned successfully', {
-      order: order.toObject()
-    });
-  } catch (error) {
-    logger.error('[Admin] Error assigning order:', error);
-    sendError(res, 'Failed to assign order', 500);
+  const scrapper = await Scrapper.findById(scrapperId);
+  if (!scrapper) {
+    return sendError(res, 'Scrapper not found', 404);
   }
+  if (scrapper.status !== 'active') {
+    return sendError(res, 'Scrapper is not active', 400);
+  }
+  if (scrapper.kyc?.status !== 'verified') {
+    return sendError(res, 'Scrapper KYC is not verified', 400);
+  }
+  if (!scrapper.hasActiveSubscription()) {
+    return sendError(res, 'Scrapper does not have active subscription', 400);
+  }
+
+  // Atomic: only assignable while not completed/cancelled.
+  const now = new Date();
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      status: { $in: [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED] }
+    },
+    {
+      $set: {
+        scrapper: scrapperId,
+        status: ORDER_STATUS.CONFIRMED,
+        assignmentStatus: 'assigned',
+        assignedAt: now
+      },
+      $push: { assignmentHistory: { scrapper: scrapperId, assignedAt: now, status: 'assigned' } }
+    },
+    { new: true }
+  );
+
+  if (!order) {
+    const existing = await Order.findById(orderId).select('status');
+    if (!existing) return sendError(res, 'Order not found', 404);
+    return sendError(res, `Cannot assign order in status '${existing.status}'`, 409);
+  }
+
+  // Notify both parties.
+  sendNotificationToUser(scrapperId.toString(), {
+    title: 'New Order Assigned 📋',
+    body: `An order #${order._id.toString().slice(-6)} has been assigned to you by admin.`,
+    data: { orderId: order._id.toString(), type: 'order_assigned' }
+  });
+  sendNotificationToUser(order.user.toString(), {
+    title: 'Scrapper Assigned 🤝',
+    body: `A scrapper has been assigned to your order #${order._id.toString().slice(-6)}.`,
+    data: { orderId: order._id.toString(), type: 'order_assigned' }
+  });
+
+  await audit(req, 'ORDER_ASSIGNED', 'Order', orderId, { scrapperId: scrapperId.toString() });
+
+  sendSuccess(res, 'Order assigned successfully', { order: order.toObject() });
 });
 
-// @desc    Cancel order
+// @desc    Cancel order (admin)
 // @route   POST /api/admin/orders/:id/cancel
 // @access  Private (Admin)
 export const cancelOrder = asyncHandler(async (req, res) => {
-  try {
-    const { reason } = req.body;
-    const orderId = req.params.id;
+  const orderId = assertObjectId(req.params.id, 'order id');
+  const reason = asString(req.body.reason, 500);
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return sendError(res, 'Order not found', 404);
-    }
-
-    if (order.status === ORDER_STATUS.CANCELLED) {
-      return sendError(res, 'Order is already cancelled', 400);
-    }
-
-    if (order.status === ORDER_STATUS.COMPLETED) {
-      return sendError(res, 'Cannot cancel completed order', 400);
-    }
-
-    order.status = ORDER_STATUS.CANCELLED;
-    order.cancelledAt = new Date();
-    order.cancellationReason = reason || 'Cancelled by admin';
-
-    await order.save();
-
-    sendSuccess(res, 'Order cancelled successfully', {
-      order: order.toObject()
-    });
-  } catch (error) {
-    logger.error('[Admin] Error cancelling order:', error);
-    sendError(res, 'Failed to cancel order', 500);
+  const order = await Order.findById(orderId);
+  if (!order) {
+    return sendError(res, 'Order not found', 404);
   }
+  if (order.status === ORDER_STATUS.CANCELLED) {
+    return sendError(res, 'Order is already cancelled', 400);
+  }
+  if (order.status === ORDER_STATUS.COMPLETED) {
+    return sendError(res, 'Cannot cancel completed order', 400);
+  }
+
+  order.status = ORDER_STATUS.CANCELLED;
+  order.cancelledAt = new Date();
+  order.cancelledBy = 'admin';
+  order.cancellationReason = reason || 'Cancelled by admin';
+  await order.save();
+
+  await audit(req, 'ORDER_CANCELLED', 'Order', orderId, { reason });
+
+  sendSuccess(res, 'Order cancelled successfully', { order: order.toObject() });
 });
 
 // @desc    Get commission transactions
 // @route   GET /api/admin/earnings/commissions
 // @access  Private (Admin)
 export const getCommissionTransactions = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20 });
 
-    const query = {
-      category: 'COMMISSION'
-    };
+  const query = { category: 'COMMISSION' };
 
-    const total = await WalletTransaction.countDocuments(query);
-
-    const transactions = await WalletTransaction.find(query)
+  const [total, transactions] = await Promise.all([
+    WalletTransaction.countDocuments(query),
+    WalletTransaction.find(query)
       .populate('user', 'name email phone')
-      .populate('orderId', 'requestId totalAmount')
+      .populate('orderId', 'totalAmount')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+  ]);
 
-    sendSuccess(res, 'Commission transactions retrieved successfully', {
-      transactions,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching commissions:', error);
-    sendError(res, 'Failed to fetch commissions', 500);
-  }
+  sendSuccess(res, 'Commission transactions retrieved successfully', {
+    transactions,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 // ============================================
@@ -877,140 +799,117 @@ export const getCommissionTransactions = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/prices
 // @access  Private (Admin)
 export const getAllPrices = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit) || 1000;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 200, maxLimit: 1000 });
 
-    const filter = {};
-    if (req.query.category) {
-      filter.category = req.query.category;
-    }
-    if (req.query.regionCode) {
-      filter.regionCode = req.query.regionCode;
-    }
-    if (req.query.isActive !== undefined) {
-      filter.isActive = req.query.isActive === 'true';
-    }
-
-    const [prices, total] = await Promise.all([
-      Price.find(filter)
-        .populate('updatedBy', 'name email')
-        .sort({ effectiveDate: -1, category: 1 })
-        .skip(skip)
-        .limit(limit),
-      Price.countDocuments(filter)
-    ]);
-
-    sendSuccess(res, 'Prices retrieved successfully', {
-      prices,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching prices:', error);
-    sendError(res, 'Failed to fetch prices', 500);
+  const filter = {};
+  const category = asString(req.query.category, 50);
+  if (category) filter.category = category;
+  const regionCode = asString(req.query.regionCode, 10);
+  if (regionCode) filter.regionCode = regionCode;
+  if (req.query.isActive !== undefined) {
+    filter.isActive = req.query.isActive === 'true';
   }
+
+  const [prices, total] = await Promise.all([
+    Price.find(filter)
+      .populate('updatedBy', 'name email')
+      .sort({ effectiveDate: -1, category: 1 })
+      .skip(skip)
+      .limit(limit),
+    Price.countDocuments(filter)
+  ]);
+
+  sendSuccess(res, 'Prices retrieved successfully', {
+    prices,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
-// @desc    Create price entry
+// @desc    Create price entry (deactivates previous active price for same category+region)
 // @route   POST /api/admin/prices
 // @access  Private (Admin)
 export const createPrice = asyncHandler(async (req, res) => {
-  try {
-    const { category, pricePerKg, price: fixedPrice, regionCode, effectiveDate, isActive, image, type } = req.body;
-
-    if (!category) {
-      return sendError(res, 'Category is required', 400);
-    }
-
-    // Validate price based on type
-    if (type === 'service' && fixedPrice === undefined) {
-      // if service, we expect 'price' (fixedPrice here)
-      // But if frontend sends 0, it's valid.
-    }
-
-    // Deactivate old prices for same category and region
-    if (isActive !== false) {
-      await Price.updateMany(
-        { category, regionCode, isActive: true },
-        { isActive: false }
-      );
-    }
-
-    const newPriceEntry = await Price.create({
-      category,
-      pricePerKg: pricePerKg || 0,
-      price: fixedPrice || 0,
-      regionCode: regionCode || 'IN-DL',
-      effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date(),
-      isActive: isActive !== undefined ? isActive : true,
-      updatedBy: req.user.id,
-      image,
-      type: type || 'material'
-    });
-
-    sendSuccess(res, 'Price created successfully', { price: newPriceEntry });
-  } catch (error) {
-    logger.error('[Admin] Error creating price:', error);
-    sendError(res, 'Failed to create price', 500);
+  const category = asString(req.body.category, 50);
+  if (!category) {
+    return sendError(res, 'Category is required', 400);
   }
+  const regionCode = asString(req.body.regionCode, 10) || 'IN-DL';
+  const type = pickEnum(req.body.type, ['material', 'service']) || 'material';
+  const pricePerKg = req.body.pricePerKg !== undefined
+    ? parseMoney(req.body.pricePerKg, { min: 0, max: 100000, name: 'pricePerKg' })
+    : 0;
+  const fixedPrice = req.body.price !== undefined
+    ? parseMoney(req.body.price, { min: 0, max: 1000000, name: 'price' })
+    : 0;
+  const effectiveDate = req.body.effectiveDate ? parseDateParam(req.body.effectiveDate, 'effectiveDate') : new Date();
+  const isActive = req.body.isActive !== undefined ? req.body.isActive === true || req.body.isActive === 'true' : true;
+
+  // Single-active-price invariant: the regionCode used in the deactivation
+  // filter is the SAME normalised value used for the new entry.
+  if (isActive) {
+    await Price.updateMany(
+      { category, regionCode, type, isActive: true },
+      { isActive: false }
+    );
+  }
+
+  const newPriceEntry = await Price.create({
+    category,
+    pricePerKg,
+    price: fixedPrice,
+    regionCode,
+    effectiveDate,
+    isActive,
+    updatedBy: req.user.id,
+    image: asString(req.body.image, 500),
+    type
+  });
+
+  await audit(req, 'PRICE_CREATED', 'Price', newPriceEntry._id, { category, regionCode, pricePerKg });
+
+  sendSuccess(res, 'Price created successfully', { price: newPriceEntry });
 });
 
 // @desc    Update price entry
 // @route   PUT /api/admin/prices/:id
 // @access  Private (Admin)
 export const updatePrice = asyncHandler(async (req, res) => {
-  try {
-    const { pricePerKg, price: fixedPrice, effectiveDate, isActive, image } = req.body;
-    const priceId = req.params.id;
+  const priceId = assertObjectId(req.params.id, 'price id');
 
-    const price = await Price.findById(priceId);
-    if (!price) {
-      return sendError(res, 'Price not found', 404);
-    }
-
-    if (pricePerKg !== undefined) price.pricePerKg = pricePerKg;
-    if (fixedPrice !== undefined) price.price = fixedPrice;
-    if (effectiveDate) price.effectiveDate = new Date(effectiveDate);
-    if (isActive !== undefined) price.isActive = isActive;
-    if (isActive !== undefined) price.isActive = isActive;
-    if (image !== undefined) price.image = image;
-    price.updatedBy = req.user.id;
-
-    await price.save();
-
-    sendSuccess(res, 'Price updated successfully', { price });
-  } catch (error) {
-    logger.error('[Admin] Error updating price:', error);
-    sendError(res, 'Failed to update price', 500);
+  const price = await Price.findById(priceId);
+  if (!price) {
+    return sendError(res, 'Price not found', 404);
   }
+
+  if (req.body.pricePerKg !== undefined) {
+    price.pricePerKg = parseMoney(req.body.pricePerKg, { min: 0, max: 100000, name: 'pricePerKg' });
+  }
+  if (req.body.price !== undefined) {
+    price.price = parseMoney(req.body.price, { min: 0, max: 1000000, name: 'price' });
+  }
+  if (req.body.effectiveDate) price.effectiveDate = parseDateParam(req.body.effectiveDate, 'effectiveDate');
+  if (req.body.isActive !== undefined) price.isActive = req.body.isActive === true || req.body.isActive === 'true';
+  if (req.body.image !== undefined) price.image = asString(req.body.image, 500);
+  price.updatedBy = req.user.id;
+
+  await price.save();
+
+  await audit(req, 'PRICE_UPDATED', 'Price', priceId, { fields: Object.keys(req.body) });
+
+  sendSuccess(res, 'Price updated successfully', { price });
 });
 
 // @desc    Delete price entry
 // @route   DELETE /api/admin/prices/:id
 // @access  Private (Admin)
 export const deletePrice = asyncHandler(async (req, res) => {
-  try {
-    const price = await Price.findById(req.params.id);
-    if (!price) {
-      return sendError(res, 'Price not found', 404);
-    }
-
-    await Price.findByIdAndDelete(req.params.id);
-
-    sendSuccess(res, 'Price deleted successfully', {});
-  } catch (error) {
-    logger.error('[Admin] Error deleting price:', error);
-    if (error.name === 'CastError') {
-      return sendError(res, 'Invalid Price ID', 400);
-    }
-    sendError(res, 'Failed to delete price', 500);
+  const id = assertObjectId(req.params.id, 'price id');
+  const price = await Price.findByIdAndDelete(id);
+  if (!price) {
+    return sendError(res, 'Price not found', 404);
   }
+  await audit(req, 'PRICE_DELETED', 'Price', id, { category: price.category });
+  sendSuccess(res, 'Price deleted successfully', {});
 });
 
 // ============================================
@@ -1021,178 +920,123 @@ export const deletePrice = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/analytics/payments
 // @access  Private (Admin)
 export const getPaymentAnalytics = asyncHandler(async (req, res) => {
-  try {
-    const { startDate, endDate } = req.query;
-    const dateFilter = {};
+  const startDate = parseDateParam(req.query.startDate, 'startDate');
+  const endDate = parseDateParam(req.query.endDate, 'endDate');
 
-    if (startDate || endDate) {
-      dateFilter.paidAt = {};
-      if (startDate) dateFilter.paidAt.$gte = new Date(startDate);
-      if (endDate) dateFilter.paidAt.$lte = new Date(endDate);
-    }
+  const dateFilter = {};
+  if (startDate || endDate) {
+    dateFilter.paidAt = {};
+    if (startDate) dateFilter.paidAt.$gte = startDate;
+    if (endDate) dateFilter.paidAt.$lte = endDate;
+  }
 
-    const [
-      totalRevenue,
-      totalPayments,
-      statusBreakdown,
-      dailyRevenue,
-      monthlyRevenue
-    ] = await Promise.all([
-      Payment.aggregate([
-        {
-          $match: {
-            status: PAYMENT_STATUS.COMPLETED,
-            ...dateFilter
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$amount' },
-            count: { $sum: 1 }
-          }
-        }
-      ]),
-      Payment.countDocuments({
-        status: PAYMENT_STATUS.COMPLETED,
-        ...dateFilter
-      }),
-      Payment.aggregate([
-        {
-          $match: dateFilter
-        },
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
-            total: { $sum: '$amount' }
-          }
-        }
-      ]),
-      Payment.aggregate([
-        {
-          $match: {
-            status: PAYMENT_STATUS.COMPLETED,
-            ...dateFilter
-          }
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: '%Y-%m-%d', date: '$paidAt' }
-            },
-            total: { $sum: '$amount' },
-            count: { $sum: 1 }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]),
-      Payment.aggregate([
-        {
-          $match: {
-            status: PAYMENT_STATUS.COMPLETED,
-            ...dateFilter
-          }
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: '%Y-%m', date: '$paidAt' }
-            },
-            total: { $sum: '$amount' },
-            count: { $sum: 1 }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ])
-    ]);
+  const [totalRevenue, statusBreakdown, dailyRevenue, monthlyRevenue] = await Promise.all([
+    Payment.aggregate([
+      { $match: { status: PAYMENT_STATUS.COMPLETED, ...dateFilter } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]),
+    Payment.aggregate([
+      { $match: dateFilter },
+      { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }
+    ]),
+    Payment.aggregate([
+      { $match: { status: PAYMENT_STATUS.COMPLETED, ...dateFilter } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt' } }, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]),
+    Payment.aggregate([
+      { $match: { status: PAYMENT_STATUS.COMPLETED, ...dateFilter } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$paidAt' } }, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ])
+  ]);
 
-    // Fetch Admin Bank Details
-    const adminUser = await User.findById(req.user.id).select('bankDetails');
-    const bankDetails = adminUser?.bankDetails ? {
-      accountNumber: adminUser.bankDetails.accountNumber ? `****${adminUser.bankDetails.accountNumber.slice(-4)}` : '',
-      beneficiaryName: adminUser.bankDetails.beneficiaryName,
-      bankName: adminUser.bankDetails.bankName,
-      isConfigured: !!adminUser.bankDetails.fundAccountId
-    } : null;
+  const adminUser = await User.findById(req.user.id).select('bankDetails');
+  const bankDetails = adminUser?.bankDetails ? {
+    accountNumber: adminUser.bankDetails.accountNumber ? `****${adminUser.bankDetails.accountNumber.slice(-4)}` : '',
+    beneficiaryName: adminUser.bankDetails.beneficiaryName,
+    bankName: adminUser.bankDetails.bankName,
+    isConfigured: !!adminUser.bankDetails.fundAccountId
+  } : null;
 
-    // --- Added Commission Logic ---
-    const walletDateFilter = {};
-    if (startDate || endDate) {
-      walletDateFilter.createdAt = {};
-      if (startDate) walletDateFilter.createdAt.$gte = new Date(startDate);
-      if (endDate) walletDateFilter.createdAt.$lte = new Date(endDate);
-    }
+  const walletDateFilter = {};
+  if (startDate || endDate) {
+    walletDateFilter.createdAt = {};
+    if (startDate) walletDateFilter.createdAt.$gte = startDate;
+    if (endDate) walletDateFilter.createdAt.$lte = endDate;
+  }
 
-    // Fetch Commissions within date range
-    const [statsCommissions] = await WalletTransaction.aggregate([
-      { $match: { category: 'COMMISSION', type: 'DEBIT', ...walletDateFilter } },
+  const [statsCommissions] = await WalletTransaction.aggregate([
+    { $match: { category: 'COMMISSION', type: 'DEBIT', status: 'SUCCESS', ...walletDateFilter } },
+    { $group: { _id: null, total: { $sum: '$amount' } } }
+  ]);
+  const commissionRevenue = statsCommissions?.total || 0;
+
+  const [allTimeCommissions, allTimeWithdrawals] = await Promise.all([
+    WalletTransaction.aggregate([
+      { $match: { category: 'COMMISSION', type: 'DEBIT', status: 'SUCCESS' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
-    const commissionRevenue = statsCommissions?.total || 0;
+    ]),
+    WalletTransaction.aggregate([
+      { $match: { category: 'WITHDRAWAL', context: 'system_payout', status: { $in: ['SUCCESS', 'PENDING'] } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ])
+  ]);
+  const adminBalance = roundMoney((allTimeCommissions[0]?.total || 0) - (allTimeWithdrawals[0]?.total || 0));
+  const paymentTotal = totalRevenue[0]?.total || 0;
 
-    // Fetch Total Admin Balance (All Time)
-    const [allTimeCommissions, allTimeWithdrawals] = await Promise.all([
-      WalletTransaction.aggregate([
-        { $match: { category: 'COMMISSION', type: 'DEBIT' } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ]),
-      WalletTransaction.aggregate([
-        { $match: { category: 'WITHDRAWAL', context: 'system_payout' } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ])
-    ]);
-    const adminBalance = (allTimeCommissions[0]?.total || 0) - (allTimeWithdrawals[0]?.total || 0);
-
-    const paymentTotal = totalRevenue[0]?.total || 0;
-
-    sendSuccess(res, 'Payment analytics retrieved successfully', {
-      totalRevenue: paymentTotal + commissionRevenue,
-      revenueBreakdown: {
-        payments: paymentTotal,
-        commissions: commissionRevenue
-      },
-      adminWalletBalance: adminBalance,
-      totalPayments,
-      statusBreakdown,
-      dailyRevenue,
-      monthlyRevenue,
-      bankDetails
-    });
-
-  } catch (error) {
-    logger.error('[Admin] Error fetching payment analytics:', error);
-    sendError(res, 'Failed to fetch payment analytics', 500);
-  }
-});
-
-// @desc    Get all subscription plans (Admin)
-// @route   GET /api/admin/subscriptions/plans
-// @access  Private (Admin)
-export const getAllSubscriptionPlans = asyncHandler(async (req, res) => {
-  try {
-    const plans = await SubscriptionPlan.find().sort({ isActive: -1, sortOrder: 1, createdAt: -1 });
-    sendSuccess(res, 'Subscription plans retrieved successfully', { plans });
-  } catch (error) {
-    logger.error('[Admin] Error fetching subscription plans:', error);
-    sendError(res, 'Failed to fetch subscription plans', 500);
-  }
+  sendSuccess(res, 'Payment analytics retrieved successfully', {
+    totalRevenue: paymentTotal + commissionRevenue,
+    revenueBreakdown: { payments: paymentTotal, commissions: commissionRevenue },
+    adminWalletBalance: adminBalance,
+    totalPayments: totalRevenue[0]?.count || 0,
+    statusBreakdown,
+    dailyRevenue,
+    monthlyRevenue,
+    bankDetails
+  });
 });
 
 // ============================================
 // SUBSCRIPTION PLAN MANAGEMENT (Admin)
 // ============================================
 
+// @desc    Get all subscription plans (Admin)
+// @route   GET /api/admin/subscriptions/plans
+// @access  Private (Admin)
+export const getAllSubscriptionPlans = asyncHandler(async (req, res) => {
+  const plans = await SubscriptionPlan.find().sort({ isActive: -1, sortOrder: 1, createdAt: -1 });
+  sendSuccess(res, 'Subscription plans retrieved successfully', { plans });
+});
+
+const PLAN_FIELDS = [
+  'name', 'description', 'price', 'currency', 'duration', 'durationType',
+  'features', 'maxPickups', 'maxMarketplaceRequests', 'priority', 'isActive',
+  'isPopular', 'sortOrder'
+];
+
+const pickPlanFields = (body) => {
+  const out = {};
+  for (const field of PLAN_FIELDS) {
+    if (body[field] !== undefined) out[field] = body[field];
+  }
+  if (out.price !== undefined) out.price = parseMoney(out.price, { min: 0, max: 1000000, name: 'price' });
+  return out;
+};
+
 // @desc    Create subscription plan
 // @route   POST /api/admin/subscriptions/plans
 // @access  Private (Admin)
 export const createPlan = asyncHandler(async (req, res) => {
   try {
-    const plan = await SubscriptionPlan.create(req.body);
+    const plan = await SubscriptionPlan.create(pickPlanFields(req.body));
+    await audit(req, 'PLAN_CREATED', 'SubscriptionPlan', plan._id, { name: plan.name, price: plan.price });
     sendSuccess(res, 'Subscription plan created successfully', { plan });
   } catch (error) {
-    logger.error('[Admin] Error creating plan:', error);
-    sendError(res, 'Failed to create subscription plan', 500);
+    if (error.name === 'ValidationError') {
+      return sendError(res, error.message, 400);
+    }
+    throw error;
   }
 });
 
@@ -1200,21 +1044,23 @@ export const createPlan = asyncHandler(async (req, res) => {
 // @route   PUT /api/admin/subscriptions/plans/:id
 // @access  Private (Admin)
 export const updatePlan = asyncHandler(async (req, res) => {
+  const id = assertObjectId(req.params.id, 'plan id');
   try {
     const plan = await SubscriptionPlan.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+      id,
+      { $set: pickPlanFields(req.body) },
       { new: true, runValidators: true }
     );
-
     if (!plan) {
       return sendError(res, 'Plan not found', 404);
     }
-
+    await audit(req, 'PLAN_UPDATED', 'SubscriptionPlan', id, { fields: Object.keys(req.body) });
     sendSuccess(res, 'Subscription plan updated successfully', { plan });
   } catch (error) {
-    logger.error('[Admin] Error updating plan:', error);
-    sendError(res, 'Failed to update subscription plan', 500);
+    if (error.name === 'ValidationError') {
+      return sendError(res, error.message, 400);
+    }
+    throw error;
   }
 });
 
@@ -1222,108 +1068,74 @@ export const updatePlan = asyncHandler(async (req, res) => {
 // @route   DELETE /api/admin/subscriptions/plans/:id
 // @access  Private (Admin)
 export const deletePlan = asyncHandler(async (req, res) => {
-  try {
-    const plan = await SubscriptionPlan.findById(req.params.id);
-    if (!plan) {
-      return sendError(res, 'Plan not found', 404);
-    }
-
-    // Check if any active subscriptions use this plan
-    const activeSubscriptions = await Scrapper.countDocuments({
-      'subscription.planId': plan._id,
-      'subscription.status': 'active'
-    });
-
-    if (activeSubscriptions > 0) {
-      return sendError(res, 'Cannot delete plan with active subscriptions. Deactivate instead.', 400);
-    }
-
-    await SubscriptionPlan.findByIdAndDelete(req.params.id);
-
-    sendSuccess(res, 'Subscription plan deleted successfully', {});
-  } catch (error) {
-    logger.error('[Admin] Error deleting plan:', error);
-    sendError(res, 'Failed to delete subscription plan', 500);
+  const id = assertObjectId(req.params.id, 'plan id');
+  const plan = await SubscriptionPlan.findById(id);
+  if (!plan) {
+    return sendError(res, 'Plan not found', 404);
   }
+
+  const activeSubscriptions = await Scrapper.countDocuments({
+    'subscription.planId': plan._id,
+    'subscription.status': 'active'
+  });
+  if (activeSubscriptions > 0) {
+    return sendError(res, 'Cannot delete plan with active subscriptions. Deactivate instead.', 400);
+  }
+
+  await SubscriptionPlan.findByIdAndDelete(id);
+  await audit(req, 'PLAN_DELETED', 'SubscriptionPlan', id, { name: plan.name });
+  sendSuccess(res, 'Subscription plan deleted successfully', {});
 });
 
-// @desc    Get all subscriptions (admin)
+// @desc    Get all subscriptions (admin) — paginated at the database level
 // @route   GET /api/admin/subscriptions/all
 // @access  Private (Admin)
 export const getAllSubscriptions = asyncHandler(async (req, res) => {
-  try {
-    // Automatically update expired subscriptions on fetch
-    try {
-      const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
-      await checkExpiredSubscriptions();
-    } catch (err) {
-      logger.error('[Admin] Error running checkExpiredSubscriptions in getAllSubscriptions:', err);
-    }
+  const { checkExpiredSubscriptions } = await import('../services/subscriptionService.js');
+  await checkExpiredSubscriptions().catch((err) =>
+    logger.error('[Admin] checkExpiredSubscriptions failed:', { error: err.message })
+  );
 
-    const page = parseInt(req.query.page) || PAGINATION.DEFAULT_PAGE;
-    const limit = parseInt(req.query.limit) || PAGINATION.DEFAULT_LIMIT;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query);
 
-    const filter = {};
-    if (req.query.status) {
-      filter['subscription.status'] = req.query.status;
-    }
-    // Only include scrappers who have a plan attached
-    filter['subscription.planId'] = { $ne: null };
+  const filter = { 'subscription.planId': { $ne: null } };
+  const status = pickEnum(req.query.status, ['active', 'expired', 'cancelled', 'none']);
+  if (status) filter['subscription.status'] = status;
 
-    const [scrappers, total] = await Promise.all([
-      Scrapper.find(filter)
-        .select('name phone email subscription')
-        .populate('subscription.planId', 'name price duration durationType maxPickups maxMarketplaceRequests')
-        .sort({ createdAt: -1 }),
-      Scrapper.countDocuments(filter)
-    ]);
+  const [scrappers, total] = await Promise.all([
+    Scrapper.find(filter)
+      .select('name phone email subscription')
+      .populate('subscription.planId', 'name price duration durationType maxPickups maxMarketplaceRequests')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Scrapper.countDocuments(filter)
+  ]);
 
-    // Map scrappers to subscription entries
-    const allSubs = [];
-    scrappers.forEach(s => {
-      if (s.subscription && s.subscription.planId) {
-        if (!req.query.status || s.subscription.status === req.query.status) {
-          allSubs.push({
-            scrapper: {
-              id: s._id,
-              name: s.name,
-              phone: s.phone,
-              email: s.email
-            },
-            subscription: s.subscription,
-            type: 'general'
-          });
-        }
-      }
-    });
+  const subscriptions = scrappers.map((s) => ({
+    scrapper: { id: s._id, name: s.name, phone: s.phone, email: s.email },
+    subscription: s.subscription,
+    type: 'general'
+  }));
 
-    // Handle pagination on the flattened list
-    const paginatedSubs = allSubs.slice(skip, skip + limit);
-
-    sendSuccess(res, 'Subscriptions retrieved successfully', {
-      subscriptions: paginatedSubs,
-      pagination: {
-        page,
-        limit,
-        total: allSubs.length,
-        pages: Math.ceil(allSubs.length / limit)
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching subscriptions:', error);
-    sendError(res, 'Failed to fetch subscriptions', 500);
-  }
+  sendSuccess(res, 'Subscriptions retrieved successfully', {
+    subscriptions,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
-// @desc    Withdraw Admin Funds (System Payout)
-// @route   POST /api/admin/finance/withdraw
-// @access  Private (Admin)
+// ============================================
+// FINANCE MANAGEMENT
+// ============================================
+
 // @desc    Update Admin Bank Details (For Payouts)
 // @route   PUT /api/admin/finance/bank-details
 // @access  Private (Admin)
 export const updateAdminBankDetails = asyncHandler(async (req, res) => {
-  const { accountNumber, ifsc, beneficiaryName, bankName } = req.body;
+  const accountNumber = asString(req.body.accountNumber, 34);
+  const ifsc = asString(req.body.ifsc, 11);
+  const beneficiaryName = asString(req.body.beneficiaryName, 100);
+  const bankName = asString(req.body.bankName, 100);
   const userId = req.user.id;
 
   if (!accountNumber || !ifsc || !beneficiaryName) {
@@ -1335,18 +1147,16 @@ export const updateAdminBankDetails = asyncHandler(async (req, res) => {
     return sendError(res, 'User not found', 404);
   }
 
-  // 1. Create/Get Contact on Razorpay X
   let contactId = user.bankDetails?.contactId;
   if (!contactId) {
     try {
       const contact = await createContact(user.name, user.email, user.phone);
       contactId = contact.id;
     } catch (err) {
-      return sendError(res, 'Failed to register contact on Razorpay: ' + err.message, 500);
+      return sendError(res, 'Failed to register contact on Razorpay: ' + err.message, 502);
     }
   }
 
-  // 2. Create Fund Account on Razorpay X
   let fundAccountId;
   try {
     const fundAccount = await createFundAccount(contactId, {
@@ -1356,99 +1166,90 @@ export const updateAdminBankDetails = asyncHandler(async (req, res) => {
     });
     fundAccountId = fundAccount.id;
   } catch (err) {
-    return sendError(res, 'Failed to verify bank account with Razorpay: ' + err.message, 500);
+    return sendError(res, 'Failed to verify bank account with Razorpay: ' + err.message, 502);
   }
 
-  // 3. Save to DB
   user.bankDetails = {
-    accountNumber: accountNumber.slice(-4), // Only store last 4 digits for display
+    accountNumber: accountNumber.slice(-4), // last 4 digits only
     ifsc,
     beneficiaryName,
     bankName,
     contactId,
     fundAccountId
   };
-
   await user.save();
 
-  sendSuccess(res, 'Bank details updated successfully', {
-    bankDetails: user.bankDetails
-  });
+  await audit(req, 'ADMIN_BANK_DETAILS_UPDATED', 'User', userId);
+
+  sendSuccess(res, 'Bank details updated successfully', { bankDetails: user.bankDetails });
 });
 
 // @desc    Withdraw Admin Funds (System Payout)
 // @route   POST /api/admin/finance/withdraw
 // @access  Private (Admin)
 export const withdrawFunds = asyncHandler(async (req, res) => {
-  const { amount, notes } = req.body;
+  const amount = parseMoney(req.body.amount, { min: 1, max: 10000000, name: 'withdrawal amount' });
+  const notes = asString(req.body.notes, 200);
   const userId = req.user.id;
 
-  if (!amount || amount <= 0) {
-    return sendError(res, 'Invalid withdrawal amount', 400);
-  }
-
-  // 1. Check Bank Details
   const user = await User.findById(userId);
-  if (!user.bankDetails?.fundAccountId) {
+  if (!user?.bankDetails?.fundAccountId) {
     return sendError(res, 'Bank details not found. Please configure withdrawal account first.', 400);
   }
 
-  // Check Balance logic (Recalculating to be safe)
   const [allTimeCommissions, allTimeWithdrawals] = await Promise.all([
     WalletTransaction.aggregate([
-      { $match: { category: 'COMMISSION', type: 'DEBIT' } },
+      { $match: { category: 'COMMISSION', type: 'DEBIT', status: 'SUCCESS' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]),
     WalletTransaction.aggregate([
-      { $match: { category: 'WITHDRAWAL', context: 'system_payout' } },
+      { $match: { category: 'WITHDRAWAL', context: 'system_payout', status: { $in: ['SUCCESS', 'PENDING'] } } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ])
   ]);
 
-  const currentBalance = (allTimeCommissions[0]?.total || 0) - (allTimeWithdrawals[0]?.total || 0);
-
+  const currentBalance = roundMoney((allTimeCommissions[0]?.total || 0) - (allTimeWithdrawals[0]?.total || 0));
   if (currentBalance < amount) {
     return sendError(res, 'Insufficient funds in Admin Wallet', 400);
   }
 
-  // 2. Initiate Real Payout via Razorpay
   let payoutResult;
+  const referenceId = `wd_${Date.now()}`;
   try {
-    const referenceId = `wd_${Date.now()}`;
-    payoutResult = await initiatePayout(
-      user.bankDetails.fundAccountId,
-      amount,
-      'IMPS',
-      'payout',
-      referenceId
-    );
+    payoutResult = await initiatePayout(user.bankDetails.fundAccountId, amount, 'IMPS', 'payout', referenceId);
   } catch (err) {
-    return sendError(res, 'Withdrawal Failed at Gateway: ' + err.message, 500);
+    return sendError(res, 'Withdrawal Failed at Gateway: ' + err.message, 502);
   }
 
-  // 3. Record Withdrawal (Only if API succeeds)
   const transaction = await WalletTransaction.create({
     trxId: `TRX-ADM-WD-${Date.now()}`,
-    user: req.user.id, // Logged in Admin ID
-    userType: 'User', // Admin is a User
-    amount: amount,
+    user: req.user.id,
+    userType: 'User',
+    amount,
     type: 'DEBIT',
     balanceBefore: currentBalance,
-    balanceAfter: currentBalance - amount,
+    balanceAfter: roundMoney(currentBalance - amount),
     category: 'WITHDRAWAL',
-    status: payoutResult.status === 'processed' ? 'SUCCESS' : 'PENDING', // Razorpay often returns 'processing'
+    status: payoutResult.status === 'processed' ? 'SUCCESS' : 'PENDING',
     description: notes || 'Admin Payout Withdrawal',
     context: 'system_payout',
+    idempotencyKey: `admin-payout:${payoutResult.id}`,
     gateway: {
       provider: 'RAZORPAY_X',
-      paymentId: payoutResult.id, // Payout ID
+      paymentId: payoutResult.id,
       status: payoutResult.status
     }
   });
 
+  await audit(req, 'ADMIN_PAYOUT', 'WalletTransaction', transaction._id, {
+    amount,
+    payoutId: payoutResult.id,
+    payoutStatus: payoutResult.status
+  });
+
   sendSuccess(res, 'Withdrawal processed successfully', {
     amount,
-    remainingBalance: currentBalance - amount,
+    remainingBalance: roundMoney(currentBalance - amount),
     transactionId: transaction.trxId,
     payoutStatus: payoutResult.status
   });
@@ -1458,174 +1259,247 @@ export const withdrawFunds = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/finance/withdrawals
 // @access  Private (Admin)
 export const getAllWithdrawals = asyncHandler(async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+  const { page, limit, skip } = parsePagination(req.query);
 
-    const filter = {};
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
-    if (req.query.userType) {
-      filter.userType = req.query.userType;
-    }
+  const filter = {};
+  const status = pickEnum(req.query.status, ['PENDING', 'APPROVED', 'REJECTED', 'PROCESSED', 'FAILED']);
+  if (status) filter.status = status;
+  const userType = pickEnum(req.query.userType, ['User', 'Scrapper']);
+  if (userType) filter.userType = userType;
 
-    const [withdrawals, total] = await Promise.all([
-      WithdrawalRequest.find(filter)
-        .populate('user', 'name email phone') // For Users
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      WithdrawalRequest.countDocuments(filter)
-    ]);
+  const [withdrawals, total] = await Promise.all([
+    WithdrawalRequest.find(filter)
+      .populate('user', 'name email phone')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    WithdrawalRequest.countDocuments(filter)
+  ]);
 
-    // Manually populate Scrappers if needed since 'user' field is polymorphic but mongoose ref is usually fixed or dynamic. 
-    // Based on schema, 'user' is likely ref 'User' or 'Scrapper'. If it's dynamic ref, populate works. 
-    // If not, we might need manual fetching. Assuming simpler generic ref or similar ID structure.
-    // Actually, WalletTransaction has 'user' and 'userType'. WithdrawalRequest likely has similar.
-    // Let's assume populate works for now, or we can improve it.
-    // In walletController it was: user: userId, userType: ... 
-
-    // If the 'ref' in schema is dynamic, populate works. If not, we might miss Scrapper names.
-    // Let's rely on the userType field if needed for frontend display.
-
-    sendSuccess(res, 'Withdrawals fetched successfully', {
-      withdrawals,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    logger.error('[Admin] Error fetching withdrawals:', error);
-    sendError(res, 'Failed to fetch withdrawals', 500);
-  }
+  sendSuccess(res, 'Withdrawals fetched successfully', {
+    withdrawals,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
+
+/**
+ * Withdrawal state machine:
+ *   PENDING  -> APPROVED | REJECTED | PROCESSED (approve+mark-paid in one step)
+ *   APPROVED -> PROCESSED | FAILED
+ * Terminal: PROCESSED, REJECTED, FAILED.
+ * REJECTED / FAILED refund the reserved funds via the ledger (never silently
+ * lost, even when the original walletTrx reference is missing).
+ */
+const WITHDRAWAL_TRANSITIONS = {
+  PENDING: ['APPROVED', 'REJECTED', 'PROCESSED'],
+  APPROVED: ['PROCESSED', 'FAILED'],
+  REJECTED: [],
+  PROCESSED: [],
+  FAILED: []
+};
 
 // @desc    Update withdrawal request status
 // @route   PUT /api/admin/finance/withdrawals/:id
 // @access  Private (Admin)
 export const updateWithdrawalStatus = asyncHandler(async (req, res) => {
-  const { status, remarks, transactionId } = req.body;
-  const { id } = req.params;
+  const id = assertObjectId(req.params.id, 'withdrawal id');
+  const status = pickEnum(req.body.status, ['APPROVED', 'REJECTED', 'PROCESSED', 'FAILED']);
+  const remarks = asString(req.body.remarks, 500);
+  const transactionId = asString(req.body.transactionId, 100);
 
-  if (!['APPROVED', 'REJECTED', 'PROCESSED'].includes(status)) {
+  if (!status) {
     return sendError(res, 'Invalid status', 400);
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const withdrawal = await WithdrawalRequest.findById(id).session(session);
-    if (!withdrawal) {
-      throw new Error('Withdrawal request not found');
-    }
+    const withdrawal = await withTransaction(async (session) => {
+      const wd = await WithdrawalRequest.findById(id).session(session);
+      if (!wd) throw new AppError('Withdrawal request not found', 404);
 
-    if (withdrawal.status !== 'PENDING') {
-      throw new Error('Withdrawal request is already processed');
-    }
+      if (!WITHDRAWAL_TRANSITIONS[wd.status]?.includes(status)) {
+        throw new AppError(`Cannot change withdrawal from '${wd.status}' to '${status}'`, 409);
+      }
 
-    withdrawal.status = status;
-    if (remarks) withdrawal.adminNotes = remarks;
-    if (transactionId) withdrawal.transactionId = transactionId;
-    withdrawal.processedAt = new Date();
+      wd.status = status;
+      if (remarks) wd.adminNotes = remarks;
+      if (transactionId) wd.transactionId = transactionId;
+      wd.processedBy = req.user.id;
+      wd.processedAt = new Date();
+      await wd.save({ session });
 
-    await withdrawal.save({ session });
+      // Locate the reserving ledger row (by direct reference, with a metadata
+      // fallback for legacy records).
+      let walletTrx = null;
+      if (wd.walletTrxId) {
+        walletTrx = await WalletTransaction.findById(wd.walletTrxId).session(session);
+      }
+      if (!walletTrx) {
+        walletTrx = await WalletTransaction.findOne({ 'metadata.withdrawalId': id }).session(session);
+      }
+      if (!walletTrx) {
+        walletTrx = await WalletTransaction.findOne({ trxId: wd.request_id }).session(session);
+      }
 
-    // Update corresponding Wallet Transaction
-    const walletTrx = await WalletTransaction.findOne({
-      'metadata.withdrawalId': id
-    }).session(session);
-
-    if (walletTrx) {
-      if (status === 'REJECTED') {
-        // Refund the amount to user's wallet
-        const UserTypeModel = withdrawal.userType === 'Scrapper' ? Scrapper : User;
-        const user = await UserTypeModel.findById(withdrawal.user).session(session);
-
-        if (user) {
-          if (!user.wallet) user.wallet = { balance: 0 };
-          user.wallet.balance += withdrawal.amount;
-          await user.save({ session });
-
-          walletTrx.status = 'FAILED'; // Or 'REFUNDED'
-          walletTrx.description += ` (Rejected: ${remarks || 'Admin Rejected'})`;
+      if (status === 'REJECTED' || status === 'FAILED') {
+        // REFUND the reserved amount. Works even when the original ledger row
+        // is missing — the refund credit itself is a ledger row, idempotent
+        // per withdrawal so a retried admin click cannot double-refund.
+        await creditWallet({
+          ownerId: wd.user,
+          ownerType: wd.userType,
+          amount: wd.amount,
+          category: 'REFUND',
+          description: `Withdrawal ${wd.request_id} ${status.toLowerCase()}${remarks ? `: ${remarks}` : ''}`,
+          gateway: { provider: 'SYSTEM' },
+          idempotencyKey: `withdrawal-refund:${wd._id}`,
+          session,
+          allowFrozen: true
+        });
+        if (walletTrx) {
+          walletTrx.status = 'REVERSED';
+          walletTrx.description += ` (${status}: ${remarks || 'by admin'})`;
+          await walletTrx.save({ session });
         }
-      } else {
-        // APPROVED / PROCESSED
-        walletTrx.status = 'SUCCESS';
-        if (transactionId) {
-          walletTrx.metadata = { ...walletTrx.metadata, bankTxId: transactionId };
+      } else if (status === 'PROCESSED') {
+        if (walletTrx) {
+          walletTrx.status = 'SUCCESS';
+          if (transactionId) {
+            walletTrx.metadata = walletTrx.metadata || new Map();
+            walletTrx.metadata.set('bankTxId', transactionId);
+          }
+          await walletTrx.save({ session });
         }
       }
-      await walletTrx.save({ session });
-    }
+      // APPROVED: funds stay reserved (ledger row stays PENDING) until payout executes.
 
-    await session.commitTransaction();
+      return wd;
+    });
+
+    await audit(req, `WITHDRAWAL_${status}`, 'WithdrawalRequest', id, {
+      amount: withdrawal.amount,
+      remarks,
+      transactionId
+    });
+
+    sendNotificationToUser(withdrawal.user.toString(), {
+      title: status === 'PROCESSED' ? 'Withdrawal Processed ✅' : `Withdrawal ${status.toLowerCase()}`,
+      body: status === 'PROCESSED'
+        ? `Your withdrawal of ₹${withdrawal.amount} has been processed.`
+        : status === 'REJECTED' || status === 'FAILED'
+          ? `Your withdrawal of ₹${withdrawal.amount} was ${status.toLowerCase()} and the amount has been returned to your wallet.`
+          : `Your withdrawal of ₹${withdrawal.amount} has been approved and is being processed.`,
+      data: { type: 'withdrawal_update', status }
+    });
 
     sendSuccess(res, 'Withdrawal status updated', withdrawal);
-
   } catch (error) {
-    await session.abortTransaction();
-    logger.error('[Admin] Withdraw Update Failed', error);
-    sendError(res, error.message, 500);
-  } finally {
-    session.endSession();
+    if (error.statusCode) {
+      return sendError(res, error.message, error.statusCode);
+    }
+    logger.error('[Admin] Withdraw Update Failed', { error: error.message });
+    sendError(res, 'Failed to update withdrawal', 500);
   }
 });
+
+// ============================================
+// SETTINGS MANAGEMENT
+// ============================================
+
+/** Allow-listed settings with their validators. */
+const SETTING_SCHEMA = {
+  scrap_commission_percentage: (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < 0 || num > 100) {
+      throw new AppError('Commission percentage must be between 0 and 100', 400);
+    }
+    return num;
+  },
+  scrapper_tutorial_video: (value) => {
+    const str = asString(value, 500);
+    if (!str || !/^https:\/\//.test(str)) {
+      throw new AppError('Value must be an https URL', 400);
+    }
+    return str;
+  },
+  min_wallet_balance_for_orders: (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < 0 || num > 100000) {
+      throw new AppError('Minimum balance must be between 0 and 100000', 400);
+    }
+    return num;
+  }
+};
 
 // @desc    Get all system settings
 // @route   GET /api/admin/settings
 // @access  Private (Admin)
 export const getSystemSettings = asyncHandler(async (req, res) => {
-  try {
-    const settings = await SystemSetting.find();
+  let settings = await SystemSetting.find();
 
-    // If no settings exist yet, create a default scrap commission
-    if (settings.length === 0) {
-      const defaultSetting = await SystemSetting.create({
-        key: 'scrap_commission_percentage',
-        value: 1,
-        description: 'Platform commission percentage for scrap sell orders',
-        updatedBy: req.user.id
-      });
-      return sendSuccess(res, 'System settings retrieved', [defaultSetting]);
-    }
-
-    sendSuccess(res, 'System settings retrieved', settings);
-  } catch (error) {
-    logger.error('[Admin] Error fetching settings:', error);
-    sendError(res, 'Failed to fetch settings', 500);
+  if (settings.length === 0) {
+    const defaultSetting = await SystemSetting.create({
+      key: 'scrap_commission_percentage',
+      value: 1,
+      description: 'Platform commission percentage for scrap sell orders',
+      updatedBy: req.user.id
+    });
+    settings = [defaultSetting];
   }
+
+  sendSuccess(res, 'System settings retrieved', settings);
 });
 
-// @desc    Update a specific system setting
+// @desc    Update a specific system setting (allow-listed keys only)
 // @route   PUT /api/admin/settings/:key
 // @access  Private (Admin)
 export const updateSystemSetting = asyncHandler(async (req, res) => {
-  try {
-    const { key } = req.params;
-    const { value } = req.body;
-
-    if (value === undefined) {
-      return sendError(res, 'Value is required', 400);
-    }
-
-    const setting = await SystemSetting.findOneAndUpdate(
-      { key },
-      { value, updatedBy: req.user.id },
-      { new: true, upsert: true }
-    );
-
-    sendSuccess(res, 'Setting updated successfully', setting);
-  } catch (error) {
-    logger.error('[Admin] Error updating setting:', error);
-    sendError(res, 'Failed to update setting', 500);
+  const key = asString(req.params.key, 60);
+  const validator = SETTING_SCHEMA[key];
+  if (!validator) {
+    return sendError(res, `Unknown setting key '${key}'`, 400);
   }
+  if (req.body.value === undefined) {
+    return sendError(res, 'Value is required', 400);
+  }
+
+  let value;
+  try {
+    value = validator(req.body.value);
+  } catch (error) {
+    return sendError(res, error.message, error.statusCode || 400);
+  }
+
+  const setting = await SystemSetting.findOneAndUpdate(
+    { key },
+    { value, updatedBy: req.user.id, $setOnInsert: { description: key.replace(/_/g, ' ') } },
+    { new: true, upsert: true }
+  );
+
+  await audit(req, 'SETTING_UPDATED', 'SystemSetting', key, { value });
+
+  sendSuccess(res, 'Setting updated successfully', setting);
+});
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+// @desc    List admin/financial audit logs
+// @route   GET /api/admin/audit-logs
+// @access  Private (Admin)
+export const getAuditLogs = asyncHandler(async (req, res) => {
+  const { page, limit } = parsePagination(req.query, { defaultLimit: 50 });
+  const { entries, total } = await listAudits({
+    page,
+    limit,
+    action: asString(req.query.action, 60),
+    targetType: asString(req.query.targetType, 40),
+    targetId: asString(req.query.targetId, 60)
+  });
+  sendSuccess(res, 'Audit logs retrieved', {
+    entries,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
 });
 
 // ============================================
@@ -1636,85 +1510,60 @@ export const updateSystemSetting = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/broadcast
 // @access  Private (Admin)
 export const broadcastNotification = asyncHandler(async (req, res) => {
-  const { title, body, target, data = {} } = req.body;
+  const title = asString(req.body.title, 120);
+  const body = asString(req.body.body || req.body.message, 500);
+  const target = pickEnum(req.body.target || req.body.targetAudience, ['users', 'scrappers', 'all']);
+  const data = req.body.data && typeof req.body.data === 'object' && !Array.isArray(req.body.data) ? req.body.data : {};
 
   if (!title || !body || !target) {
-    return sendError(res, 'Title, body and target are required', 400);
+    return sendError(res, 'Title, body (or message) and target (or targetAudience) are required', 400);
   }
 
-  try {
-    let query = { isActive: true };
-
-    if (target === 'users') {
-      query.role = USER_ROLES.USER;
-    } else if (target === 'scrappers') {
-      query.role = USER_ROLES.SCRAPPER;
-    } else if (target === 'all') {
-      query.role = { $in: [USER_ROLES.USER, USER_ROLES.SCRAPPER] };
-    } else {
-      return sendError(res, 'Invalid target. Must be users, scrappers, or all', 400);
-    }
-
-    // Fetch users with tokens from User model
-    const usersWithTokens = await User.find(query).select('fcmTokens fcmTokenApp role');
-    
-    let allTokens = [];
-    let userTokensCount = 0;
-    let scrapperTokensCount = 0;
-
-    usersWithTokens.forEach(u => {
-      const webTokens = Array.isArray(u.fcmTokens) ? u.fcmTokens : [];
-      const appTokens = Array.isArray(u.fcmTokenApp) ? u.fcmTokenApp : [];
-      const tokens = [...webTokens, ...appTokens];
-      
-      if (u.role === USER_ROLES.USER) userTokensCount += tokens.length;
-      if (u.role === USER_ROLES.SCRAPPER) scrapperTokensCount += tokens.length;
-      allTokens = [...allTokens, ...tokens];
-    });
-
-    // Also fetch from Scrapper model if target is scrappers or all
-    if (target === 'scrappers' || target === 'all') {
-      const scrappersWithTokens = await Scrapper.find({ status: 'active' }).select('fcmTokens fcmTokenApp');
-      scrappersWithTokens.forEach(s => {
-        const webTokens = Array.isArray(s.fcmTokens) ? s.fcmTokens : [];
-        const appTokens = Array.isArray(s.fcmTokenApp) ? s.fcmTokenApp : [];
-        const tokens = [...webTokens, ...appTokens];
-        scrapperTokensCount += tokens.length;
-        allTokens = [...allTokens, ...tokens];
-      });
-    }
-
-    // Remove duplicates and empty strings
-    const uniqueTokens = [...new Set(allTokens)].filter(t => t && typeof t === 'string');
-
-    logger.info(`[Admin] Broadcast Debug - Target: ${target}, Users Found: ${usersWithTokens.length}, Total Tokens: ${uniqueTokens.length}`);
-    logger.info(`[Admin] Token Breakdown - User Tokens: ${userTokensCount}, Scrapper Tokens: ${scrapperTokensCount}`);
-
-    // Send Push Notifications in batches of 500 (Firebase limit)
-    const batchSize = 500;
-    const sendPromises = [];
-    for (let i = 0; i < uniqueTokens.length; i += batchSize) {
-      const batch = uniqueTokens.slice(i, i + batchSize);
-      sendPromises.push(sendPushNotification(batch, { 
-        title, 
-        body, 
-        data: { ...data, type: 'broadcast', title, body } 
-      }));
-    }
-
-    // Socket.io emission removed to prevent duplicate notifications since Firebase handles foreground UI toasts.
-
-    // Wait for all push notification batches to complete
-    if (sendPromises.length > 0) {
-      await Promise.allSettled(sendPromises);
-    }
-
-    sendSuccess(res, `Broadcast sent successfully to ${uniqueTokens.length} devices`, {
-      target,
-      tokenCount: uniqueTokens.length
-    });
-  } catch (error) {
-    logger.error('[Admin] Broadcast failed:', error);
-    sendError(res, 'Failed to send broadcast notification: ' + error.message, 500);
+  const query = { isActive: true };
+  if (target === 'users') {
+    query.role = USER_ROLES.USER;
+  } else if (target === 'scrappers') {
+    query.role = USER_ROLES.SCRAPPER;
+  } else {
+    query.role = { $in: [USER_ROLES.USER, USER_ROLES.SCRAPPER] };
   }
+
+  const usersWithTokens = await User.find(query).select('+fcmTokens +fcmTokenApp role').lean();
+
+  let allTokens = [];
+  for (const u of usersWithTokens) {
+    allTokens.push(...(Array.isArray(u.fcmTokens) ? u.fcmTokens : []));
+    allTokens.push(...(Array.isArray(u.fcmTokenApp) ? u.fcmTokenApp : []));
+  }
+
+  if (target === 'scrappers' || target === 'all') {
+    const scrappersWithTokens = await Scrapper.find({ status: 'active' }).select('+fcmTokens +fcmTokenApp').lean();
+    for (const s of scrappersWithTokens) {
+      allTokens.push(...(Array.isArray(s.fcmTokens) ? s.fcmTokens : []));
+      allTokens.push(...(Array.isArray(s.fcmTokenApp) ? s.fcmTokenApp : []));
+    }
+  }
+
+  const uniqueTokens = [...new Set(allTokens)].filter((t) => t && typeof t === 'string');
+
+  const batchSize = 500;
+  const sendPromises = [];
+  for (let i = 0; i < uniqueTokens.length; i += batchSize) {
+    const batch = uniqueTokens.slice(i, i + batchSize);
+    sendPromises.push(sendPushNotification(batch, {
+      title,
+      body,
+      data: { ...data, type: 'broadcast', title, body }
+    }));
+  }
+  if (sendPromises.length > 0) {
+    await Promise.allSettled(sendPromises);
+  }
+
+  await audit(req, 'BROADCAST_SENT', 'Notification', null, { target, tokenCount: uniqueTokens.length });
+
+  sendSuccess(res, `Broadcast sent successfully to ${uniqueTokens.length} devices`, {
+    target,
+    tokenCount: uniqueTokens.length
+  });
 });

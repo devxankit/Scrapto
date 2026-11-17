@@ -97,7 +97,8 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
       folder = 'scrapto',
       resource_type = 'image',
       public_id = null,
-      transformation = []
+      transformation = [],
+      private: isPrivate = false
     } = options;
 
     // Fix: Handle folder path correctly to avoid double 'scrapto/'
@@ -109,9 +110,13 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
     const uploadOptions = {
       folder: finalFolder,
       resource_type: resource_type,
-      use_filename: true,
+      use_filename: false,       // never leak original filenames into public ids
       unique_filename: true,
-      overwrite: false
+      overwrite: false,
+      // Private assets (KYC documents) are stored as `authenticated`: the plain
+      // delivery URL returns 401, so they can only be read via a signed URL.
+      type: isPrivate ? 'authenticated' : 'upload',
+      access_mode: isPrivate ? 'authenticated' : 'public'
     };
 
     if (resource_type === 'image' && transformation.length > 0) {
@@ -135,6 +140,8 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
       } else {
         resolve({
           success: true,
+          // For private assets this URL is NOT directly readable; callers must
+          // use signedAssetUrl(publicId, ...) to grant time-limited access.
           secure_url: result.secure_url,
           url: result.secure_url,
           publicId: result.public_id,
@@ -142,7 +149,8 @@ export const uploadBufferToCloudinary = (buffer, options = {}) => {
           width: result.width,
           height: result.height,
           bytes: result.bytes,
-          resource_type: result.resource_type
+          resource_type: result.resource_type,
+          deliveryType: result.type || (isPrivate ? 'authenticated' : 'upload')
         });
       }
     });
@@ -184,10 +192,11 @@ export const uploadMultipleToCloudinary = async (files, options = {}) => {
  * @param {string} resource_type - Resource type (image, raw, video)
  * @returns {Promise<Object>} - Deletion result
  */
-export const deleteFromCloudinary = async (publicId, resource_type = 'image') => {
+export const deleteFromCloudinary = async (publicId, resource_type = 'image', isPrivate = false) => {
   try {
     const result = await cloudinary.uploader.destroy(publicId, {
-      resource_type: resource_type
+      resource_type: resource_type,
+      type: isPrivate ? 'authenticated' : 'upload'
     });
 
     return {
@@ -198,6 +207,25 @@ export const deleteFromCloudinary = async (publicId, resource_type = 'image') =>
     logger.error('Cloudinary delete error:', error);
     throw new Error(`Failed to delete file from Cloudinary: ${error.message}`);
   }
+};
+
+/**
+ * Build a short-lived signed URL for a PRIVATE (authenticated) asset.
+ * This is the only way sensitive KYC documents are ever exposed, and the link
+ * expires, so it cannot be shared or indexed indefinitely.
+ *
+ * @param {string} publicId
+ * @param {Object} options { resourceType, expiresInSeconds }
+ */
+export const signedAssetUrl = (publicId, { resourceType = 'image', expiresInSeconds = 300 } = {}) => {
+  if (!publicId) return null;
+  return cloudinary.url(publicId, {
+    type: 'authenticated',
+    resource_type: resourceType,
+    sign_url: true,
+    secure: true,
+    expires_at: Math.floor(Date.now() / 1000) + expiresInSeconds
+  });
 };
 
 /**

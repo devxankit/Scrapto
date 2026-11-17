@@ -44,21 +44,18 @@ export const refundPaymentValidator = [
 ];
 
 export const createSubscriptionPaymentValidator = [
-  body('amount')
-    .notEmpty()
-    .withMessage('Amount is required')
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be greater than 0'),
+  // Price and duration are derived server-side from the plan; client amounts
+  // are not accepted on this endpoint any more.
+  body('planId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid plan ID'),
   body('planName')
     .optional()
     .isString()
     .trim()
     .isLength({ max: 100 })
-    .withMessage('Plan name too long'),
-  body('durationDays')
-    .optional()
-    .isInt({ min: 1, max: 365 })
-    .withMessage('Duration must be between 1 and 365 days')
+    .withMessage('Plan name too long')
 ];
 
 export const verifySubscriptionPaymentValidator = [

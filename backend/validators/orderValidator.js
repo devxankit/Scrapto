@@ -17,10 +17,10 @@ export const createOrderValidator = [
         if (!item.weight || item.weight <= 0) {
           throw new Error(`Item ${index + 1}: Weight must be greater than 0`);
         }
-        if (!item.rate || item.rate < 0) {
+        if (item.rate !== undefined && item.rate !== null && (Number(item.rate) < 0 || !Number.isFinite(Number(item.rate)))) {
           throw new Error(`Item ${index + 1}: Rate must be 0 or greater`);
         }
-        if (!item.total || item.total < 0) {
+        if (item.total !== undefined && item.total !== null && (Number(item.total) < 0 || !Number.isFinite(Number(item.total)))) {
           throw new Error(`Item ${index + 1}: Total must be 0 or greater`);
         }
       });

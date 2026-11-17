@@ -33,13 +33,25 @@ export const getPublicPrices = asyncHandler(async (req, res) => {
     }
 });
 
+const ALLOWED_PUBLIC_SETTINGS = new Set([
+    'scrapper_tutorial_video',
+    'min_wallet_balance_for_orders',
+    'scrap_commission_percentage',
+    'app_version',
+    'terms_and_conditions'
+]);
+
 // @desc    Get system setting by key
 // @route   GET /api/public/settings/:key
 // @access  Public
 export const getSystemSetting = asyncHandler(async (req, res) => {
     try {
         const { key } = req.params;
-        const setting = await SystemSetting.findOne({ key });
+        if (!key || typeof key !== 'string' || !ALLOWED_PUBLIC_SETTINGS.has(key)) {
+            return sendError(res, 'Setting not found', 404);
+        }
+
+        const setting = await SystemSetting.findOne({ key }).select('key value description -_id');
 
         if (!setting) {
             return sendError(res, 'Setting not found', 404);

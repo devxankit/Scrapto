@@ -1,5 +1,13 @@
+import dns from 'dns';
 import mongoose from 'mongoose';
 import logger from '../utils/logger.js';
+
+// Fallback to reliable public DNS resolvers if local router/ISP refuses SRV lookups
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {
+  // Continue with default system resolvers
+}
 
 const connectDB = async () => {
   try {

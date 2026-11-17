@@ -1,5 +1,6 @@
 import MarketplaceRequest from '../models/MarketplaceRequest.js';
 import Bid from '../models/Bid.js';
+import Scrapper from '../models/Scrapper.js';
 import User from '../models/User.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -7,7 +8,18 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { SCRAP_CATEGORIES } from '../config/constants.js';
 import logger from '../utils/logger.js';
 import { uploadMultipleFiles } from '../services/uploadService.js';
-import { notifyUser } from '../services/socketService.js';
+import {
+  AppError,
+  assertObjectId,
+  asString,
+  parseMoney,
+  parsePagination,
+  safeSearchRegex,
+  pickEnum
+} from '../utils/security.js';
+import { recordAudit } from '../services/auditService.js';
+
+const BID_MAX = 10000000;
 
 /**
  * @desc    Upload images for marketplace requests
@@ -19,17 +31,22 @@ export const uploadMarketplaceImages = asyncHandler(async (req, res) => {
     return sendError(res, 'No files uploaded', 400);
   }
 
-  const uploadResults = await uploadMultipleFiles(req.files, {
-    folder: 'marketplace_requests'
-  });
-
-  const images = uploadResults.map(result => ({
-    url: result.secure_url,
-    publicId: result.public_id
-  }));
-
-  sendSuccess(res, 'Images uploaded successfully', images);
+  try {
+    const uploadResults = await uploadMultipleFiles(req.files, {
+      folder: 'marketplace_requests',
+      allow: 'image'
+    });
+    const images = uploadResults.map((result) => ({
+      url: result.secure_url,
+      publicId: result.publicId
+    }));
+    sendSuccess(res, 'Images uploaded successfully', images);
+  } catch (error) {
+    if (error instanceof AppError) return sendError(res, error.message, error.statusCode);
+    throw error;
+  }
 });
+
 /**
  * @desc    Create marketplace requests
  * @route   POST /api/v1/marketplace/requests
@@ -37,158 +54,159 @@ export const uploadMarketplaceImages = asyncHandler(async (req, res) => {
  */
 export const createMarketplaceRequests = asyncHandler(async (req, res) => {
   const requestsData = Array.isArray(req.body) ? req.body : [req.body];
-  
+
   if (requestsData.length === 0) {
     return sendError(res, 'Please provide request data', 400);
   }
+  if (requestsData.length > 100) {
+    return sendError(res, 'At most 100 requests can be created at once', 400);
+  }
 
-  // Process and normalize data
   const processedData = [];
-  
+
   for (const reqData of requestsData) {
-    const normalized = { 
-      ...reqData, 
+    const title = asString(reqData.title, 200);
+    const fullAddress = asString(reqData.fullAddress, 500);
+    const phoneNumber = asString(reqData.phoneNumber, 15);
+    const city = asString(reqData.location?.city ?? reqData.city, 80);
+    const state = asString(reqData.location?.state ?? reqData.state, 80);
+
+    if (!title || !fullAddress || !phoneNumber || !city || !state) {
+      return sendError(res, 'title, fullAddress, phoneNumber, city and state are required for each request', 400);
+    }
+
+    const normalized = {
       adminId: req.user.id,
-      customerName: reqData.name || 'Customer'
+      customerName: asString(reqData.name ?? reqData.customerName, 100) || 'Customer',
+      title,
+      description: asString(reqData.description, 2000),
+      item: asString(reqData.item, 200),
+      unit: asString(reqData.unit, 40),
+      fullAddress,
+      phoneNumber,
+      location: { city, state },
+      basePrice: reqData.basePrice !== undefined
+        ? parseMoney(reqData.basePrice, { min: 0, max: BID_MAX, name: 'basePrice' })
+        : 0
     };
 
-    // Find user by phone or create a new one (Auto-registration)
-    if (reqData.phoneNumber) {
-      let user = await User.findOne({ phone: reqData.phoneNumber });
-      
-      if (!user) {
-        // Create a new user automatically so they can login via OTP later
-        try {
-          const crypto = await import('crypto');
-          const tempPassword = crypto.randomBytes(16).toString('hex');
-          const tempEmail = `${reqData.phoneNumber}@scrapto.auto`;
-          
-          user = await User.create({
-            name: reqData.name || 'Scrapto User',
-            phone: reqData.phoneNumber,
-            email: tempEmail,
-            password: tempPassword,
-            role: 'user',
-            isPhoneVerified: false,
-            isVerified: false
-          });
-          
-          logger.info(`✅ Auto-registered new user for marketplace request: ${reqData.phoneNumber}`);
-        } catch (createError) {
-          logger.error('❌ Failed to auto-register user:', createError.message);
-          // Continue anyway, request will have userId: null
-        }
-      }
-
-      if (user) {
-        normalized.userId = user._id;
+    if (reqData.location?.coordinates) {
+      const lat = Number(reqData.location.coordinates.lat);
+      const lng = Number(reqData.location.coordinates.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        normalized.location.coordinates = { lat, lng };
       }
     }
 
-    // Map flat city/state to location object if location doesn't exist
-    if (!normalized.location && (normalized.city || normalized.state)) {
-      normalized.location = {
-        city: normalized.city || '',
-        state: normalized.state || ''
-      };
-      // Clean up flat fields
-      delete normalized.city;
-      delete normalized.state;
+    // Link to an existing user account by phone; auto-provisioning an account
+    // here is NOT done any more (it created unverified shadow accounts).
+    const existingUser = await User.findOne({ phone: phoneNumber }).select('_id');
+    if (existingUser) {
+      normalized.userId = existingUser._id;
     }
 
-    // Normalize images (if strings, convert to objects)
-    if (normalized.images && Array.isArray(normalized.images)) {
-      normalized.images = normalized.images.map(img => 
-        typeof img === 'string' ? { url: img } : img
-      );
-    } else if (normalized.images && typeof normalized.images === 'string') {
-      normalized.images = [{ url: normalized.images }];
+    // Images
+    const rawImages = reqData.images;
+    if (Array.isArray(rawImages)) {
+      normalized.images = rawImages
+        .slice(0, 10)
+        .map((img) => (typeof img === 'string' ? { url: img } : { url: asString(img?.url, 500), publicId: asString(img?.publicId, 200) }))
+        .filter((img) => img.url);
+    } else if (typeof rawImages === 'string') {
+      normalized.images = [{ url: rawImages }];
     }
 
-    // Normalize category to lowercase and validate against SCRAP_CATEGORIES
-    if (normalized.category) {
-      const categoryLower = normalized.category.toLowerCase();
-      const validCategories = Object.values(SCRAP_CATEGORIES);
-      
-      if (validCategories.includes(categoryLower)) {
-        normalized.category = categoryLower;
-      } else {
-        // Fallback to 'other' if category is invalid
-        normalized.category = 'other';
-        logger.warn(`[Marketplace] Invalid category "${reqData.category}" changed to "other"`);
-      }
-    } else {
-      normalized.category = 'other';
-    }
+    // Category normalisation against the allow-list.
+    const categoryRaw = asString(reqData.category, 50)?.toLowerCase();
+    const validCategories = Object.values(SCRAP_CATEGORIES);
+    normalized.category = categoryRaw && validCategories.includes(categoryRaw) ? categoryRaw : 'other';
 
     processedData.push(normalized);
   }
 
   const requests = await MarketplaceRequest.insertMany(processedData);
 
+  await recordAudit({
+    actorId: req.user.id,
+    actorRole: 'admin',
+    action: 'MARKETPLACE_REQUESTS_CREATED',
+    targetType: 'MarketplaceRequest',
+    metadata: { count: requests.length },
+    ip: req.ip
+  });
+
   sendSuccess(res, 'Marketplace requests created successfully', requests, 201);
 });
 
 /**
- * @desc    Get all open marketplace requests
+ * @desc    Get open marketplace requests
  * @route   GET /api/v1/marketplace/requests
- * @access  Scrapper, Admin
+ * @access  Scrapper (own city, subscription-gated), Admin (all)
  */
 export const getMarketplaceRequests = asyncHandler(async (req, res) => {
-  const { city, category, status } = req.query;
-  const scrapperId = req.user.id;
+  const category = pickEnum(asString(req.query.category, 50), Object.values(SCRAP_CATEGORIES));
 
-  // If scrapper, check subscription status and limits, and enforce city filter
-  let maxRequests = null;
   if (req.user.role === 'scrapper') {
-    const Scrapper = (await import('../models/Scrapper.js')).default;
-    const scrapper = await Scrapper.findById(scrapperId).populate('subscription.planId');
+    const scrapper = req.scrapper || await Scrapper.findById(req.user.id).populate('subscription.planId');
+    if (!scrapper) {
+      return sendError(res, 'Scrapper profile not found', 404);
+    }
+    if (scrapper.status !== 'active') {
+      return sendError(res, 'Your account is blocked or suspended.', 403);
+    }
+    if (scrapper.kyc?.status !== 'verified') {
+      return sendError(res, 'KYC verification required to browse the marketplace.', 403);
+    }
 
-    const sub = scrapper?.subscription;
-    const isSubscriptionActive = sub?.planId && sub?.status === 'active' && new Date(sub.expiryDate) > new Date();
+    const populated = scrapper.populated?.('subscription.planId')
+      ? scrapper
+      : await Scrapper.findById(scrapper._id).populate('subscription.planId');
 
-    // Read marketplace request limit from the single subscription plan
-    maxRequests = sub?.planId?.maxMarketplaceRequests ?? null;
+    // Subscription entitlement gates marketplace access.
+    if (!populated.hasActiveSubscription()) {
+      return sendError(res, 'An active subscription is required to view marketplace requests.', 403);
+    }
+    const maxRequests = populated.subscription.planId?.maxMarketplaceRequests ?? null;
 
-    // Build query and enforce city filter
-    const query = {};
-    query.status = 'open';
+    const query = { status: { $in: ['open', 'bidding'] } };
     if (category) query.category = category;
 
-    // STRICT city filter: scrapper only sees their own city
-    if (scrapper.city && scrapper.city.trim() !== "") {
-      const cityName = scrapper.city.trim();
-      if (cityName.toLowerCase() === 'gurugram' || cityName.toLowerCase() === 'gurgaon') {
-        query['location.city'] = { $regex: /gurugram|gurgaon/i };
-      } else {
-        query['location.city'] = new RegExp(cityName, 'i');
-      }
-    } else {
-      logger.warn(`[Marketplace] Scrapper ${scrapperId} has no city set. Returning empty list.`);
+    // Strict city scoping.
+    const cityName = scrapper.city?.trim();
+    if (!cityName) {
+      logger.warn(`[Marketplace] Scrapper ${scrapper._id} has no city set`);
       return sendSuccess(res, 'Please set your city in profile to view marketplace requests', []);
+    }
+    if (/^(gurugram|gurgaon)$/i.test(cityName)) {
+      query['location.city'] = { $regex: /gurugram|gurgaon/i };
+    } else {
+      const cityRegex = safeSearchRegex(cityName);
+      if (cityRegex) query['location.city'] = cityRegex;
     }
 
     let dbQuery = MarketplaceRequest.find(query)
+      .select('-fullAddress -phoneNumber -reports')
       .sort({ createdAt: -1 });
 
-    if (maxRequests !== null) {
-      dbQuery = dbQuery.limit(maxRequests);
-    }
+    dbQuery = dbQuery.limit(maxRequests !== null && maxRequests !== undefined ? Math.min(maxRequests, 200) : 100);
 
     const requests = await dbQuery;
     return sendSuccess(res, 'Marketplace requests retrieved successfully', requests);
   }
-  
-  // Admin path: no city or subscription restrictions
+
+  // Admin path
+  const { limit, skip } = parsePagination(req.query, { defaultLimit: 100, maxLimit: 200 });
   const query = {};
-  if (status) {
-    query.status = status;
-  }
-  if (city) query['location.city'] = new RegExp(city, 'i');
+  const status = pickEnum(asString(req.query.status, 20), ['open', 'bidding', 'deal_closed', 'completed', 'cancelled']);
+  if (status) query.status = status;
+  const city = safeSearchRegex(req.query.city);
+  if (city) query['location.city'] = city;
   if (category) query.category = category;
 
   const requests = await MarketplaceRequest.find(query)
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
   sendSuccess(res, 'Marketplace requests retrieved successfully', requests);
 });
@@ -196,112 +214,111 @@ export const getMarketplaceRequests = asyncHandler(async (req, res) => {
 /**
  * @desc    Get specific marketplace request details
  * @route   GET /api/v1/marketplace/requests/:id
- * @access  Scrapper, Admin, User
+ * @access  Scrapper, Admin, owning User
  */
 export const getMarketplaceRequestById = asyncHandler(async (req, res) => {
-  const request = await MarketplaceRequest.findById(req.params.id);
+  const id = assertObjectId(req.params.id, 'request id');
+  const request = await MarketplaceRequest.findById(id);
 
   if (!request) {
     return sendError(res, 'Request not found', 404);
   }
 
-  // Privacy logic: Show address if scrapper has active subscription, is admin, or is the winner
-  let hasActiveSubscription = false;
-  if (req.user.role === 'scrapper') {
-    const Scrapper = (await import('../models/Scrapper.js')).default;
-    const scrapper = await Scrapper.findById(req.user.id);
-    const sub = scrapper?.subscription;
-    hasActiveSubscription = (sub?.status === 'active' || sub?.status === 'cancelled') && new Date(sub.expiryDate) > new Date();
+  const isAdmin = req.user.role === 'admin';
+  const isOwner = request.userId?.toString() === req.user.id;
+  const scrapperId = req.user.scrapperId || req.user.id;
+  const isWinner = request.status === 'deal_closed' && request.winnerScrapper?.toString() === scrapperId;
+
+  if (req.user.role === 'user' && !isOwner) {
+    return sendError(res, 'Not authorized to view this request', 403);
   }
 
-  const isAuthorized = 
-    req.user.role === 'admin' || 
-    hasActiveSubscription ||
-    (request.status === 'deal_closed' && request.winnerScrapper?.toString() === (req.user.scrapperId || req.user.id)?.toString());
-
+  // Contact details are disclosed ONLY to admin, the request owner, or the
+  // winning scrapper. A subscription alone no longer unlocks private data.
   const data = request.toObject();
-  if (!isAuthorized) {
+  if (!isAdmin && !isOwner && !isWinner) {
     delete data.fullAddress;
     delete data.phoneNumber;
+    delete data.reports;
   }
 
-  // Check if the current scrapper has already placed a bid
   if (req.user.role === 'scrapper') {
-    const scrapperId = req.user.scrapperId || req.user.id;
-    const myBid = await Bid.findOne({ requestId: req.params.id, scrapperId });
-    data.myBid = myBid;
+    const scrapper = req.scrapper || await Scrapper.findById(scrapperId);
+    if (!scrapper || scrapper.status !== 'active' || scrapper.kyc?.status !== 'verified') {
+      return sendError(res, 'Active, KYC-verified scrapper account required', 403);
+    }
+    data.myBid = await Bid.findOne({ requestId: id, scrapperId });
   }
 
   sendSuccess(res, 'Marketplace request details retrieved successfully', data);
 });
 
 /**
- * @desc    Place a bid on a request
+ * @desc    Place or update a bid
  * @route   POST /api/v1/marketplace/requests/:id/bids
- * @access  Scrapper
+ * @access  Scrapper (active, KYC-verified, subscribed)
  */
 export const placeBid = asyncHandler(async (req, res) => {
-  const { bidAmount, message } = req.body;
-  const requestId = req.params.id;
+  const requestId = assertObjectId(req.params.id, 'request id');
+  const bidAmount = parseMoney(req.body.bidAmount, { min: 1, max: BID_MAX, name: 'bidAmount' });
+  const message = asString(req.body.message, 500);
+  const scrapperId = req.user.scrapperId || req.user.id;
+
+  const scrapper = await Scrapper.findById(scrapperId).populate('subscription.planId');
+  if (!scrapper) {
+    return sendError(res, 'Scrapper profile not found', 404);
+  }
+  if (scrapper.status !== 'active') {
+    return sendError(res, 'Your account is blocked or suspended.', 403);
+  }
+  if (scrapper.kyc?.status !== 'verified') {
+    return sendError(res, 'KYC verification required before bidding.', 403);
+  }
+  if (!scrapper.hasActiveSubscription()) {
+    return sendError(res, 'An active subscription is required to place bids.', 403);
+  }
 
   const request = await MarketplaceRequest.findById(requestId);
   if (!request) return sendError(res, 'Request not found', 404);
-  
+
   if (request.status !== 'open' && request.status !== 'bidding') {
     return sendError(res, 'Bidding is closed for this request', 400);
   }
 
-  // Check if scrapper already has a bid
-  const scrapperId = req.user.scrapperId || req.user.id;
   let bid = await Bid.findOne({ requestId, scrapperId });
-
   if (bid) {
-    // Update existing bid
+    if (bid.status === 'accepted' || bid.status === 'rejected') {
+      return sendError(res, 'This bid can no longer be changed', 409);
+    }
     bid.bidAmount = bidAmount;
     bid.message = message;
     await bid.save();
   } else {
-    // Create new bid
-    bid = await Bid.create({
-      requestId,
-      scrapperId,
-      bidAmount,
-      message
-    });
-
-    // Update request status to 'bidding' if it was 'open'
-    if (request.status === 'open') {
-      request.status = 'bidding';
-      await request.save();
+    try {
+      bid = await Bid.create({ requestId, scrapperId, bidAmount, message });
+    } catch (error) {
+      if (error.code === 11000) {
+        return sendError(res, 'You have already placed a bid on this request', 409);
+      }
+      throw error;
     }
+    // Move 'open' -> 'bidding' atomically (no lost updates).
+    await MarketplaceRequest.updateOne({ _id: requestId, status: 'open' }, { $set: { status: 'bidding' } });
   }
 
-  // Send Notifications
   const bidAmountFormatted = `₹${bidAmount}`;
-  const notificationTitle = 'New Bid Received';
-  const notificationMessage = `A scrapper has placed a bid of ${bidAmountFormatted} on your marketplace request: ${request.title}`;
-
-  // 1. Notify Admin
   if (request.adminId) {
     sendNotificationToUser(request.adminId.toString(), {
       title: 'New Bid Received 🎯',
       body: `A scrapper has placed a bid of ${bidAmountFormatted} on "${request.title}"`,
-      data: {
-        requestId: request._id.toString(),
-        type: 'new_bid'
-      }
+      data: { requestId: request._id.toString(), type: 'new_bid' }
     });
   }
-
-  // 2. Notify User (if linked)
   if (request.userId && request.userId.toString() !== request.adminId?.toString()) {
     sendNotificationToUser(request.userId.toString(), {
       title: 'New Bid Received 🎯',
       body: `A scrapper has placed a bid of ${bidAmountFormatted} on your request: ${request.title}`,
-      data: {
-        requestId: request._id.toString(),
-        type: 'new_bid'
-      }
+      data: { requestId: request._id.toString(), type: 'new_bid' }
     });
   }
 
@@ -311,49 +328,77 @@ export const placeBid = asyncHandler(async (req, res) => {
 /**
  * @desc    Accept a bid and close the deal
  * @route   PATCH /api/v1/marketplace/bids/:bidId/accept
- * @access  Admin, User
+ * @access  Admin, or the User who owns the request
  */
 export const acceptBid = asyncHandler(async (req, res) => {
-  const bid = await Bid.findById(req.params.bidId).populate('requestId');
-  
+  const bidId = assertObjectId(req.params.bidId, 'bid id');
+
+  const bid = await Bid.findById(bidId);
   if (!bid) return sendError(res, 'Bid not found', 404);
-  
-  const request = bid.requestId;
-  if (request.status === 'deal_closed') {
-    return sendError(res, 'Deal is already closed for this request', 400);
+
+  const request = await MarketplaceRequest.findById(bid.requestId);
+  if (!request) return sendError(res, 'Request not found', 404);
+
+  // OWNERSHIP CHECK: a user may only accept bids on their own requests.
+  if (req.user.role !== 'admin') {
+    const isOwner = request.userId?.toString() === req.user.id;
+    if (!isOwner) {
+      return sendError(res, 'Not authorized to accept bids on this request', 403);
+    }
   }
 
-  // Close the deal
-  request.status = 'deal_closed';
-  request.winnerScrapper = bid.scrapperId;
-  request.isDataDisclosed = true;
-  request.dealClosedAt = new Date();
-  await request.save();
+  if (request.status === 'deal_closed' || request.status === 'completed') {
+    return sendError(res, 'Deal is already closed for this request', 409);
+  }
+  if (request.status === 'cancelled') {
+    return sendError(res, 'This request has been cancelled', 409);
+  }
 
-  // Update bid status
+  // Atomic close: only the first accept wins, so concurrent accepts cannot
+  // produce two winners.
+  const closed = await MarketplaceRequest.findOneAndUpdate(
+    { _id: request._id, status: { $in: ['open', 'bidding'] } },
+    {
+      $set: {
+        status: 'deal_closed',
+        winnerScrapper: bid.scrapperId,
+        isDataDisclosed: true,
+        dealClosedAt: new Date()
+      }
+    },
+    { new: true }
+  );
+  if (!closed) {
+    return sendError(res, 'Deal is already closed for this request', 409);
+  }
+
   bid.status = 'accepted';
   await bid.save();
 
-  // Reject all other bids for this request
   await Bid.updateMany(
     { requestId: request._id, _id: { $ne: bid._id } },
-    { status: 'rejected' }
+    { $set: { status: 'rejected' } }
   );
 
-  // Send Notification to Scrapper
+  await recordAudit({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    action: 'MARKETPLACE_BID_ACCEPTED',
+    targetType: 'MarketplaceRequest',
+    targetId: request._id,
+    metadata: { bidId: bid._id.toString(), bidAmount: bid.bidAmount },
+    ip: req.ip
+  });
+
   sendNotificationToUser(bid.scrapperId.toString(), {
     title: 'Bid Accepted! 🎉',
     body: `Congratulations! Your bid on "${request.title}" has been accepted.`,
-    data: {
-      requestId: request._id.toString(),
-      type: 'bid_accepted'
-    }
+    data: { requestId: request._id.toString(), type: 'bid_accepted' }
   });
 
-  // Notify other scrappers that their bid was not selected
   try {
-    const otherBids = await Bid.find({ requestId: request._id, _id: { $ne: bid._id } });
-    const otherScrapperIds = otherBids.map(b => b.scrapperId.toString());
+    const otherBids = await Bid.find({ requestId: request._id, _id: { $ne: bid._id } }).select('scrapperId');
+    const otherScrapperIds = otherBids.map((b) => b.scrapperId.toString());
     if (otherScrapperIds.length > 0) {
       const { sendNotificationToMultipleUsers } = await import('../utils/pushNotificationHelper.js');
       sendNotificationToMultipleUsers(otherScrapperIds, {
@@ -363,10 +408,10 @@ export const acceptBid = asyncHandler(async (req, res) => {
       });
     }
   } catch (err) {
-    logger.error('Error notifying rejected bidders:', err);
+    logger.error('Error notifying rejected bidders', { error: err.message });
   }
 
-  sendSuccess(res, 'Deal closed successfully. Contact details are now visible.', request);
+  sendSuccess(res, 'Deal closed successfully. Contact details are now visible.', closed);
 });
 
 /**
@@ -375,18 +420,33 @@ export const acceptBid = asyncHandler(async (req, res) => {
  * @access  User
  */
 export const getMyMarketplaceRequests = asyncHandler(async (req, res) => {
+  const { limit, skip } = parsePagination(req.query, { defaultLimit: 50 });
+
   const requests = await MarketplaceRequest.find({ userId: req.user.id })
-    .sort({ createdAt: -1 });
-  
-  // For each request, find if there are any bids
-  const requestsWithBids = await Promise.all(requests.map(async (request) => {
-    const bids = await Bid.find({ requestId: request._id })
-      .populate('scrapperId', 'name phone profilePic');
-    
-    return {
-      ...request.toObject(),
-      bids
-    };
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  if (requests.length === 0) {
+    return sendSuccess(res, 'My marketplace requests fetched successfully', []);
+  }
+
+  // Single query for all bids instead of N+1.
+  const bids = await Bid.find({ requestId: { $in: requests.map((r) => r._id) } })
+    .populate('scrapperId', 'name phone profilePic rating')
+    .lean();
+
+  const bidsByRequest = new Map();
+  for (const bid of bids) {
+    const key = String(bid.requestId);
+    if (!bidsByRequest.has(key)) bidsByRequest.set(key, []);
+    bidsByRequest.get(key).push(bid);
+  }
+
+  const requestsWithBids = requests.map((request) => ({
+    ...request,
+    bids: bidsByRequest.get(String(request._id)) || []
   }));
 
   sendSuccess(res, 'My marketplace requests fetched successfully', requestsWithBids);
@@ -398,25 +458,22 @@ export const getMyMarketplaceRequests = asyncHandler(async (req, res) => {
  * @access  Scrapper
  */
 export const reportMarketplaceRequest = asyncHandler(async (req, res) => {
-  const request = await MarketplaceRequest.findById(req.params.id);
-  
-  if (!request) return sendError(res, 'Request not found', 404);
-  
-  // Check if already reported by this scrapper
-  const alreadyReported = request.reports.some(
-    r => r.scrapperId.toString() === req.user.id.toString()
+  const id = assertObjectId(req.params.id, 'request id');
+  const reason = asString(req.body.reason, 200) || 'Spam';
+  const scrapperId = req.user.scrapperId || req.user.id;
+
+  // Atomic: only adds a report when this scrapper has not already reported.
+  const updated = await MarketplaceRequest.findOneAndUpdate(
+    { _id: id, 'reports.scrapperId': { $ne: scrapperId } },
+    { $push: { reports: { scrapperId, reason, createdAt: new Date() } } },
+    { new: true }
   );
 
-  if (alreadyReported) {
+  if (!updated) {
+    const exists = await MarketplaceRequest.exists({ _id: id });
+    if (!exists) return sendError(res, 'Request not found', 404);
     return sendError(res, 'You have already reported this request', 400);
   }
-
-  request.reports.push({
-    scrapperId: req.user.id,
-    reason: req.body.reason || 'Spam'
-  });
-
-  await request.save();
 
   sendSuccess(res, 'Request reported successfully');
 });
@@ -427,16 +484,24 @@ export const reportMarketplaceRequest = asyncHandler(async (req, res) => {
  * @access  Admin
  */
 export const deleteMarketplaceRequest = asyncHandler(async (req, res) => {
-  const request = await MarketplaceRequest.findById(req.params.id);
+  const id = assertObjectId(req.params.id, 'request id');
 
+  const request = await MarketplaceRequest.findById(id);
   if (!request) {
     return sendError(res, 'Request not found', 404);
   }
 
-  // Delete all bids associated with this request
-  await Bid.deleteMany({ requestId: req.params.id });
-  
+  await Bid.deleteMany({ requestId: id });
   await request.deleteOne();
+
+  await recordAudit({
+    actorId: req.user.id,
+    actorRole: 'admin',
+    action: 'MARKETPLACE_REQUEST_DELETED',
+    targetType: 'MarketplaceRequest',
+    targetId: id,
+    ip: req.ip
+  });
 
   sendSuccess(res, 'Marketplace request and associated bids deleted successfully');
 });

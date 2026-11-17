@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import logger from '../utils/logger.js';
 
 const reviewSchema = new mongoose.Schema({
   order: {
@@ -107,10 +108,9 @@ reviewSchema.methods.flag = function () {
 reviewSchema.statics.calculateAverageRating = async function (scrapperId) {
   const stats = await this.aggregate([
     {
-      $match: { scrapper: scrapperId, status: { $in: ['approved', 'pending'] } } // Include pending for immediate feedback? usually approved only. Let's include pending for now as auto-approval is common, or let's stick to 'approved' if moderation is strict. Given the current code has moderation, maybe 'approved'? But default is pending. Let's include both or just active. The schema has 'pending', 'approved'. Let's assume reviews are visible immediately or pending moderation shouldn't count? 
-      // Decision: Let's count 'approved' and 'pending' (assuming 'pending' is default visible until flagged). OR strict moderation.
-      // Let's stick to counting ALL except rejected/flagged to be instant, unless moderation is strict.
-      // Changing match to: status: { $in: ['pending', 'approved'] }
+      // Only approved reviews count toward the public rating, matching what
+      // getReviewsByScrapper returns. Rejected/flagged/pending are excluded.
+      $match: { scrapper: scrapperId, status: 'approved' }
     },
     {
       $group: {
@@ -148,13 +148,13 @@ reviewSchema.statics.calculateAverageRating = async function (scrapperId) {
       });
     }
   } catch (err) {
-    console.error(err);
+    logger.error('Failed to recalculate scrapper rating', { error: err.message });
   }
 };
 
 // Call calculateAverageRating after save
 reviewSchema.post('save', function () {
-  this.constructor.calculateAverageRating(this.scrapper);
+  this.constructor.calculateAverageRating(this.scrapper).catch(() => {});
 });
 
 const Review = mongoose.model('Review', reviewSchema);

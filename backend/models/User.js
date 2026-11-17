@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { USER_ROLES } from '../config/constants.js';
 
 const userSchema = new mongoose.Schema({
@@ -15,7 +16,8 @@ const userSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+    maxlength: [254, 'Email is too long'],
+    match: [/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Please provide a valid email']
   },
   phone: {
     type: String,
@@ -23,10 +25,11 @@ const userSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  // Only admin accounts authenticate with a password. Users and scrappers are
+  // OTP-only and have no password at all (so there is nothing to brute-force).
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
-    minlength: [6, 'Password must be at least 6 characters'],
+    minlength: [8, 'Password must be at least 8 characters'],
     select: false
   },
   role: {
@@ -42,6 +45,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Incremented to revoke every outstanding access/refresh token for this account
+  // (block, role change, password change, logout-all, refresh-token reuse).
+  tokenVersion: {
+    type: Number,
+    default: 0
+  },
   profileImage: {
     type: String,
     default: null
@@ -56,12 +65,24 @@ const userSchema = new mongoose.Schema({
       lng: Number
     }
   },
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
-  verificationToken: String,
-  verificationExpire: Date,
-  phoneVerificationOTP: String,
-  otpExpiresAt: Date,
+  resetPasswordToken: { type: String, select: false },
+  resetPasswordExpire: { type: Date, select: false },
+  verificationToken: { type: String, select: false },
+  verificationExpire: { type: Date, select: false },
+
+  // --- OTP state (never returned by default) ---
+  // HMAC-SHA256 of the OTP (keyed, bound to phone). The plaintext OTP is never stored.
+  phoneVerificationOTP: { type: String, select: false },
+  otpExpiresAt: { type: Date, select: false },
+  otpAttempts: { type: Number, default: 0, select: false },
+  otpLastSentAt: { type: Date, select: false },
+  otpSendWindowStart: { type: Date, select: false },
+  otpSendCount: { type: Number, default: 0, select: false },
+
+  // --- Password login lockout (admin accounts) ---
+  failedLoginAttempts: { type: Number, default: 0, select: false },
+  lockUntil: { type: Date, default: null, select: false },
+
   isPhoneVerified: {
     type: Boolean,
     default: false
@@ -83,7 +104,7 @@ const userSchema = new mongoose.Schema({
     }
   },
   bankDetails: {
-    accountNumber: String,
+    accountNumber: String, // last 4 digits only
     ifsc: String,
     beneficiaryName: String,
     bankName: String,
@@ -115,81 +136,87 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next();
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ referredBy: 1 }, { sparse: true });
+
+// Hash password before saving — ONLY when it actually changed.
+// (Previously a missing `return` re-hashed the existing hash on every save,
+// silently corrupting credentials.)
+userSchema.pre('save', async function () {
+  if (!this.isModified('password') || !this.password) {
+    return;
   }
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
+  if (!this.isNew) {
+    // A password change invalidates every existing session.
+    this.tokenVersion = (this.tokenVersion || 0) + 1;
+  }
 });
 
 // Compare password method
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  if (!this.password || typeof enteredPassword !== 'string') return false;
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
-// Generate OTP for phone verification
-userSchema.methods.generateOTP = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  this.phoneVerificationOTP = otp;
-  this.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-  return otp;
-};
+const SENSITIVE_FIELDS = [
+  'password',
+  'phoneVerificationOTP',
+  'otpExpiresAt',
+  'otpAttempts',
+  'otpLastSentAt',
+  'otpSendWindowStart',
+  'otpSendCount',
+  'failedLoginAttempts',
+  'lockUntil',
+  'resetPasswordToken',
+  'resetPasswordExpire',
+  'verificationToken',
+  'verificationExpire',
+  'tokenVersion',
+  'fcmTokens',
+  'fcmTokenApp',
+  '__v'
+];
 
-// Verify OTP
-userSchema.methods.verifyOTP = function (otp) {
-  if (!this.phoneVerificationOTP || !this.otpExpiresAt) {
-    return false;
+const stripSensitive = (doc, ret) => {
+  for (const field of SENSITIVE_FIELDS) {
+    delete ret[field];
   }
-
-  if (this.otpExpiresAt < new Date()) {
-    return false;
+  if (ret.bankDetails) {
+    delete ret.bankDetails.fundAccountId;
+    delete ret.bankDetails.contactId;
   }
-
-  return this.phoneVerificationOTP === otp;
+  return ret;
 };
 
+// Strip secrets from BOTH toJSON and toObject so no code path can leak them.
+userSchema.set('toJSON', { transform: stripSensitive });
+userSchema.set('toObject', { transform: stripSensitive });
 
-// Remove password and sensitive data from JSON output
-userSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  delete obj.password;
-  delete obj.phoneVerificationOTP;
-  delete obj.resetPasswordToken;
-  delete obj.verificationToken;
-  return obj;
-};
+const REFERRAL_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 // Pre-save hook to generate referral code
-userSchema.pre('save', async function (next) {
-  if (!this.referralCode) {
-    // Generate a unique referral code
-    // Format: USER-XXXXXX or SCRAP-XXXXXX depending on role
-    const prefix = this.role === 'scrapper' ? 'SCRAP' : 'USER';
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let unique = false;
-    let code = '';
-
-    while (!unique) {
-      let randomStr = '';
-      for (let i = 0; i < 6; i++) {
-        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      code = `${prefix}-${randomStr}`;
-
-      // Check uniqueness
-      const existing = await mongoose.models.User.findOne({ referralCode: code });
-      if (!existing) {
-        unique = true;
-      }
+userSchema.pre('save', async function () {
+  if (this.referralCode) return;
+  const prefix = this.role === 'scrapper' ? 'SCRAP' : 'USER';
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    let randomStr = '';
+    const bytes = crypto.randomBytes(8);
+    for (let i = 0; i < 8; i += 1) {
+      randomStr += REFERRAL_ALPHABET[bytes[i] % REFERRAL_ALPHABET.length];
     }
-    this.referralCode = code;
+    const code = `${prefix}-${randomStr}`;
+    const existing = await mongoose.models.User.exists({ referralCode: code });
+    if (!existing) {
+      this.referralCode = code;
+      return;
+    }
   }
-  next();
+  throw new Error('Could not generate a unique referral code');
 });
 
 const User = mongoose.model('User', userSchema);
 
 export default User;
-

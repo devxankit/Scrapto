@@ -1,208 +1,277 @@
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { sendMessage, markAsRead } from './chatService.js';
 import Chat from '../models/Chat.js';
-import Message from '../models/Message.js';
+import Order from '../models/Order.js';
+import User from '../models/User.js';
+import Scrapper from '../models/Scrapper.js';
+import { verifyAccessToken } from '../utils/generateToken.js';
 import logger from '../utils/logger.js';
 
 let io = null;
 
 /**
- * Initialize Socket.io server
- * @param {Object} server - HTTP server instance
- * @returns {Object} Socket.io instance
+ * Socket security model:
+ *  - every connection must present a valid ACCESS token; the account must exist,
+ *    be active, and the token's tokenVersion must still match (revocation);
+ *  - blocked/suspended scrappers are refused at handshake;
+ *  - room membership is authorised server-side:
+ *      chat_<id>     -> must be a chat participant
+ *      tracking_<id> -> must be the order's user, its assigned scrapper, or admin
+ *  - only the assigned scrapper may publish location for an order, and updates
+ *    are coordinate-validated and rate limited;
+ *  - identity always comes from the socket session, never from event payloads.
  */
+
+const EVENT_LIMITS = {
+  default: { points: 60, windowMs: 10_000 },
+  scrapper_location_update: { points: 30, windowMs: 10_000 },
+  send_message: { points: 30, windowMs: 10_000 }
+};
+
+const allowEvent = (socket, event) => {
+  const limit = EVENT_LIMITS[event] || EVENT_LIMITS.default;
+  const now = Date.now();
+  socket.data.buckets = socket.data.buckets || {};
+  const bucket = socket.data.buckets[event] || { count: 0, resetAt: now + limit.windowMs };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + limit.windowMs;
+  }
+  bucket.count += 1;
+  socket.data.buckets[event] = bucket;
+  if (bucket.count > limit.points) {
+    socket.emit('error', { message: 'Rate limit exceeded. Please slow down.' });
+    return false;
+  }
+  return true;
+};
+
+const isValidCoordinate = (lat, lng) =>
+  Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
+/** Can this socket observe / participate in tracking for the given order? */
+const authorizeOrderAccess = async (socket, orderId) => {
+  if (!orderId || typeof orderId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(orderId)) return null;
+  const order = await Order.findById(orderId).select('user scrapper status');
+  if (!order) return null;
+  if (socket.userRole === 'admin') return { order, role: 'admin' };
+  if (order.user?.toString() === socket.userId) return { order, role: 'user' };
+  if (order.scrapper?.toString() === socket.userId) return { order, role: 'scrapper' };
+  return null;
+};
+
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin: (process.env.FRONTEND_URL || 'http://localhost:5173')
         .split(',')
-        .map(o => o.trim().replace(/\/$/, "")),
+        .map((o) => o.trim().replace(/\/$/, '')),
       methods: ['GET', 'POST'],
       credentials: true
     },
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 1e6 // 1 MB
   });
 
-  // Authentication middleware
+  // Authentication + authorisation at handshake
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token;
-
+      const token = socket.handshake.auth?.token;
       if (!token) {
         return next(new Error('Authentication error: No token provided'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scrapto-dev-secret-key-change-in-production-2024');
-      socket.userId = decoded.id;
-      socket.userType = decoded.role === 'scrapper' ? 'scrapper' : decoded.role === 'admin' ? 'admin' : 'user';
-      socket.userRole = decoded.role;
+      const decoded = verifyAccessToken(token);
 
-      next();
+      const user = await User.findById(decoded.id).select('role isActive tokenVersion');
+      if (!user || !user.isActive) {
+        return next(new Error('Authentication error: Account unavailable'));
+      }
+      if ((user.tokenVersion || 0) !== (decoded.tv ?? 0)) {
+        return next(new Error('Authentication error: Session revoked'));
+      }
+
+      if (user.role === 'scrapper') {
+        const scrapper = await Scrapper.findById(user._id).select('status');
+        if (scrapper && scrapper.status !== 'active') {
+          return next(new Error('Authentication error: Account blocked'));
+        }
+      }
+
+      socket.userId = user._id.toString();
+      socket.userRole = user.role;
+      socket.userType = user.role === 'scrapper' ? 'scrapper' : user.role === 'admin' ? 'admin' : 'user';
+      socket.data = {};
+      return next();
     } catch (error) {
-      logger.error('Socket authentication error:', error);
-      next(new Error('Authentication error: Invalid token'));
+      logger.warn('Socket authentication rejected', { reason: error.message });
+      return next(new Error('Authentication error: Invalid token'));
     }
   });
 
-  // Handle connections
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.userId} (${socket.userType})`);
 
-    // Join user's personal room for notifications
+    // Personal notification room only.
     socket.join(`user_${socket.userId}`);
 
-    // Handle joining a chat room (support both event names)
-    socket.on('joinChat', async (chatId) => {
-      // Handle both string and object formats
-      const actualChatId = typeof chatId === 'string' ? chatId : chatId?.chatId;
-      await handleJoinChat(socket, actualChatId);
-    });
-
-    socket.on('join_chat', async ({ chatId }) => {
-      await handleJoinChat(socket, chatId);
-    });
-
-    const handleJoinChat = async (socket, chatId) => {
+    const handleJoinChat = async (chatId) => {
       try {
-        // Verify user has access to this chat
-        const chat = await Chat.findById(chatId);
+        if (!allowEvent(socket, 'join_chat')) return;
+        if (!chatId || typeof chatId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(chatId)) {
+          socket.emit('error', { message: 'Invalid chat id' });
+          return;
+        }
+        const chat = await Chat.findById(chatId).select('participants user scrapper');
         if (!chat) {
           socket.emit('error', { message: 'Chat not found' });
           return;
         }
 
-        // Check if user is participant
         const isParticipant = chat.participants.some(
-          p => p.userId.toString() === socket.userId.toString() && 
-               (p.userType === socket.userType || (socket.userType === 'admin' && p.userType === 'user'))
-        );
+          (p) => p.userId.toString() === socket.userId && p.userType === socket.userType
+        ) || chat.user?.toString() === socket.userId || chat.scrapper?.toString() === socket.userId;
 
-        if (!isParticipant) {
+        if (!isParticipant && socket.userRole !== 'admin') {
           socket.emit('error', { message: 'Unauthorized access to chat' });
           return;
         }
 
-        // Join chat room
         socket.join(`chat_${chatId}`);
-        logger.info(`User ${socket.userId} joined chat: ${chatId}`);
-
-        // Emit confirmation
         socket.emit('joined_chat', { chatId });
       } catch (error) {
-        logger.error('Error joining chat:', error);
+        logger.error('Error joining chat', { error: error.message });
         socket.emit('error', { message: 'Error joining chat' });
       }
     };
 
-    // Handle leaving a chat room (support both event names)
-    socket.on('leaveChat', (chatId) => {
-      const actualChatId = typeof chatId === 'string' ? chatId : chatId?.chatId;
-      socket.leave(`chat_${actualChatId}`);
-      logger.info(`User ${socket.userId} left chat: ${actualChatId}`);
+    socket.on('joinChat', async (payload) => {
+      await handleJoinChat(typeof payload === 'string' ? payload : payload?.chatId);
+    });
+    socket.on('join_chat', async (payload) => {
+      await handleJoinChat(payload?.chatId);
     });
 
-    socket.on('leave_chat', ({ chatId }) => {
-      socket.leave(`chat_${chatId}`);
-      logger.info(`User ${socket.userId} left chat: ${chatId}`);
+    socket.on('leaveChat', (payload) => {
+      const chatId = typeof payload === 'string' ? payload : payload?.chatId;
+      if (chatId) socket.leave(`chat_${chatId}`);
+    });
+    socket.on('leave_chat', (payload) => {
+      if (payload?.chatId) socket.leave(`chat_${payload.chatId}`);
     });
 
-    // Handle sending a message
-    socket.on('send_message', async ({ chatId, message, attachments = [] }) => {
+    socket.on('send_message', async ({ chatId, message, attachments = [] } = {}) => {
       try {
-        // Send message via service
+        if (!allowEvent(socket, 'send_message')) return;
+        if (typeof message !== 'string' || !message.trim()) {
+          socket.emit('error', { message: 'Message is required' });
+          return;
+        }
+        if (message.length > 5000) {
+          socket.emit('error', { message: 'Message too long' });
+          return;
+        }
+
+        // chatService re-verifies participation; identity comes from the socket.
         const newMessage = await sendMessage(
           chatId,
           socket.userId,
           socket.userType,
           message,
-          attachments
+          Array.isArray(attachments) ? attachments.slice(0, 5) : []
         );
 
-        // Get chat to find other participant
-        const chat = await Chat.findById(chatId)
-          .populate('user', 'name phone email')
-          .populate('scrapper', 'name phone email');
-
-        if (!chat) {
-          socket.emit('error', { message: 'Chat not found' });
-          return;
-        }
-
-        // Emit to all users in the chat room (support both event names)
-        const messageData = newMessage;
-        io.to(`chat_${chatId}`).emit('newMessage', messageData);
-        io.to(`chat_${chatId}`).emit('new_message', {
-          message: newMessage,
-          chat: chat
-        });
-
-        // Notify the other participant if they're not in the chat room
-        const otherUserId = socket.userId === chat.user._id.toString()
-          ? chat.scrapper._id.toString()
-          : chat.user._id.toString();
-
-        // Check if other user is online
-        const otherUserSockets = await io.in(`user_${otherUserId}`).fetchSockets();
-        if (otherUserSockets.length === 0) {
-          // User is offline, they'll get notification when they come online
-          // You can integrate with notification service here
-        }
-
-        logger.info(`Message sent via socket in chat: ${chatId}`);
+        io.to(`chat_${chatId}`).emit('newMessage', newMessage);
+        io.to(`chat_${chatId}`).emit('new_message', { message: newMessage });
       } catch (error) {
-        logger.error('Error sending message via socket:', error);
+        logger.error('Error sending message via socket', { error: error.message });
         socket.emit('error', { message: error.message || 'Error sending message' });
       }
     });
 
-    // Handle typing indicator
-    socket.on('typing', ({ chatId, isTyping }) => {
-      // Broadcast typing status to other users in chat
+    socket.on('typing', ({ chatId, isTyping } = {}) => {
+      if (!allowEvent(socket, 'typing')) return;
+      if (!chatId || !socket.rooms.has(`chat_${chatId}`)) return;
       socket.to(`chat_${chatId}`).emit('typing', {
         userId: socket.userId,
         userType: socket.userType,
-        isTyping,
+        isTyping: !!isTyping,
         chatId
       });
     });
 
-    // Handle read receipt
-    socket.on('mark_read', async ({ chatId }) => {
+    socket.on('mark_read', async ({ chatId } = {}) => {
       try {
+        if (!allowEvent(socket, 'mark_read')) return;
+        if (!chatId) return;
         await markAsRead(chatId, socket.userId, socket.userType);
-
-        // Notify other participant that messages were read
-        socket.to(`chat_${chatId}`).emit('messages_read', {
-          userId: socket.userId,
-          chatId
-        });
-
-        logger.info(`Messages marked as read via socket in chat: ${chatId}`);
+        socket.to(`chat_${chatId}`).emit('messages_read', { userId: socket.userId, chatId });
       } catch (error) {
-        logger.error('Error marking messages as read:', error);
+        logger.error('Error marking messages as read', { error: error.message });
         socket.emit('error', { message: 'Error marking messages as read' });
       }
     });
 
-    // Handle Location Tracking
-    socket.on('join_tracking', ({ orderId }) => {
+    // --- Order tracking: membership is authorised against the order ---
+    socket.on('join_tracking', async ({ orderId } = {}) => {
+      if (!allowEvent(socket, 'join_tracking')) return;
+      const access = await authorizeOrderAccess(socket, orderId);
+      if (!access) {
+        socket.emit('error', { message: 'Not authorized to track this order' });
+        return;
+      }
       socket.join(`tracking_${orderId}`);
-      logger.info(`User ${socket.userId} joined tracking for order: ${orderId}`);
+      socket.emit('joined_tracking', { orderId });
     });
 
-    socket.on('leave_tracking', ({ orderId }) => {
-      socket.leave(`tracking_${orderId}`);
-      logger.info(`User ${socket.userId} left tracking for order: ${orderId}`);
+    socket.on('leave_tracking', ({ orderId } = {}) => {
+      if (orderId) socket.leave(`tracking_${orderId}`);
     });
 
-    socket.on('scrapper_location_update', (data) => {
-      // data: { orderId, location: {lat, lng}, heading }
-      // Broadcast to everyone in the tracking room EXCEPT the sender (scrapper)
-      socket.to(`tracking_${data.orderId}`).emit('scrapper_location_update', data);
+    socket.on('scrapper_location_update', async (data = {}) => {
+      try {
+        if (!allowEvent(socket, 'scrapper_location_update')) return;
+        if (socket.userRole !== 'scrapper') {
+          socket.emit('error', { message: 'Only scrappers can publish location' });
+          return;
+        }
+        const { orderId } = data;
+        const lat = Number(data?.location?.lat);
+        const lng = Number(data?.location?.lng);
+        if (!isValidCoordinate(lat, lng)) {
+          socket.emit('error', { message: 'Invalid coordinates' });
+          return;
+        }
+
+        // ONLY the assigned scrapper of an active order may broadcast.
+        const access = await authorizeOrderAccess(socket, orderId);
+        if (!access || access.role !== 'scrapper') {
+          socket.emit('error', { message: 'Not authorized to update location for this order' });
+          return;
+        }
+        if (!['confirmed', 'in_progress'].includes(access.order.status)) {
+          return; // tracking only meaningful for active orders
+        }
+
+        const payload = {
+          orderId,
+          location: { lat, lng },
+          heading: Number.isFinite(Number(data.heading)) ? Number(data.heading) : null,
+          at: new Date().toISOString()
+        };
+
+        socket.to(`tracking_${orderId}`).emit('scrapper_location_update', payload);
+
+        // Persist last known position (bounded write frequency by the limiter).
+        await Scrapper.updateOne(
+          { _id: socket.userId },
+          { $set: { liveLocation: { type: 'Point', coordinates: [lng, lat], updatedAt: new Date() } } }
+        );
+      } catch (error) {
+        logger.error('Error handling location update', { error: error.message });
+      }
     });
 
-    // Handle disconnection
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${socket.userId}`);
     });
@@ -212,10 +281,6 @@ export const initializeSocket = (server) => {
   return io;
 };
 
-/**
- * Get Socket.io instance
- * @returns {Object} Socket.io instance
- */
 export const getIO = () => {
   if (!io) {
     throw new Error('Socket.io not initialized. Call initializeSocket first.');
@@ -223,12 +288,6 @@ export const getIO = () => {
   return io;
 };
 
-/**
- * Broadcast message to a specific chat room
- * @param {string} chatId - Chat ID
- * @param {string} event - Event name
- * @param {Object} data - Data to send
- */
 export const broadcastToChat = (chatId, event, data) => {
   if (!io) {
     logger.warn('Socket.io not initialized, cannot broadcast');
@@ -237,17 +296,18 @@ export const broadcastToChat = (chatId, event, data) => {
   io.to(`chat_${chatId}`).emit(event, data);
 };
 
-/**
- * Send notification to a specific user
- * @param {string} userId - User ID
- * @param {string} event - Event name
- * @param {Object} data - Data to send
- */
 export const notifyUser = (userId, event, data) => {
-  if (!io) {
-    logger.warn('Socket.io not initialized, cannot notify user');
-    return;
-  }
+  if (!io) return;
   io.to(`user_${userId}`).emit(event, data);
 };
 
+/** Force-disconnect every live socket for an account (used on block/revoke). */
+export const disconnectUser = async (userId) => {
+  if (!io) return;
+  try {
+    const sockets = await io.in(`user_${userId}`).fetchSockets();
+    sockets.forEach((s) => s.disconnect(true));
+  } catch (error) {
+    logger.warn('Failed to disconnect user sockets', { error: error.message });
+  }
+};

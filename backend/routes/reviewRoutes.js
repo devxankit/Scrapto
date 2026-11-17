@@ -12,15 +12,16 @@ import { USER_ROLES } from '../config/constants.js';
 
 const router = express.Router();
 
-// Public routes (or at least readable by all authenticated users)
-router.get('/scrapper/:scrapperId', protect, getScrapperReviews);
-router.get('/:id', protect, getReviewById);
-
-// Protected routes
+// All review routes require authentication
 router.use(protect);
 
-router.post('/', authorize(USER_ROLES.USER), createReview);
+// Specific paths MUST be registered before the generic /:id route, otherwise
+// "my-reviews" is matched as an :id and returns a cast error.
 router.get('/my-reviews', authorize(USER_ROLES.USER), getMyReviews);
+router.get('/scrapper/:scrapperId', getScrapperReviews);
+
+router.post('/', authorize(USER_ROLES.USER), createReview);
+router.get('/:id', getReviewById);
 router.put('/:id', authorize(USER_ROLES.USER), updateReview);
 router.delete('/:id', authorize(USER_ROLES.USER, USER_ROLES.ADMIN), deleteReview);
 

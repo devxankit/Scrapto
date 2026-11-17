@@ -323,15 +323,9 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   // Verify payment signature
   if (razorpay_signature) {
-    const crypto = await import('crypto');
-    const body = razorpay_order_id + '|' + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex');
-
-    if (expectedSignature !== razorpay_signature) {
-      logger.warn('[Subscription] Payment signature verification failed, trying API verification');
+    const { verifyPaymentSignature } = await import('../services/paymentService.js');
+    if (!verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+      return sendError(res, 'Invalid payment signature', 400);
     }
   }
 

@@ -50,7 +50,10 @@ import {
   // Settings Management
   getSystemSettings,
   updateSystemSetting,
-  
+
+  // Audit
+  getAuditLogs,
+
   // Notification & Broadcast
   broadcastNotification
 } from '../controllers/adminController.js';
@@ -184,6 +187,11 @@ router.delete('/coupons/:id', deleteCoupon);
 // ============================================
 router.get('/settings', getSystemSettings);
 router.put('/settings/:key', updateSystemSetting);
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+router.get('/audit-logs', getAuditLogs);
 
 // ============================================
 // NOTIFICATION & BROADCAST

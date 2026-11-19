@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Runs after every "git pull" / "git merge": warns loudly if malware came in.
+bash "$(git rev-parse --show-toplevel)/scripts/scan-malware.sh" HEAD || {
+  echo; echo "WARNING: the code you just pulled looks infected. Do not run npm/node/vite/metro."; }
+exit 0

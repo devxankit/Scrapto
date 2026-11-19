@@ -294,8 +294,10 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
     setPaying(true);
     try {
       const o = await api('/subscriptions/subscribe', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code } });
-      // Real build: open Razorpay Checkout with o.data.razorpayOrderId, then verify with its signature.
-      await api('/subscriptions/verify-payment', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code, razorpay_order_id: o.data.razorpayOrderId } });
+      // If plan requires payment verification with Razorpay
+      if (!o.data?.subscription && o.data?.razorpayOrderId) {
+        await api('/subscriptions/verify-payment', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code, razorpay_order_id: o.data.razorpayOrderId } });
+      }
       setPayOpen(false);
       const me = await refreshMe();
       if (!onboarding || kind === 'market_price') {

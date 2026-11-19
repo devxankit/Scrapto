@@ -31,6 +31,27 @@ const orderSchema = new mongoose.Schema({
     ref: 'Review',
     default: null
   },
+  reviewed: {
+    type: Boolean,
+    default: false
+  },
+  orderNo: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  weighedAt: {
+    type: Date,
+    default: null
+  },
+  paidAmount: {
+    type: Number,
+    default: null
+  },
+  skippedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   scrapItems: [{
     category: {
       type: String,
@@ -182,7 +203,32 @@ const orderSchema = new mongoose.Schema({
     default: false
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: {
+    virtuals: true,
+    transform: (doc, ret) => {
+      if (!ret.orderNo && ret._id) {
+        ret.orderNo = ret._id.toString().slice(-6).toUpperCase();
+      }
+      return ret;
+    }
+  },
+  toObject: {
+    virtuals: true,
+    transform: (doc, ret) => {
+      if (!ret.orderNo && ret._id) {
+        ret.orderNo = ret._id.toString().slice(-6).toUpperCase();
+      }
+      return ret;
+    }
+  }
+});
+
+orderSchema.pre('save', function (next) {
+  if (!this.orderNo && this._id) {
+    this.orderNo = this._id.toString().slice(-6).toUpperCase();
+  }
+  next();
 });
 
 // Indexes for better query performance

@@ -69,7 +69,14 @@ export const getActiveBanners = asyncHandler(async (req, res) => {
 
     const banners = await Banner.find(query).sort({ displayOrder: 1, createdAt: -1 });
 
-    sendSuccess(res, 'Banners retrieved', { banners });
+    const formattedBanners = banners.map(b => {
+        const obj = b.toObject();
+        obj.image = obj.image || obj.imageUrl;
+        obj.subtitle = obj.subtitle || '';
+        return obj;
+    });
+
+    sendSuccess(res, 'Banners retrieved', { banners: formattedBanners });
 });
 
 // @desc    Update banner

@@ -6,6 +6,7 @@ import {
   getMyAssignedOrders,
   getOrderById,
   acceptOrder,
+  skipOrder,
   updateOrderStatus,
   cancelOrder,
   updateOrder
@@ -38,6 +39,7 @@ router.put('/:id', isUser, updateOrderValidator, validate, updateOrder);
 router.put('/:id/status', updateOrderStatusValidator, validate, updateOrderStatus);
 router.post('/:id/cancel', cancelOrderValidator, validate, cancelOrder);
 router.post('/:id/accept', isScrapper, acceptOrder);
+router.post('/:id/skip', isScrapper, skipOrder);
 
 export default router;
 

@@ -260,7 +260,8 @@ export const getMarketplaceRequestById = asyncHandler(async (req, res) => {
  */
 export const placeBid = asyncHandler(async (req, res) => {
   const requestId = assertObjectId(req.params.id, 'request id');
-  const bidAmount = parseMoney(req.body.bidAmount, { min: 1, max: BID_MAX, name: 'bidAmount' });
+  const rawAmount = req.body.bidAmount !== undefined ? req.body.bidAmount : req.body.amount;
+  const bidAmount = parseMoney(rawAmount, { min: 1, max: BID_MAX, name: 'bidAmount' });
   const message = asString(req.body.message, 500);
   const scrapperId = req.user.scrapperId || req.user.id;
 
@@ -275,7 +276,7 @@ export const placeBid = asyncHandler(async (req, res) => {
     return sendError(res, 'KYC verification required before bidding.', 403);
   }
   if (!scrapper.hasActiveSubscription()) {
-    return sendError(res, 'An active subscription is required to place bids.', 403);
+    return sendError(res, 'An active subscription is required to place bids.', 403, 'PLAN_REQUIRED');
   }
 
   const request = await MarketplaceRequest.findById(requestId);
@@ -322,7 +323,35 @@ export const placeBid = asyncHandler(async (req, res) => {
     });
   }
 
-  sendSuccess(res, 'Bid placed successfully', bid);
+  // Build full updated request for React Native / web clients
+  const allBids = await Bid.find({ requestId }).sort({ bidAmount: -1 }).populate('scrapperId', 'name rating vehicleInfo profilePic');
+  const highest = allBids[0];
+  const isLeading = highest && (highest.scrapperId?._id || highest.scrapperId).toString() === scrapperId.toString();
+
+  const updatedReqDoc = await MarketplaceRequest.findById(requestId);
+  const reqObj = updatedReqDoc ? updatedReqDoc.toObject() : {};
+  reqObj.bids = allBids.map(b => ({
+    _id: b._id,
+    amount: b.bidAmount,
+    message: b.message,
+    status: b.status,
+    createdAt: b.createdAt,
+    scrapper: b.scrapperId
+  }));
+  reqObj.highestBid = highest ? highest.bidAmount : 0;
+  reqObj.isLeading = !!isLeading;
+  reqObj.myBid = {
+    _id: bid._id,
+    amount: bid.bidAmount,
+    message: bid.message,
+    status: bid.status
+  };
+
+  const responseData = bid.toObject();
+  responseData.bid = bid;
+  responseData.request = reqObj;
+
+  sendSuccess(res, 'Bid placed successfully', responseData);
 });
 
 /**

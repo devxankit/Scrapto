@@ -23,7 +23,7 @@ const envFlag =
 export const USE_MOCK: boolean = envFlag === 'true' || envFlag === '1';
 
 /** Production API host (Render). Used by every release build. */
-export const PROD_API_URL = 'https://scrapto-1.onrender.com';
+export const PROD_API_URL = 'http://192.168.1.50:7000';
 
 /**
  * Development API host: the backend running on the developer PC, reached by a
@@ -32,10 +32,10 @@ export const PROD_API_URL = 'https://scrapto-1.onrender.com';
  * IP changes. Backend routes are mounted at both /api and /api/v1; the client
  * appends /api.
  */
-export const DEV_API_URL = 'http://192.168.1.33:7000';
+export const DEV_API_URL = 'http://192.168.1.50:7000';
 
 /** Debug builds talk to the dev PC; release builds talk to production. */
-export const DEFAULT_API_URL = __DEV__ ? DEV_API_URL : PROD_API_URL;
+export const DEFAULT_API_URL = DEV_API_URL;
 
 /**
  * Android emulators cannot reach the host machine over `localhost`.

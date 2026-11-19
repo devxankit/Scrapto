@@ -6,9 +6,17 @@ import logger from '../utils/logger.js';
 /**
  * Get all active subscription plans
  */
-export const getActivePlans = async () => {
+export const getActivePlans = async (type = null) => {
   try {
-    const plans = await SubscriptionPlan.getActivePlans();
+    const query = { isActive: true };
+    if (type) {
+      if (type === 'general') {
+        query.$or = [{ type: 'general' }, { type: null }, { type: { $exists: false } }];
+      } else {
+        query.type = type;
+      }
+    }
+    const plans = await SubscriptionPlan.find(query).sort({ sortOrder: 1, priority: -1, createdAt: 1 });
     return {
       success: true,
       plans

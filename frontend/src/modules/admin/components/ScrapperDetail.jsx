@@ -117,7 +117,6 @@ const ScrapperDetail = () => {
         profilePic: backendScrapper.profilePic || null,
         kycStatus: backendScrapper.kyc?.status || 'not_submitted',
         kycData: backendScrapper.kyc || null,
-        subscription: backendScrapper.subscription || null,
         // Handle rating object correctly (average vs direct number)
         rating: backendScrapper.rating?.average !== undefined
           ? backendScrapper.rating.average

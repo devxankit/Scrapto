@@ -73,7 +73,10 @@ export function JobsScreen() {
         renderItem={({ item: o }) => (
           <Card onPress={() => nav.navigate('Job', { id: o._id })} style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <T size={12} w="bold" color={colors.muted} raw>{`#${o.orderNo} · ${o.status === 'completed' ? whenLabel(o.completedDate) : o.pickupSlot ? `${o.pickupSlot.dayLabel}, ${o.pickupSlot.time}` : 'Pickup now'}`}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <T size={12} w="bold" color={colors.muted} raw>{`#${o.orderNo} · ${o.status === 'completed' ? whenLabel(o.completedDate) : o.pickupSlot ? `${o.pickupSlot.dayLabel || o.pickupSlot.slot || 'Today'}, ${o.pickupSlot.time || ''}` : 'Pickup now'}`}</T>
+                {o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="META LEAD" /> : null}
+              </View>
               <JobStatus o={o} />
             </View>
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
@@ -193,8 +196,14 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
     { label: 'Back to dashboard', hint: '', go: () => navigation.navigate('Main', { screen: 'Home' }) },
   ][step];
 
-  const c = o.pickupAddress.coordinates;
-  const openMaps = () => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${c.lat},${c.lng}&travelmode=driving`);
+  const lat = o.pickupAddress?.coordinates?.lat || 28.6139;
+  const lng = o.pickupAddress?.coordinates?.lng || 77.2090;
+  const openMaps = () => {
+    const dest = (lat && lng && (lat !== 28.6139 || lng !== 77.2090))
+      ? `${lat},${lng}`
+      : encodeURIComponent(`${o.pickupAddress?.street || ''}, ${o.pickupAddress?.city || ''}`);
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`);
+  };
   const done = step === 4;
 
   return (
@@ -204,7 +213,10 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <BackButton light onPress={() => navigation.goBack()} />
           <View style={{ flex: 1 }}>
-            <T size={12} w="semibold" color={colors.green200} raw>{`Pickup #${o.orderNo}`}</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <T size={12} w="semibold" color={colors.green200} raw>{`Pickup #${o.orderNo}`}</T>
+              {o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="META LEAD" /> : null}
+            </View>
             <T size={18} w="extrabold" color={colors.white} numberOfLines={1}>{done ? 'Pickup complete' : ['Go to pickup', 'Weigh the scrap', 'Pay the customer', 'Complete the pickup'][step]}</T>
           </View>
         </View>
@@ -225,8 +237,8 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           {step === 0 ? (
             <View style={{ height: 150 }}>
-              <MapView provider={PROVIDER_GOOGLE} userInterfaceStyle="light" style={{ flex: 1 }} region={{ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false}>
-                <Marker coordinate={{ latitude: c.lat, longitude: c.lng }} pinColor={colors.deep} />
+              <MapView provider={PROVIDER_GOOGLE} userInterfaceStyle="light" style={{ flex: 1 }} region={{ latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }} toolbarEnabled={false} scrollEnabled={false} zoomEnabled={false}>
+                <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor={colors.deep} />
               </MapView>
               <Pressable onPress={openMaps} accessibilityRole="button" style={{ position: 'absolute', right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.deep, paddingHorizontal: 14, height: 38, borderRadius: radius.pill, elevation: 4 }}>
                 <Navigation size={16} color={colors.white} />

@@ -28,7 +28,7 @@ export function ChatsScreen({ navigation }: P<'Chats'>) {
         contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
         ListEmptyComponent={q.loading ? <Loading /> : <EmptyState icon={<MessageCircle size={30} color={colors.primary} />} title="No chats yet" text="Chats with customers and bulk-lot sellers show up here." />}
         renderItem={({ item }) => {
-          const last = item.messages[item.messages.length - 1];
+          const last = item.messages?.length ? item.messages[item.messages.length - 1] : (item.lastMessage ? { text: item.lastMessage } : null);
           return (
             <Card onPress={() => navigation.navigate('ChatThread', { chatId: item._id, name: item.participant?.name })} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Initials name={item.participant?.name} size={48} />

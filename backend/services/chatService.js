@@ -17,11 +17,24 @@ export const getOrCreateChat = async (orderId, userId, userType) => {
   try {
     // Check if chat already exists
     let chat = await Chat.findOne({ orderId })
-      .populate('user', 'name phone email')
-      .populate('scrapper', 'name phone email');
+      .populate('user', 'name phone email profileImage')
+      .populate('scrapper', 'name phone email profilePic')
+      .populate('orderId', 'orderNo status totalAmount');
 
     if (chat) {
-      return chat;
+      const chatObj = chat.toObject();
+      chatObj.participant = userType === 'user' ? chatObj.scrapper : chatObj.user;
+      const ord = chatObj.orderId;
+      chatObj.orderNo = ord?.orderNo || (ord?._id ? ord._id.toString().slice(-6).toUpperCase() : '');
+      const msgs = await Message.find({ chatId: chat._id }).sort({ createdAt: -1 }).limit(50);
+      msgs.reverse();
+      chatObj.messages = msgs.map(m => {
+        const mo = m.toObject();
+        mo.text = mo.message || '';
+        mo.from = (mo.senderId?._id || mo.senderId)?.toString() === userId.toString() ? 'me' : 'them';
+        return mo;
+      });
+      return chatObj;
     }
 
     // Get order to find participants
@@ -71,11 +84,16 @@ export const getOrCreateChat = async (orderId, userId, userType) => {
 
     // Populate and return
     chat = await Chat.findById(chat._id)
-      .populate('user', 'name phone email')
-      .populate('scrapper', 'name phone email');
+      .populate('user', 'name phone email profileImage')
+      .populate('scrapper', 'name phone email profilePic')
+      .populate('orderId', 'orderNo status totalAmount');
 
     logger.info(`Chat created for order: ${orderId}`);
-    return chat;
+    const chatObj = chat.toObject();
+    chatObj.participant = userType === 'user' ? chatObj.scrapper : chatObj.user;
+    chatObj.orderNo = order.orderNo || (order._id ? order._id.toString().slice(-6).toUpperCase() : '');
+    chatObj.messages = [];
+    return chatObj;
   } catch (error) {
     logger.error('Error in getOrCreateChat:', error);
     throw error;
@@ -193,12 +211,27 @@ export const getChatById = async (chatId, userId, userType, options = {}) => {
     // Reverse to show oldest first
     messages.reverse();
 
+    const formattedMessages = messages.map(m => {
+      const msgObj = m.toObject();
+      msgObj.text = msgObj.message || '';
+      const sId = (msgObj.senderId?._id || msgObj.senderId || '').toString();
+      msgObj.from = sId === userId.toString() ? 'me' : 'them';
+      return msgObj;
+    });
+
+    const chatObj = chat.toObject();
+    const isUser = userType === 'user' || (chatObj.user && chatObj.user._id?.toString() === userId.toString());
+    chatObj.participant = isUser ? chatObj.scrapper : chatObj.user;
+    const ord = chatObj.orderId;
+    chatObj.orderNo = ord?.orderNo || (ord?._id ? ord._id.toString().slice(-6).toUpperCase() : '');
+    chatObj.messages = formattedMessages;
+
     // Get total message count
     const totalMessages = await Message.countDocuments({ chatId: chat._id });
 
     return {
-      chat,
-      messages,
+      chat: chatObj,
+      messages: formattedMessages,
       pagination: {
         page,
         limit,
@@ -251,11 +284,19 @@ export const getChatMessages = async (chatId, userId, userType, options = {}) =>
     // Reverse to show oldest first
     messages.reverse();
 
+    const formattedMessages = messages.map(m => {
+      const msgObj = m.toObject();
+      msgObj.text = msgObj.message || '';
+      const sId = (msgObj.senderId?._id || msgObj.senderId || '').toString();
+      msgObj.from = sId === userId.toString() ? 'me' : 'them';
+      return msgObj;
+    });
+
     // Get total message count
     const totalMessages = await Message.countDocuments({ chatId: chat._id });
 
     return {
-      messages,
+      messages: formattedMessages,
       pagination: {
         page,
         limit,
@@ -291,18 +332,55 @@ export const getMyChats = async (userId, userType, options = {}) => {
       ]
     };
 
-    const chats = await Chat.find(query)
+    const rawChats = await Chat.find(query)
       .populate('user', 'name phone email profileImage')
       .populate('scrapper', 'name phone email profilePic')
-      .populate('orderId', 'status totalAmount scrapItems')
+      .populate('orderId', 'status totalAmount scrapItems orderNo')
+      .populate('marketplaceRequestId', 'title customerName')
       .sort({ lastMessageAt: -1 })
       .limit(limit)
       .skip(skip);
 
     const total = await Chat.countDocuments(query);
 
+    // Format chats with messages array, participant, orderNo, unread
+    const formattedChats = await Promise.all(rawChats.map(async (c) => {
+      const chatObj = c.toObject();
+      const isUser = userType === 'user' || (chatObj.user && (chatObj.user._id || chatObj.user).toString() === userId.toString());
+      const participant = isUser ? chatObj.scrapper : chatObj.user;
+      chatObj.participant = participant;
+
+      const ord = chatObj.orderId;
+      const orderNo = ord?.orderNo || (ord?._id ? ord._id.toString().slice(-6).toUpperCase() : '');
+      chatObj.orderNo = orderNo;
+      chatObj.order = ord?._id ? ord._id.toString() : null;
+      chatObj.title = orderNo ? `Pickup #${orderNo}` : (chatObj.marketplaceRequestId?.title || 'Chat');
+
+      // Fetch the last message
+      const lastMsg = await Message.findOne({ chatId: c._id }).sort({ createdAt: -1 });
+      if (lastMsg) {
+        const msgObj = lastMsg.toObject();
+        msgObj.text = msgObj.message || '';
+        const sId = (msgObj.senderId?._id || msgObj.senderId || '').toString();
+        msgObj.from = sId === userId.toString() ? 'me' : 'them';
+        chatObj.messages = [msgObj];
+      } else {
+        chatObj.messages = [];
+      }
+
+      // Count unread messages
+      const unreadCount = await Message.countDocuments({
+        chatId: c._id,
+        senderId: { $ne: userId },
+        read: false
+      });
+      chatObj.unread = unreadCount;
+
+      return chatObj;
+    }));
+
     return {
-      chats,
+      chats: formattedChats,
       pagination: {
         page,
         limit,

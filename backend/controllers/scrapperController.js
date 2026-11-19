@@ -83,14 +83,19 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
         }
         
         if (liveLocation) {
-            if (
-                typeof liveLocation !== 'object' ||
-                !Array.isArray(liveLocation.coordinates) ||
-                liveLocation.coordinates.length !== 2
-            ) {
-                return sendError(res, 'liveLocation must have coordinates [longitude, latitude]', 400);
+            let lng, lat;
+            if (Array.isArray(liveLocation.coordinates) && liveLocation.coordinates.length === 2) {
+                [lng, lat] = liveLocation.coordinates.map(Number);
+            } else if (liveLocation.lat !== undefined && liveLocation.lng !== undefined) {
+                lat = Number(liveLocation.lat);
+                lng = Number(liveLocation.lng);
+            } else if (liveLocation.latitude !== undefined && liveLocation.longitude !== undefined) {
+                lat = Number(liveLocation.latitude);
+                lng = Number(liveLocation.longitude);
+            } else {
+                return sendError(res, 'liveLocation must have coordinates [longitude, latitude] or {lat, lng}', 400);
             }
-            const [lng, lat] = liveLocation.coordinates.map(Number);
+
             if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 || lat < -90 || lat > 90) {
                 return sendError(res, 'Invalid longitude or latitude coordinates', 400);
             }
@@ -113,7 +118,7 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
                     new Date(scrapper.subscription.expiryDate) > now;
 
                 if (!isSubscribed) {
-                    return sendError(res, 'Active subscription required to go online. Please subscribe first.', 403);
+                    return sendError(res, 'Active subscription required to go online. Please subscribe first.', 403, 'SUBSCRIPTION_REQUIRED');
                 }
 
                 // 2. MANDATORY City Check
@@ -256,20 +261,26 @@ export const getScrapperStats = asyncHandler(async (req, res) => {
     });
 
     // 2. Collectors (Unique users served)
-    const completedOrders = await Order.find({
+    const distinctUsers = await Order.find({
         scrapper: scrapperId,
         status: ORDER_STATUS.COMPLETED
     }).distinct('user');
-    const collectorsCount = completedOrders.length;
+    const collectorsCount = distinctUsers.length;
 
-    // 3. Under Negotiation (Pending bids on marketplace)
+    // 3. Total Completed Orders
+    const completedOrdersCount = await Order.countDocuments({
+        scrapper: scrapperId,
+        status: ORDER_STATUS.COMPLETED
+    });
+
+    // 4. Under Negotiation (Pending bids on marketplace)
     const underNegotiation = await Bid.countDocuments({
         scrapperId: scrapperId,
         status: 'pending'
     });
 
-    // 4. Open Items (marketplace requests visible to THIS scrapper, i.e. own city)
-    const scrapperDoc = req.scrapper || await Scrapper.findById(scrapperId).select('city');
+    // 5. Open Items (marketplace requests visible to THIS scrapper, i.e. own city)
+    const scrapperDoc = req.scrapper || await Scrapper.findById(scrapperId).select('city rating');
     const openItemsFilter = { status: { $in: ['open', 'bidding'] } };
     const city = scrapperDoc?.city?.trim();
     if (city) {
@@ -279,12 +290,69 @@ export const getScrapperStats = asyncHandler(async (req, res) => {
     }
     const openItems = city ? await MarketplaceRequest.countDocuments(openItemsFilter) : 0;
 
+    // 6. Weekly Performance & 7-Day Trend
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const startOf14Days = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const recentOrders = await Order.find({
+        scrapper: scrapperId,
+        status: ORDER_STATUS.COMPLETED,
+        $or: [
+            { completedDate: { $gte: startOf14Days } },
+            { updatedAt: { $gte: startOf14Days } }
+        ]
+    }).select('totalAmount paidAmount completedDate updatedAt');
+
+    let week = 0;
+    let weekPickups = 0;
+    let previousWeek = 0;
+
+    for (const ord of recentOrders) {
+        const amount = ord.paidAmount || ord.totalAmount || 0;
+        const orderDate = new Date(ord.completedDate || ord.updatedAt);
+        if (orderDate >= sevenDaysAgo) {
+            week += amount;
+            weekPickups += 1;
+        } else {
+            previousWeek += amount;
+        }
+    }
+
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dayLabel = dayNames[d.getDay()][0]; // First letter ('M', 'T', 'W', etc.)
+        const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const endDay = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+
+        let dayAmount = 0;
+        for (const ord of recentOrders) {
+            const ordDate = new Date(ord.completedDate || ord.updatedAt);
+            if (ordDate >= startDay && ordDate < endDay) {
+                dayAmount += (ord.paidAmount || ord.totalAmount || 0);
+            }
+        }
+        days.push({ day: dayLabel, amount: Math.round(dayAmount) });
+    }
+
+    const ratingVal = scrapperDoc?.rating?.average ? Number(scrapperDoc.rating.average.toFixed(1)) : 5.0;
+
     sendSuccess(res, 'Scrapper stats fetched successfully', {
         stats: {
             upcomingPickups,
             collectors: collectorsCount,
+            completedOrders: completedOrdersCount,
             underNegotiation,
-            openItems
+            openItems,
+            myOpenBids: underNegotiation,
+            openLots: openItems,
+            rating: ratingVal,
+            week: Math.round(week),
+            weekPickups,
+            previousWeek: Math.round(previousWeek),
+            days
         }
     });
 });

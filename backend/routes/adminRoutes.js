@@ -68,6 +68,8 @@ import {
   getReviewAnalytics
 } from '../controllers/reviewController.js';
 
+import multer from 'multer';
+
 // Lead Management
 import {
   getAllLeads,
@@ -75,6 +77,20 @@ import {
   updateLead,
   deleteLead
 } from '../controllers/leadController.js';
+
+import {
+  uploadMetaLeads,
+  distributeMetaLeads,
+  getMetaLeads,
+  getActiveScrappersForDistribution,
+  deleteMetaLead,
+  downloadMetaLeadsTemplate
+} from '../controllers/metaLeadController.js';
+
+const uploadSpreadsheet = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }
+}).single('file');
 
 // Coupon Management
 import {
@@ -159,12 +175,16 @@ router.put('/reviews/:reviewId/reject', rejectReview);
 router.delete('/reviews/:reviewId', deleteAdminReview);
 
 // ============================================
-// LEAD MANAGEMENT
+// META LEADS & EXCEL DISTRIBUTION MANAGEMENT
 // ============================================
-router.get('/leads', getAllLeads);
-router.post('/leads', createLead);
-router.put('/leads/:id', updateLead);
-router.delete('/leads/:id', deleteLead);
+router.get('/leads/template', downloadMetaLeadsTemplate);
+router.get('/leads/active-scrappers', getActiveScrappersForDistribution);
+router.post('/leads/upload', uploadSpreadsheet, uploadMetaLeads);
+router.post('/leads/distribute', distributeMetaLeads);
+router.get('/leads', getMetaLeads);
+router.delete('/leads/:id', deleteMetaLead);
+router.post('/leads/recruitment', createLead);
+router.put('/leads/recruitment/:id', updateLead);
 
 // ============================================
 // FINANCE MANAGEMENT

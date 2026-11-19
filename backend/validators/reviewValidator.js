@@ -5,9 +5,8 @@ export const createReviewSchema = Joi.object({
     'string.empty': 'Order ID is required',
     'any.required': 'Order ID is required'
   }),
-  scrapperId: Joi.string().required().messages({
-    'string.empty': 'Scrapper ID is required',
-    'any.required': 'Scrapper ID is required'
+  scrapperId: Joi.string().optional().allow(null, '').messages({
+    'string.empty': 'Scrapper ID is invalid'
   }),
   rating: Joi.number().min(1).max(5).required().messages({
     'number.min': 'Rating must be at least 1 star',
@@ -16,7 +15,7 @@ export const createReviewSchema = Joi.object({
   }),
   title: Joi.string().max(100).optional().allow(''),
   comment: Joi.string().max(1000).optional().allow(''),
-  tags: Joi.array().items(Joi.string().valid('punctual', 'friendly', 'professional', 'helpful', 'clean', 'efficient', 'polite', 'reliable')).optional(),
+  tags: Joi.array().items(Joi.string().trim().max(50)).optional(),
   images: Joi.array().items(
     Joi.object({
       url: Joi.string().required(),
@@ -29,7 +28,7 @@ export const updateReviewSchema = Joi.object({
   rating: Joi.number().min(1).max(5).optional(),
   title: Joi.string().max(100).optional().allow(''),
   comment: Joi.string().max(1000).optional().allow(''),
-  tags: Joi.array().items(Joi.string().valid('punctual', 'friendly', 'professional', 'helpful', 'clean', 'efficient', 'polite', 'reliable')).optional(),
+  tags: Joi.array().items(Joi.string().trim().max(50)).optional(),
   images: Joi.array().items(
     Joi.object({
       url: Joi.string().required(),

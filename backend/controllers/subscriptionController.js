@@ -23,7 +23,8 @@ import mongoose from 'mongoose';
 // @route   GET /api/subscriptions/plans
 // @access  Public (or Private for scrappers)
 export const getPlans = asyncHandler(async (req, res) => {
-  const result = await getActivePlans();
+  const { type } = req.query;
+  const result = await getActivePlans(type);
   sendSuccess(res, 'Plans retrieved successfully', { plans: result.plans });
 });
 

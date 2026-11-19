@@ -36,8 +36,8 @@ const reviewSchema = new mongoose.Schema({
   },
   tags: [{
     type: String,
-    enum: ['punctual', 'friendly', 'professional', 'helpful', 'clean', 'efficient', 'polite', 'reliable'],
-    trim: true
+    trim: true,
+    maxlength: 50
   }],
   images: [{
     url: {
@@ -106,11 +106,15 @@ reviewSchema.methods.flag = function () {
 
 // Calculate average rating after save
 reviewSchema.statics.calculateAverageRating = async function (scrapperId) {
+  const targetId = scrapperId && typeof scrapperId === 'string'
+    ? new mongoose.Types.ObjectId(scrapperId)
+    : scrapperId;
+
   const stats = await this.aggregate([
     {
       // Only approved reviews count toward the public rating, matching what
       // getReviewsByScrapper returns. Rejected/flagged/pending are excluded.
-      $match: { scrapper: scrapperId, status: 'approved' }
+      $match: { scrapper: targetId, status: 'approved' }
     },
     {
       $group: {

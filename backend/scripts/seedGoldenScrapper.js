@@ -63,7 +63,17 @@ const seedGoldenScrapper = async () => {
             email,
             vehicleInfo: defaultVehicleInfo,
             status: 'active',
-            isPhoneVerified: true
+            isPhoneVerified: true,
+            isVerified: true,
+            isOnline: true,
+            kyc: { status: 'verified', verifiedAt: new Date() },
+            wallet: { balance: 5000, currency: 'INR', status: 'ACTIVE' },
+            liveLocation: { type: 'Point', coordinates: [77.209, 28.6139], updatedAt: new Date() },
+            subscription: {
+                status: 'active',
+                startDate: new Date(),
+                expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            }
         });
 
         console.log('✅ Golden Scrapper user created successfully!');

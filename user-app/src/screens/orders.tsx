@@ -468,7 +468,7 @@ export function ReviewScreen({ route, navigation }: P<'Review'>) {
           onPress={async () => {
             setBusy(true);
             try {
-              await api('/reviews', { method: 'POST', body: { orderId: route.params.orderId, rating, tags, comment: comment.trim(), title: words[rating] } });
+              await api('/reviews', { method: 'POST', body: { orderId: route.params.orderId, scrapperId: o?.scrapper?._id, rating, tags, comment: comment.trim(), title: words[rating] } });
               Alert.alert('Thank you!', 'Your review helps other customers and rewards good collectors.');
               navigation.goBack();
             } catch (e: any) {

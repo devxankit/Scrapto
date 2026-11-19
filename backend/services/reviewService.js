@@ -34,7 +34,8 @@ class ReviewService {
       error.statusCode = 400;
       throw error;
     }
-    if (order.scrapper.toString() !== String(scrapperId)) {
+    const targetScrapperId = scrapperId ? String(scrapperId) : order.scrapper.toString();
+    if (order.scrapper.toString() !== targetScrapperId) {
       const error = new Error('Scrapper does not match order');
       error.statusCode = 400;
       throw error;
@@ -52,7 +53,7 @@ class ReviewService {
     const review = await Review.create({
       order: orderId,
       user: userId,
-      scrapper: scrapperId,
+      scrapper: targetScrapperId,
       rating,
       title,
       comment,
@@ -63,7 +64,11 @@ class ReviewService {
 
     // 6. Update Order
     order.review = review._id;
+    order.reviewed = true;
     await order.save();
+
+    // 7. Recalculate Scrapper Rating
+    await Review.calculateAverageRating(targetScrapperId);
 
     return review;
   }

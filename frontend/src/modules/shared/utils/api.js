@@ -548,6 +548,27 @@ export const adminAPI = {
   getAllLeads: async (query = '') => {
     return apiRequest(`/admin/leads${query ? `?${query}` : ''}`, { method: 'GET' });
   },
+  getMetaLeads: async (query = '') => {
+    return apiRequest(`/admin/leads${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+  getActiveScrappersForDistribution: async () => {
+    return apiRequest('/admin/leads/active-scrappers', { method: 'GET' });
+  },
+  uploadMetaLeads: async (formData) => {
+    return apiRequest('/admin/leads/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  distributeMetaLeads: async (payload) => {
+    return apiRequest('/admin/leads/distribute', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteMetaLead: async (id) => {
+    return apiRequest(`/admin/leads/${id}`, { method: 'DELETE' });
+  },
   createLead: async (leadData) => {
     return apiRequest('/admin/leads', {
       method: 'POST',

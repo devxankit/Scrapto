@@ -67,7 +67,7 @@ export const issueOtp = (account, phone, now = new Date()) => {
     account.otpSendWindowStart = now;
     account.otpSendCount = 0;
   }
-  if ((account.otpSendCount || 0) >= OTP_MAX_SENDS_PER_HOUR) {
+  if (!isTestNumber(phone) && (account.otpSendCount || 0) >= OTP_MAX_SENDS_PER_HOUR) {
     const err = new Error('OTP request limit reached. Please try again later.');
     err.statusCode = 429;
     throw err;

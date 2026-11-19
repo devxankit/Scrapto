@@ -136,10 +136,10 @@ export const createOrder = asyncHandler(async (req, res) => {
       'kyc.status': 'verified'
     };
     if (order.location?.coordinates?.[0] || order.location?.coordinates?.[1]) {
+      const [oLng, oLat] = order.location.coordinates;
       scrapperQuery.liveLocation = {
-        $nearSphere: {
-          $geometry: { type: 'Point', coordinates: order.location.coordinates },
-          $maxDistance: 25000
+        $geoWithin: {
+          $centerSphere: [[oLng, oLat], 25 / 6378.1]
         }
       };
     }
@@ -238,15 +238,56 @@ export const getAvailableOrders = asyncHandler(async (req, res) => {
     return sendSuccess(res, 'Available orders retrieved successfully', { orders: [] });
   }
   query.location = {
-    $nearSphere: {
-      $geometry: { type: 'Point', coordinates: [lng, lat] },
-      $maxDistance: 25000
+    $geoWithin: {
+      $centerSphere: [[lng, lat], 25 / 6378.1]
     }
   };
+  query.skippedBy = { $ne: scrapper._id };
 
   const orders = await Order.find(query).populate('user', 'name phone').limit(20);
 
-  sendSuccess(res, 'Available orders retrieved successfully', { orders });
+  // Attach distanceKm for each order
+  const ordersWithDistance = orders.map(ord => {
+    const o = ord.toObject();
+    const destCoords = o.pickupAddress?.coordinates;
+    if (destCoords && Number.isFinite(destCoords.lat) && Number.isFinite(destCoords.lng) && lat && lng) {
+      const R = 6371; // Earth radius in km
+      const dLat = (destCoords.lat - lat) * (Math.PI / 180);
+      const dLng = (destCoords.lng - lng) * (Math.PI / 180);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat * (Math.PI / 180)) * Math.cos(destCoords.lat * (Math.PI / 180)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      o.distanceKm = Number((R * c).toFixed(1));
+    } else {
+      o.distanceKm = 1.0;
+    }
+    return o;
+  });
+
+  sendSuccess(res, 'Available orders retrieved successfully', { orders: ordersWithDistance });
+});
+
+// @desc    Skip order (Scrapper) — hides request from scrapper's radar
+// @route   POST /api/orders/:id/skip
+// @access  Private (Scrapper)
+export const skipOrder = asyncHandler(async (req, res) => {
+  const id = assertObjectId(req.params.id, 'order id');
+  const scrapperId = req.user.id;
+
+  const order = await Order.findById(id);
+  if (!order) {
+    return sendError(res, 'Order not found', 404);
+  }
+
+  if (!order.skippedBy) order.skippedBy = [];
+  if (!order.skippedBy.some(s => s.toString() === scrapperId)) {
+    order.skippedBy.push(scrapperId);
+    await order.save();
+  }
+
+  sendSuccess(res, 'Order skipped successfully', { orderId: id });
 });
 
 // @desc    Get scrapper's assigned orders
@@ -254,11 +295,18 @@ export const getAvailableOrders = asyncHandler(async (req, res) => {
 // @access  Private (Scrapper)
 export const getMyAssignedOrders = asyncHandler(async (req, res) => {
   const scrapperId = req.user.id;
-  const status = pickEnum(req.query.status, Object.values(ORDER_STATUS));
   const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50 });
 
   const query = { scrapper: scrapperId };
-  if (status) query.status = status;
+  if (req.query.status) {
+    const rawStatuses = String(req.query.status).split(',').map(s => s.trim().toLowerCase());
+    const validStatuses = rawStatuses.filter(s => Object.values(ORDER_STATUS).includes(s));
+    if (validStatuses.length === 1) {
+      query.status = validStatuses[0];
+    } else if (validStatuses.length > 1) {
+      query.status = { $in: validStatuses };
+    }
+  }
 
   const orders = await Order.find(query)
     .populate('user', 'name phone email')
@@ -393,13 +441,16 @@ export const acceptOrder = asyncHandler(async (req, res) => {
 // @access  Private (assigned scrapper, admin)
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const id = assertObjectId(req.params.id, 'order id');
-  const status = pickEnum(req.body.status, Object.values(ORDER_STATUS));
+  const reqStatus = pickEnum(req.body.status, Object.values(ORDER_STATUS));
   const paymentStatus = pickEnum(req.body.paymentStatus, Object.values(PAYMENT_STATUS));
+  const scrapItems = Array.isArray(req.body.scrapItems) ? req.body.scrapItems : null;
+  const paidAmount = req.body.paidAmount !== undefined && req.body.paidAmount !== null ? Number(req.body.paidAmount) : null;
+  const totalAmount = req.body.totalAmount !== undefined && req.body.totalAmount !== null ? Number(req.body.totalAmount) : null;
   const userId = req.user.id;
   const userRole = req.user.role;
 
-  if (!status) {
-    return sendError(res, 'Invalid order status', 400);
+  if (!reqStatus && !scrapItems && !paymentStatus && paidAmount === null && totalAmount === null) {
+    return sendError(res, 'Invalid order update: status, scrapItems, or paymentStatus required', 400);
   }
 
   try {
@@ -417,25 +468,53 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         throw new AppError('Not authorized to update order status', 403);
       }
 
-      if (order.status === status) {
-        return { order, idempotent: true };
-      }
-
-      assertTransition(order, status, userRole);
-
-      // Final amount: only the assigned scrapper (before completion) or admin.
-      if (req.body.totalAmount !== undefined && req.body.totalAmount !== null) {
-        const amount = Number(req.body.totalAmount);
-        if (!Number.isFinite(amount) || amount < 0 || amount > 500000) {
-          throw new AppError('Invalid totalAmount', 400);
+      const initialStatus = order.status;
+      if (isTerminal(initialStatus)) {
+        if (reqStatus && reqStatus !== initialStatus) {
+          throw new AppError(`Cannot transition a finalised order from '${initialStatus}' to '${reqStatus}'`, 409);
         }
-        if (isTerminal(order.status)) {
+        if (scrapItems && scrapItems.length > 0) {
+          throw new AppError('Cannot update scrap items of a finalised order', 409);
+        }
+        if (totalAmount !== null) {
           throw new AppError('Cannot change amount of a finalised order', 409);
         }
-        order.totalAmount = roundMoney(amount);
+        // Idempotent repeat: return the existing order
+        sendSuccess(res, 'Order status updated successfully', { order });
+        return;
       }
 
-      // Payment marker (cash collection flow).
+      // Scrap items weighing update (e.g. from partner app weighing screen)
+      if (scrapItems && scrapItems.length > 0) {
+        // Map any items missing rate to rate from existing order item or active price
+        const existingRates = new Map();
+        (order.scrapItems || []).forEach(i => {
+          existingRates.set(normalizeCategory(i.category), i.rate);
+        });
+
+        const preparedItems = scrapItems.map(i => ({
+          ...i,
+          rate: i.rate !== undefined ? i.rate : existingRates.get(normalizeCategory(i.category))
+        }));
+
+        const built = await buildScrapItems(preparedItems, order.pickupAddress?.state || 'IN-DL');
+        order.scrapItems = built.items;
+        order.totalWeight = built.totalWeight;
+        order.totalAmount = built.totalAmount;
+        order.weighedAt = new Date();
+      } else if (totalAmount !== null) {
+        if (!Number.isFinite(totalAmount) || totalAmount < 0 || totalAmount > 500000) {
+          throw new AppError('Invalid totalAmount', 400);
+        }
+        order.totalAmount = roundMoney(totalAmount);
+      }
+
+      // Paid amount update (e.g. cash or direct settlement)
+      if (paidAmount !== null && Number.isFinite(paidAmount) && paidAmount >= 0) {
+        order.paidAmount = roundMoney(paidAmount);
+      }
+
+      // Payment marker (cash collection flow or completed payment).
       if (paymentStatus) {
         if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && paymentStatus !== PAYMENT_STATUS.COMPLETED) {
           throw new AppError('Cannot revert a completed payment', 409);
@@ -446,26 +525,34 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         order.paymentStatus = paymentStatus;
       }
 
-      order.status = status;
+      let statusChanged = false;
+      const targetStatus = reqStatus || order.status;
 
-      if (status === ORDER_STATUS.COMPLETED) {
-        order.completedDate = new Date();
-        await settleOrderOnCompletion(order, session);
-      }
-      if (status === ORDER_STATUS.CANCELLED) {
-        order.cancelledAt = new Date();
-        order.cancelledBy = userRole;
+      if (reqStatus && order.status !== reqStatus) {
+        assertTransition(order, targetStatus, userRole);
+        order.status = targetStatus;
+        statusChanged = true;
+
+        if (targetStatus === ORDER_STATUS.COMPLETED) {
+          order.completedDate = new Date();
+          await settleOrderOnCompletion(order, session);
+        }
+        if (targetStatus === ORDER_STATUS.CANCELLED) {
+          order.cancelledAt = new Date();
+          order.cancelledBy = userRole;
+        }
       }
 
       await order.save({ session });
-      return { order };
+      return { order, idempotent: !statusChanged && !scrapItems && !paymentStatus && paidAmount === null && totalAmount === null };
     });
 
     const order = result.order;
     await order.populate('user', 'name phone');
     await order.populate('scrapper', 'name phone');
 
-    logger.info(`Order ${id} status -> ${status} by ${userRole} ${userId}`);
+    const status = order.status;
+    logger.info(`Order ${id} updated -> status: ${status} by ${userRole} ${userId}`);
 
     const shortId = order._id.toString().slice(-6);
     if (!result.idempotent) {

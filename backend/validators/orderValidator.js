@@ -1,5 +1,5 @@
 import { body } from 'express-validator';
-import { SCRAP_CATEGORIES, ORDER_STATUS, ORDER_TYPES, normalizeCategory } from '../config/constants.js';
+import { SCRAP_CATEGORIES, ORDER_STATUS, PAYMENT_STATUS, ORDER_TYPES, normalizeCategory } from '../config/constants.js';
 
 export const createOrderValidator = [
   body('scrapItems')
@@ -16,9 +16,11 @@ export const createOrderValidator = [
         if (!Object.values(SCRAP_CATEGORIES).includes(item.category)) {
           throw new Error(`Item ${index + 1}: Invalid category`);
         }
-        if (!item.weight || item.weight <= 0) {
+        const w = Number(item.weight);
+        if (!Number.isFinite(w) || w <= 0) {
           throw new Error(`Item ${index + 1}: Weight must be greater than 0`);
         }
+        item.weight = w;
         if (item.rate !== undefined && item.rate !== null && (Number(item.rate) < 0 || !Number.isFinite(Number(item.rate)))) {
           throw new Error(`Item ${index + 1}: Rate must be 0 or greater`);
         }
@@ -30,56 +32,53 @@ export const createOrderValidator = [
     }),
 
   body('pickupAddress')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isObject()
     .withMessage('Pickup address must be an object'),
 
   body('pickupAddress.street')
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage('Street address is required'),
+    .optional({ nullable: true, checkFalsy: true })
+    .trim(),
 
   body('pickupAddress.city')
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage('City is required'),
+    .optional({ nullable: true, checkFalsy: true })
+    .trim(),
 
   body('pickupAddress.pincode')
-    .optional()
-    .trim()
-    .isLength({ min: 6, max: 6 })
-    .withMessage('Pincode must be 6 digits'),
+    .optional({ nullable: true, checkFalsy: true })
+    .trim(),
 
   body('pickupAddress.coordinates.lat')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isFloat({ min: -90, max: 90 })
     .withMessage('Latitude must be between -90 and 90'),
 
   body('pickupAddress.coordinates.lng')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isFloat({ min: -180, max: 180 })
     .withMessage('Longitude must be between -180 and 180'),
 
   body('preferredTime')
-    .optional()
-    .trim()
-    .notEmpty()
-    .withMessage('Preferred time cannot be empty'),
+    .optional({ nullable: true, checkFalsy: true })
+    .trim(),
 
   body('pickupSlot')
-    .optional()
-    .isObject()
-    .withMessage('Pickup slot must be an object'),
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((val) => {
+      if (!val) return true;
+      if (typeof val !== 'object' || Array.isArray(val)) {
+        throw new Error('Pickup slot must be an object');
+      }
+      return true;
+    }),
 
   body('images')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isArray()
     .withMessage('Images must be an array'),
 
   body('notes')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .trim()
     .isLength({ max: 500 })
     .withMessage('Notes cannot exceed 500 characters')
@@ -87,10 +86,24 @@ export const createOrderValidator = [
 
 export const updateOrderStatusValidator = [
   body('status')
-    .notEmpty()
-    .withMessage('Status is required')
+    .optional()
     .isIn(Object.values(ORDER_STATUS))
-    .withMessage('Invalid order status')
+    .withMessage('Invalid order status'),
+  body('paymentStatus')
+    .optional()
+    .isIn(Object.values(PAYMENT_STATUS))
+    .withMessage('Invalid payment status'),
+  body('scrapItems')
+    .optional()
+    .isArray()
+    .withMessage('scrapItems must be an array'),
+  body().custom((value, { req }) => {
+    const b = req.body || {};
+    if (!b.status && !b.scrapItems && !b.paymentStatus && b.paidAmount === undefined && b.totalAmount === undefined) {
+      throw new Error('At least one of status, scrapItems, paymentStatus, or amount is required');
+    }
+    return true;
+  })
 ];
 
 export const cancelOrderValidator = [

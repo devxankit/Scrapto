@@ -182,6 +182,31 @@ v1Router.use("/referrals", referralUserRoutes);
   v1Router.use("/fcm-tokens", fcmTokenRoutes);
   v1Router.use("/marketplace", marketplaceRoutes);
 
+  // Download endpoints for Android APKs
+  app.get("/download/scrapper", (req, res) => {
+    const file = path.resolve("..", "scrapper-app", "android", "app", "build", "outputs", "apk", "release", "app-release.apk");
+    res.download(file, "Scrapto-Partner.apk");
+  });
+
+  app.get("/download/user", (req, res) => {
+    const file = path.resolve("..", "user-app", "android", "app", "build", "outputs", "apk", "release", "app-release.apk");
+    res.download(file, "Scrapto-User.apk");
+  });
+
+  // Direct download for Meta Leads sample Excel template
+  app.get("/download/meta-leads-template", async (req, res) => {
+    try {
+      const { generateSampleMetaLeadsWorkbook } = await import("./utils/metaLeadParser.js");
+      const buffer = generateSampleMetaLeadsWorkbook();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", 'attachment; filename="Scrapto_Meta_Leads_Template.xlsx"');
+      res.setHeader("Content-Length", buffer.length);
+      res.send(buffer);
+    } catch (err) {
+      res.status(500).json({ success: false, message: "Could not generate template" });
+    }
+  });
+
   // Mount versioned routes
   app.use("/api/v1", v1Router);
 

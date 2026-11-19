@@ -327,6 +327,14 @@ const stripSensitive = (doc, ret) => {
     delete ret.kyc.aadhaarNumber;
     delete ret.kyc.documents;
   }
+  // Expose totalRatings and clean numeric rating for client apps
+  if (ret.rating && typeof ret.rating === 'object') {
+    ret.totalRatings = ret.rating.count || 0;
+    ret.rating = ret.rating.average ? Number(ret.rating.average.toFixed(1)) : 5.0;
+  } else if (ret.rating === undefined || ret.rating === null) {
+    ret.rating = 5.0;
+    ret.totalRatings = 0;
+  }
   return ret;
 };
 

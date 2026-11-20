@@ -546,7 +546,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       }
 
       await order.save({ session });
-      return { order, idempotent: !statusChanged && !scrapItems && !paymentStatus && paidAmount === null && totalAmount === null };
+      return { order, statusChanged, idempotent: !statusChanged && !scrapItems && !paymentStatus && paidAmount === null && totalAmount === null };
     });
 
     const order = result.order;
@@ -557,7 +557,8 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     logger.info(`Order ${id} updated -> status: ${status} by ${userRole} ${userId}`);
 
     const shortId = order._id.toString().slice(-6);
-    if (!result.idempotent) {
+    // Status pushes go out only when the status actually changes (not on weight or payment updates).
+    if (result.statusChanged) {
       if (status === ORDER_STATUS.IN_PROGRESS) {
         sendNotificationToUser(order.user._id.toString(), {
           title: 'Scrapper is on the way! 🚚',

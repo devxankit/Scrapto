@@ -88,7 +88,7 @@ export function RequestsScreen() {
 
 function OrderCard({ o }: { o: any }) {
   const nav = useNavigation();
-  const cats: string[] = o.scrapItems.map((i: any) => i.category);
+  const cats: string[] = o.scrapItems.map((i: any) => catName(i.category));
   const cleaning = o.orderType === 'cleaning_service' ? CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType) : null;
   const later = o.preferredTime === 'later' && o.pickupSlot;
   const sub =

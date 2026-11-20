@@ -3,18 +3,18 @@ import { FlatList, Image, NativeScrollEvent, NativeSyntheticEvent, RefreshContro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, Bell, BellOff, ChevronDown, ChevronRight, Gift, Headphones, IndianRupee, MapPin, MessageCircle, PackageCheck, Recycle, Scale, Search, Sparkles, TrendingDown, TrendingUp, Truck, Wallet as WalletIcon, X } from 'lucide-react-native';
+import { ArrowRight, Bell, BellOff, ChevronDown, ChevronRight, Gift, Headphones, IndianRupee, MapPin, MessageCircle, PackageCheck, Recycle, Scale, Search, ShieldCheck, Sparkles, TrendingDown, TrendingUp, Truck, Wallet as WalletIcon, X, Zap } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
 import Fade from '../components/Fade';
-import { AppBar, Avatar, Card, Chip, EmptyState, Screen, SectionHeader } from '../components/ui';
+import { AppBar, Avatar, Card, Chip, EmptyState, Screen, SectionHeader, StatusPill } from '../components/ui';
 import { CategoryTile, IconBadge, Logo, Price, unitOf } from '../components/brand';
 import { colors, family, FamilyKey, radius } from '../theme';
 import { useStore } from '../store/AppStore';
 import { useQuery } from '../hooks/useQuery';
 import { api } from '../api/client';
 import { categoryMeta, images } from '../data/catalog';
-import { ago, firstName, greeting, inr, catName } from '../utils/format';
+import { ago, firstName, greeting, inr, catName, whenLabel } from '../utils/format';
 import type { RootParams } from '../navigation/RootNavigator';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
@@ -31,6 +31,7 @@ export function HomeScreen() {
   const orders = useQuery<{ orders: any[] }>('/orders/my-orders', undefined, { poll: 10000 });
   const banners = useQuery<{ banners: any[] }>('/banners/public', { audience: 'user' }, { persist: true });
   const notes = useQuery<{ notifications: any[] }>('/notifications');
+  const wallet = useQuery<any>('/wallet/profile');
   const [slide, setSlide] = useState(0);
   const home = addresses.find((a) => a.isDefault) ?? addresses[0];
   const live = orders.data?.orders.find((o) => o.status === 'confirmed' || o.status === 'in_progress' || o.status === 'pending');
@@ -38,6 +39,8 @@ export function HomeScreen() {
   const bannerW = width - 24;
   // 4 square tiles per row: 12dp screen edges, 8dp gaps.
   const tileW = Math.floor((width - 24 - 3 * 8) / 4);
+  const recent = (orders.data?.orders ?? []).slice(0, 3);
+  const appliances = prices.filter((p) => unitOf(p) === 'pc');
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => setSlide(Math.round(e.nativeEvent.contentOffset.x / (bannerW + 8)));
 
@@ -184,6 +187,111 @@ export function HomeScreen() {
             </React.Fragment>
           ))}
         </View>
+
+        {/* Wallet + refer */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable onPress={() => nav.navigate('Wallet')} accessibilityRole="button" style={({ pressed }) => ({ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, opacity: pressed ? 0.85 : 1 })}>
+            <IconBadge size={32} tone="green"><WalletIcon size={16} color={colors.primary} /></IconBadge>
+            <View style={{ flex: 1 }}>
+              <T size={10} w="semibold" color={colors.muted} lh={13}>Scraptox wallet</T>
+              <T size={15} w="extrabold" color={colors.deep} raw lh={19}>{inr(wallet.data?.balance ?? 0)}</T>
+            </View>
+            <ChevronRight size={14} color={colors.faint} />
+          </Pressable>
+          <Pressable onPress={() => nav.navigate('Main', { screen: 'Refer' })} accessibilityRole="button" style={({ pressed }) => ({ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.goldLine, backgroundColor: '#FFF8E8', opacity: pressed ? 0.85 : 1 })}>
+            <IconBadge size={32} tone="gold"><Gift size={16} color={colors.goldText} /></IconBadge>
+            <View style={{ flex: 1 }}>
+              <T size={10} w="semibold" color={colors.goldText} lh={13}>Refer &amp; earn</T>
+              <T size={13} w="extrabold" color="#5C3B00" raw lh={17} numberOfLines={1}>{user?.referralCode ?? 'Invite friends'}</T>
+            </View>
+            <ChevronRight size={14} color={colors.goldText} />
+          </Pressable>
+        </View>
+
+        {/* Big items, sold per piece */}
+        {appliances.length ? (
+          <View style={{ gap: 8 }}>
+            <SectionHeader title="Sell old appliances" action="See all" onAction={() => nav.navigate('Prices')} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {appliances.map((p) => (
+                <Pressable key={p._id} onPress={() => nav.navigate('SellCategory', { preselect: p.category })} accessibilityRole="button" accessibilityLabel={`${catName(p.category)}, ${inr(p.pricePerKg)} per piece`} style={({ pressed }) => ({ width: 96, padding: 8, gap: 2, alignItems: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, opacity: pressed ? 0.85 : 1 })}>
+                  <Image source={categoryMeta(p.category).image} style={{ width: 44, height: 44 }} resizeMode="contain" />
+                  <T size={11} w="bold" lh={14} numberOfLines={1}>{catName(p.category)}</T>
+                  <T size={12} w="extrabold" color={colors.primary} raw lh={15}>{`${inr(p.pricePerKg)}/pc`}</T>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Recent pickups */}
+        <View style={{ gap: 8 }}>
+          <SectionHeader title="Your recent pickups" action={recent.length ? 'See all' : undefined} onAction={() => nav.navigate('Main', { screen: 'Requests' })} />
+          {recent.length ? (
+            <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line }}>
+              {recent.map((o, i) => (
+                <Pressable key={o._id} onPress={() => nav.navigate('Order', { id: o._id })} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 10, borderTopWidth: i ? 1 : 0, borderTopColor: colors.lineSoft, opacity: pressed ? 0.8 : 1 })}>
+                  <Image source={categoryMeta(o.scrapItems?.[0]?.category ?? '').image} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: colors.bg }} resizeMode="contain" />
+                  <View style={{ flex: 1 }}>
+                    <T size={13} w="bold" lh={17} numberOfLines={1}>{o.orderType === 'cleaning_service' ? 'Cleaning service' : (o.scrapItems ?? []).map((it: any) => catName(it.category)).join(', ')}</T>
+                    <T size={11} color={colors.muted} lh={14} raw>{`#${o.orderNo} · ${whenLabel(o.createdAt)}`}</T>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                    <T size={13} w="extrabold" color={o.status === 'cancelled' ? colors.faint : colors.deep} raw>{inr(o.totalAmount)}</T>
+                    <StatusPill status={o.status} />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Pressable onPress={() => nav.navigate('SellCategory')} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', backgroundColor: colors.white }}>
+              <IconBadge size={32}><Truck size={16} color={colors.primary} /></IconBadge>
+              <View style={{ flex: 1 }}>
+                <T size={13} w="bold">No pickups yet</T>
+                <T size={11} color={colors.muted}>Book your first pickup in 2 minutes</T>
+              </View>
+              <T size={12} w="bold" color={colors.primary}>Book</T>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Why Scraptox */}
+        <View style={{ gap: 8 }}>
+          <SectionHeader title="Why Scraptox" />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              { t: 'Free pickup', d: 'At your doorstep', Icon: Truck, bg: colors.tealSoft, fg: colors.tealText },
+              { t: 'Digital weighing', d: 'Weighed in front of you', Icon: Scale, bg: colors.green50, fg: colors.primary },
+              { t: 'Verified partners', d: 'KYC-checked collectors', Icon: ShieldCheck, bg: colors.blueSoft, fg: colors.blueText },
+              { t: 'Instant payment', d: 'UPI or Scraptox wallet', Icon: Zap, bg: colors.goldSoft, fg: colors.goldText },
+            ].map((f) => (
+              <View key={f.t} style={{ width: Math.floor((width - 24 - 8) / 2), flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white }}>
+                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: f.bg, alignItems: 'center', justifyContent: 'center' }}>
+                  <f.Icon size={16} color={f.fg} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T size={12} w="extrabold" lh={15} numberOfLines={1}>{f.t}</T>
+                  <T size={10} color={colors.muted} lh={13} numberOfLines={1}>{f.d}</T>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Cleaning services */}
+        <Pressable onPress={() => nav.navigate('Cleaning')} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: '#EEEAFE', opacity: pressed ? 0.9 : 1 })}>
+          <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
+            <Sparkles size={18} color="#4A33A8" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <T size={10} w="extrabold" color="#4A33A8">NEW ON SCRAPTOX</T>
+            <T size={14} w="extrabold" color="#2B1D6B" lh={18}>Home &amp; office cleaning</T>
+            <T size={11} color="#4A33A8" numberOfLines={1}>Deep cleaning, debris and store-room clearing</T>
+          </View>
+          <ArrowRight size={16} color="#4A33A8" />
+        </Pressable>
+
+        <T size={10} color={colors.faint} center lh={14}>Rates are updated daily. The final amount is set by digital weighing at your door.</T>
       </ScrollView>
     </Screen>
   );

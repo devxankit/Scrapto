@@ -16,6 +16,19 @@ import type { RootParams } from '../navigation/RootNavigator';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
+/** Readable titles for backend wallet transaction categories. */
+const TX_TITLES: Record<string, string> = {
+  payment_received: 'Payment received',
+  payment_sent: 'Paid to customer',
+  withdrawal: 'Withdrawal',
+  recharge: 'Money added',
+  coupon_credit: 'Coupon cashback',
+  commission: 'Platform fee',
+  refund: 'Refund',
+  referral_bonus: 'Referral reward',
+  subscription: 'Plan purchase',
+};
+
 export function WalletScreen() {
   const navigation = useNavigation();
   const w = useQuery<any>('/wallet/profile');
@@ -68,15 +81,18 @@ export function WalletScreen() {
         ListEmptyComponent={tx.loading ? <Loading /> : <EmptyState icon={<WalletIcon size={30} color={colors.primary} />} title="No transactions yet" text="Top-ups, payments to customers and withdrawals show up here." />}
         renderItem={({ item, index }) => {
           const list = tx.data?.transactions ?? [];
-          const out = item.type === 'debit';
-          const gift = item.category === 'referral' || item.category === 'bonus';
+          // Backend sends type CREDIT/DEBIT and category like PAYMENT_SENT, with no title.
+          const out = String(item.type).toLowerCase() === 'debit';
+          const cat = String(item.category ?? '').toLowerCase();
+          const gift = cat.includes('referral') || cat.includes('bonus') || cat.includes('coupon');
+          const title = item.title || TX_TITLES[cat] || (out ? 'Money sent' : 'Money received');
           return (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.white, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, borderTopWidth: index === 0 ? 1 : 0, borderBottomWidth: 1, borderBottomColor: index === list.length - 1 ? colors.line : colors.lineSoft, borderTopLeftRadius: index === 0 ? radius.lg : 0, borderTopRightRadius: index === 0 ? radius.lg : 0, borderBottomLeftRadius: index === list.length - 1 ? radius.lg : 0, borderBottomRightRadius: index === list.length - 1 ? radius.lg : 0 }}>
               <IconBadge tone={out ? 'grey' : gift ? 'gold' : 'green'}>
                 {out ? <ArrowUpRight size={18} color={colors.ink2} /> : gift ? <Gift size={18} color={colors.goldText} /> : <ArrowDownLeft size={18} color={colors.primary} />}
               </IconBadge>
               <View style={{ flex: 1 }}>
-                <T size={14} w="bold">{item.title}</T>
+                <T size={14} w="bold">{title}</T>
                 <T size={12} color={colors.muted} numberOfLines={1}>{`${dateLabel(item.createdAt)} · ${item.description}`}</T>
               </View>
               <T size={14} w="extrabold" color={out ? colors.ink : colors.primary} raw>{`${out ? '−' : '+'}${inr(item.amount, true)}`}</T>
@@ -172,7 +188,8 @@ export function WithdrawScreen({ navigation }: P<'Withdraw'>) {
           onPress={async () => {
             setBusy(true);
             try {
-              await api('/wallet/withdraw', { method: 'POST', body: { amount: n, method, upiId: method === 'upi' ? upiId : undefined, accountNumber: acc, ifsc, accountHolder: holder } });
+              // Backend contract: POST /wallet/withdraw { amount, bankDetails: { upiId } | { accountNumber, ifscCode, accountHolderName } }
+              await api('/wallet/withdraw', { method: 'POST', body: { amount: n, bankDetails: method === 'upi' ? { upiId: upiId.trim() } : { accountNumber: acc.trim(), ifscCode: ifsc.trim().toUpperCase(), accountHolderName: holder.trim() } } });
               Alert.alert('Withdrawal requested', method === 'upi' ? 'The money is on its way to your UPI ID.' : 'The money will reach your bank within 24 hours.');
               navigation.goBack();
             } catch (e: any) {

@@ -316,13 +316,16 @@ export function StatusPill({ status, label }: { status: string; label?: string }
   );
 }
 
-export function Tag({ label, tone = 'green' }: { label: string; tone?: 'green' | 'gold' | 'grey' | 'red' }) {
-  const t = {
+export function Tag({ label, tone = 'green' }: { label: string; tone?: 'green' | 'gold' | 'grey' | 'red' | 'primary' }) {
+  const tones = {
     green: { bg: colors.green50, fg: colors.deep },
     gold: { bg: colors.goldSoft, fg: colors.goldText },
     grey: { bg: colors.bg, fg: colors.ink2 },
     red: { bg: colors.redSoft, fg: colors.redText },
-  }[tone];
+    primary: { bg: colors.primary, fg: colors.white },
+  };
+  // Unknown tones fall back to green instead of crashing the screen.
+  const t = tones[tone] ?? tones.green;
   return (
     <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: t.bg, alignSelf: 'flex-start' }}>
       <T size={11} w="extrabold" color={t.fg}>{label}</T>

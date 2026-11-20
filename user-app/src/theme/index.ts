@@ -105,7 +105,7 @@ export const type = {
   caption: { size: 12, w: 'medium' as FontWeight },
 };
 
-export const radius = { sm: 8, md: 12, lg: 16, xl: 20, sheet: 24, pill: 999 };
+export const radius = { sm: 6, md: 10, lg: 12, xl: 16, sheet: 20, pill: 999 };
 
 /**
  * Android elevation only: CSS-style box shadows are drawn in software on
@@ -117,4 +117,5 @@ export const shadow = {
   sheet: { elevation: 16, shadowColor: colors.black },
 };
 
-export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 };
+/** Dense spacing (Paytm / PhonePe style): screens use 12dp edges and 8-10dp gaps. */
+export const space = { xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 20 };

@@ -46,12 +46,23 @@ export const sendPushNotification = async (tokens, payload) => {
     }
 
     try {
+        // FCM rejects non-string data values (ObjectIds, numbers), so stringify them.
+        const data = Object.fromEntries(
+            Object.entries(payload.data || {})
+                .filter(([, v]) => v !== undefined && v !== null)
+                .map(([k, v]) => [k, typeof v === 'string' ? v : (typeof v === 'object' ? JSON.stringify(v) : String(v))])
+        );
         const message = {
             notification: {
                 title: payload.title,
                 body: payload.body,
             },
-            data: payload.data || {},
+            data,
+            // Native apps: show as a heads-up on the "scraptox_default" channel.
+            android: {
+                priority: 'high',
+                notification: { channelId: 'scraptox_default', sound: 'default' },
+            },
             tokens: tokens,
         };
 

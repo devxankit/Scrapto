@@ -30,7 +30,7 @@ export function WalletScreen({ navigation }: P<'Wallet'>) {
         data={tx.data?.transactions ?? []}
         keyExtractor={(t) => t._id}
         refreshControl={<RefreshControl refreshing={false} onRefresh={reload} colors={[colors.primary]} />}
-        contentContainerStyle={{ padding: 16, gap: 0, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 0, flexGrow: 1 }}
         ListHeaderComponent={
           <View style={{ gap: 14, marginBottom: 14 }}>
             <View style={{ backgroundColor: colors.deep, borderRadius: radius.xl, padding: 20, gap: 16, overflow: 'hidden' }}>
@@ -137,7 +137,7 @@ export function WithdrawScreen({ navigation }: P<'Withdraw'>) {
   return (
     <Screen>
       <AppBar title="Withdraw" subtitle={`Balance ${inr(balance, true)}`} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <Field label="Amount" value={amount} onChangeText={(v) => setAmount(v.replace(/\D/g, '').slice(0, 7))} keyboardType="number-pad" placeholder="0" error={amountErr} left={<T size={18} w="bold" color={colors.muted} raw>₹</T>} right={<T size={13} w="bold" color={colors.primary} onPress={() => setAmount(String(Math.floor(balance)))}>Max</T>} />
         <View style={{ gap: 10 }}>
           <T size={13} w="semibold" color={colors.ink2}>Send to</T>
@@ -204,7 +204,7 @@ export function CouponsScreen() {
   return (
     <Screen>
       <AppBar title="Coupons" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
           <View style={{ flex: 1 }}>
             <Field value={code} onChangeText={(v) => setCode(v.toUpperCase())} placeholder="Enter coupon code" autoCapitalize="characters" left={<Ticket size={18} color={colors.muted} />} />

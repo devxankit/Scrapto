@@ -81,11 +81,11 @@ export function SellCategoryScreen({ navigation, route }: P<'SellCategory'>) {
     <Screen>
       <Header step={1} title="What are you selling?" />
       <View style={{ backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.line }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 10 }}>
           {FAMS.map((f) => <Chip key={f} dark label={f === 'all' ? 'All' : family[f].label} active={fam === f} onPress={() => setFam(f)} />)}
         </ScrollView>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {list.map((p) => (
           <View key={p._id} style={{ width: col }}>
             <CategoryPick price={p} on={p.category in draft.items} onPress={() => toggle(p.category)} />
@@ -121,7 +121,7 @@ export function SellPhotosScreen({ navigation }: P<'SellPhotos'>) {
   return (
     <Screen>
       <Header step={2} title="Add photos" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }}>
         <Card style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
           <Image source={images.stepPhotos} style={{ width: 64, height: 64, borderRadius: 12 }} />
           <View style={{ flex: 1, gap: 4 }}>
@@ -185,7 +185,7 @@ export function SellWeightScreen({ navigation }: P<'SellWeight'>) {
   return (
     <Screen>
       <Header step={3} title="How much do you have?" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
         <T size={13} color={colors.muted} lh={18}>A rough guess is fine. The collector weighs everything on a digital scale at your door.</T>
         {est.lines.map((l) => {
           const meta = categoryMeta(l.cat);
@@ -249,7 +249,7 @@ export function SellAddressScreen({ navigation }: P<'SellAddress'>) {
   return (
     <Screen>
       <Header step={4} title="Pickup address" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
         <Button label={locating ? 'Finding you…' : 'Use my current location'} variant="tonal" size="md" loading={locating} icon={<LocateFixed size={18} color={colors.deep} />} onPress={useCurrent} />
         {addresses.map((a) => (
           <AddressCard key={a._id} a={a} on={chosen?._id === a._id} onPress={() => setDraft((d) => ({ ...d, address: a }))} onEdit={() => navigation.navigate('AddressForm', { id: a._id, pick: true })} />
@@ -333,7 +333,7 @@ export function SellConfirmScreen({ navigation }: P<'SellConfirm'>) {
   return (
     <Screen>
       <Header step={5} title="Review & schedule" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
         <Card style={{ paddingVertical: 4 }}>
           {est.lines.map((l, i) => (
             <View key={l.cat} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: i === est.lines.length - 1 ? 0 : 1, borderBottomColor: colors.lineSoft }}>

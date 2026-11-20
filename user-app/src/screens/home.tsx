@@ -3,7 +3,7 @@ import { FlatList, Image, NativeScrollEvent, NativeSyntheticEvent, RefreshContro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, Bell, BellOff, ChevronDown, Gift, IndianRupee, MapPin, PackageCheck, Scale, Search, Sparkles, TrendingDown, TrendingUp, Truck, X } from 'lucide-react-native';
+import { ArrowRight, Bell, BellOff, ChevronDown, ChevronRight, Gift, Headphones, IndianRupee, MapPin, MessageCircle, PackageCheck, Recycle, Scale, Search, Sparkles, TrendingDown, TrendingUp, Truck, Wallet as WalletIcon, X } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
 import Fade from '../components/Fade';
@@ -35,152 +35,170 @@ export function HomeScreen() {
   const home = addresses.find((a) => a.isDefault) ?? addresses[0];
   const live = orders.data?.orders.find((o) => o.status === 'confirmed' || o.status === 'in_progress' || o.status === 'pending');
   const unread = notes.data?.notifications.some((n) => !n.read);
-  const bannerW = width - 32;
+  const bannerW = width - 24;
+  // 4 square tiles per row: 12dp screen edges, 8dp gaps.
+  const tileW = Math.floor((width - 24 - 3 * 8) / 4);
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => setSlide(Math.round(e.nativeEvent.contentOffset.x / (bannerW + 10)));
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => setSlide(Math.round(e.nativeEvent.contentOffset.x / (bannerW + 8)));
+
+  const quick: { label: string; Icon: any; tint: string; bg: string; go: () => void }[] = [
+    { label: 'Sell scrap', Icon: Recycle, tint: colors.primary, bg: colors.green50, go: () => nav.navigate('SellCategory') },
+    { label: 'Rates', Icon: TrendingUp, tint: colors.blueText, bg: colors.blueSoft, go: () => nav.navigate('Prices') },
+    { label: 'My pickups', Icon: Truck, tint: colors.tealText, bg: colors.tealSoft, go: () => nav.navigate('Main', { screen: 'Requests' }) },
+    { label: 'Wallet', Icon: WalletIcon, tint: colors.goldText, bg: colors.goldSoft, go: () => nav.navigate('Wallet') },
+    { label: 'Cleaning', Icon: Sparkles, tint: '#4A33A8', bg: '#EEEAFE', go: () => nav.navigate('Cleaning') },
+    { label: 'Refer & earn', Icon: Gift, tint: colors.goldText, bg: colors.goldSoft, go: () => nav.navigate('Main', { screen: 'Refer' }) },
+    { label: 'Chats', Icon: MessageCircle, tint: colors.primary, bg: colors.green50, go: () => nav.navigate('Chats') },
+    { label: 'Help', Icon: Headphones, tint: colors.ink2, bg: colors.lineSoft, go: () => nav.navigate('Help') },
+  ];
 
   return (
     <Screen>
-      {/* Header */}
-      <View style={{ backgroundColor: colors.white, paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Pressable onPress={() => nav.navigate('Addresses')} accessibilityRole="button" accessibilityLabel="Change pickup address" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <IconBadge size={36}>
-              <MapPin size={18} color={colors.brand} fill={colors.green100} />
+      {/* Header (sticky: it sits outside the scroll view) */}
+      <View style={{ backgroundColor: colors.white, paddingTop: insets.top + 4, paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Pressable onPress={() => nav.navigate('Addresses')} accessibilityRole="button" accessibilityLabel="Change pickup address" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <IconBadge size={32}>
+              <MapPin size={16} color={colors.brand} fill={colors.green100} />
             </IconBadge>
             <View style={{ flex: 1 }}>
-              <T size={12} w="semibold" color={colors.muted}>{home ? `Pickup at · ${home.label}` : `${greeting()}, ${firstName(user?.name)}`}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <T size={15} w="bold" numberOfLines={1} style={{ flexShrink: 1 }}>{home ? `${home.street.split(',').slice(-1)[0].trim()}, ${home.city}` : 'Add your pickup address'}</T>
-                <ChevronDown size={16} color={colors.ink} strokeWidth={2.6} />
+              <T size={11} w="semibold" color={colors.muted} lh={14}>{home ? `Pickup at · ${home.label}` : `${greeting()}, ${firstName(user?.name)}`}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <T size={14} w="bold" lh={18} numberOfLines={1} style={{ flexShrink: 1 }}>{home ? `${home.street.split(',').slice(-1)[0].trim()}, ${home.city}` : 'Add your pickup address'}</T>
+                <ChevronDown size={14} color={colors.ink} strokeWidth={2.6} />
               </View>
             </View>
           </Pressable>
-          <Pressable onPress={() => nav.navigate('Notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={{ width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
-            <Bell size={20} color={colors.ink} />
-            {unread ? <View style={{ position: 'absolute', top: 10, right: 11, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.white }} /> : null}
+          <Pressable onPress={() => nav.navigate('Notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={{ width: 38, height: 38, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
+            <Bell size={18} color={colors.ink} />
+            {unread ? <View style={{ position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red, borderWidth: 1.5, borderColor: colors.white }} /> : null}
           </Pressable>
         </View>
-        <Pressable onPress={() => nav.navigate('Categories')} accessibilityRole="search" style={{ height: 44, borderRadius: radius.md, backgroundColor: colors.bg, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14 }}>
-          <Search size={18} color={colors.muted} />
-          <T size={14} color={colors.muted}>Search copper, newspaper, AC…</T>
+        <Pressable onPress={() => nav.navigate('Categories')} accessibilityRole="search" style={{ height: 38, borderRadius: radius.md, backgroundColor: colors.bg, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+          <Search size={16} color={colors.muted} />
+          <T size={13} color={colors.muted}>Search copper, newspaper, AC…</T>
         </Pressable>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 28 }}
+        contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: 20 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => { orders.reload(); loadPrices(); notes.reload(); }} colors={[colors.primary]} />}>
         {/* Live order */}
         {live ? (
-          <Pressable onPress={() => nav.navigate('Order', { id: live._id })} accessibilityRole="button" style={({ pressed }) => ({ backgroundColor: colors.deep, borderRadius: radius.lg, padding: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.92 : 1 })}>
+          <Pressable onPress={() => nav.navigate('Order', { id: live._id })} accessibilityRole="button" style={({ pressed }) => ({ backgroundColor: colors.deep, borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pressed ? 0.92 : 1 })}>
             {live.scrapper ? (
-              <Avatar source={images.avatarPartner} size={42} ring={colors.green400} />
+              <Avatar source={images.avatarPartner} size={36} ring={colors.green400} />
             ) : (
-              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: colors.deep2, alignItems: 'center', justifyContent: 'center' }}>
-                <Search size={18} color={colors.green200} />
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.deep2, alignItems: 'center', justifyContent: 'center' }}>
+                <Search size={16} color={colors.green200} />
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <T size={12} w="semibold" color={colors.green200} numberOfLines={1}>{`${live.status === 'in_progress' ? 'Pickup on the way' : live.status === 'confirmed' ? 'Pickup accepted' : 'Finding a collector'} · #${live.orderNo}`}</T>
-              <T size={15} w="bold" color={colors.white} numberOfLines={1}>
+              <T size={11} w="semibold" color={colors.green200} numberOfLines={1}>{`${live.status === 'in_progress' ? 'Pickup on the way' : live.status === 'confirmed' ? 'Pickup accepted' : 'Finding a collector'} · #${live.orderNo}`}</T>
+              <T size={14} w="bold" color={colors.white} numberOfLines={1}>
                 {live.status === 'in_progress'
                   ? live.tracking?.arrived ? `${firstName(live.scrapper?.name)} is at your door` : `${firstName(live.scrapper?.name)} arrives in ${live.tracking?.etaMin ?? 8} min`
                   : live.status === 'confirmed' ? `${live.scrapper?.name} will pick up` : 'Usually takes under a minute'}
               </T>
             </View>
-            <View style={{ backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}>
-              <T size={13} w="bold" color={colors.white}>Track</T>
+            <View style={{ backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+              <T size={12} w="bold" color={colors.white}>Track</T>
             </View>
           </Pressable>
         ) : null}
 
+        {/* Quick actions (PhonePe-style icon grid) */}
+        <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, flexDirection: 'row', flexWrap: 'wrap', rowGap: 10 }}>
+          {quick.map((q) => (
+            <Pressable key={q.label} onPress={q.go} accessibilityRole="button" accessibilityLabel={q.label} style={({ pressed }) => ({ width: '25%', alignItems: 'center', gap: 5, opacity: pressed ? 0.7 : 1 })}>
+              <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: q.bg, alignItems: 'center', justifyContent: 'center' }}>
+                <q.Icon size={20} color={q.tint} strokeWidth={2.2} />
+              </View>
+              <T size={11} w="semibold" color={colors.ink2} lh={13} numberOfLines={1}>{q.label}</T>
+            </Pressable>
+          ))}
+        </View>
+
         {/* Banners */}
         <View>
-          <ScrollView horizontal pagingEnabled={false} snapToInterval={bannerW + 10} decelerationRate="fast" showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} contentContainerStyle={{ gap: 10 }}>
+          <ScrollView horizontal pagingEnabled={false} snapToInterval={bannerW + 8} decelerationRate="fast" showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} contentContainerStyle={{ gap: 8 }}>
             {(banners.data?.banners ?? [{ _id: 'x', title: 'Free doorstep pickup', subtitle: 'Weighed at your door, paid on UPI', image: 'bannerPickup', link: 'sell' }]).map((b) => (
               <Pressable
                 key={b._id}
                 onPress={() => (b.link === 'prices' ? nav.navigate('Prices') : b.link === 'wallet' ? nav.navigate('Wallet') : nav.navigate('SellCategory'))}
                 accessibilityRole="button"
                 accessibilityLabel={b.title}
-                style={{ width: bannerW, height: 168, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.green50 }}>
-                <Image source={BANNER_IMAGES[b.image] ?? images.bannerPickup} style={{ position: 'absolute', right: 0, top: 0, width: '50%', height: '100%' }} resizeMode="cover" />
-                <View style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '18%' }}>
+                style={{ width: bannerW, height: 116, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.green50 }}>
+                <Image source={BANNER_IMAGES[b.image] ?? images.bannerPickup} style={{ position: 'absolute', right: 0, top: 0, width: '46%', height: '100%' }} resizeMode="cover" />
+                <View style={{ position: 'absolute', left: '54%', top: 0, bottom: 0, width: '16%' }}>
                   <SideFade />
                 </View>
-                <View style={{ position: 'absolute', left: 16, top: 16, bottom: 16, width: '52%', gap: 5 }}>
-                  <T size={11} w="extrabold" color={colors.primary}>{b.title.toUpperCase()}</T>
-                  <T size={18} w="extrabold" lh={22}>{b.link === 'prices' ? 'Rates checked every morning' : b.link === 'wallet' ? 'Paid before the truck leaves' : 'Sell scrap in 2 minutes'}</T>
-                  <T size={12} color={colors.ink2} numberOfLines={2}>{b.subtitle}</T>
+                <View style={{ position: 'absolute', left: 12, top: 10, bottom: 10, width: '56%', gap: 2 }}>
+                  <T size={10} w="extrabold" color={colors.primary}>{b.title.toUpperCase()}</T>
+                  <T size={15} w="extrabold" lh={19} numberOfLines={2}>{b.link === 'prices' ? 'Rates checked every morning' : b.link === 'wallet' ? 'Paid before the truck leaves' : 'Sell scrap in 2 minutes'}</T>
+                  <T size={11} color={colors.ink2} numberOfLines={1}>{b.subtitle}</T>
                   <View style={{ flex: 1 }} />
-                  <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 }}>
-                    <T size={13} w="bold" color={colors.white}>{b.link === 'prices' ? 'See rates' : b.link === 'wallet' ? 'Open wallet' : 'Sell scrap'}</T>
-                    <ArrowRight size={14} color={colors.white} strokeWidth={2.6} />
+                  <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
+                    <T size={11} w="bold" color={colors.white}>{b.link === 'prices' ? 'See rates' : b.link === 'wallet' ? 'Open wallet' : 'Sell scrap'}</T>
+                    <ArrowRight size={12} color={colors.white} strokeWidth={2.6} />
                   </View>
                 </View>
               </Pressable>
             ))}
           </ScrollView>
-          <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'center', marginTop: 10 }}>
-            {(banners.data?.banners ?? [0]).map((_: any, i: number) => (
-              <View key={i} style={{ width: i === slide ? 16 : 5, height: 5, borderRadius: 3, backgroundColor: i === slide ? colors.primary : colors.lineStrong }} />
+          {(banners.data?.banners?.length ?? 1) > 1 ? (
+            <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'center', marginTop: 6 }}>
+              {(banners.data?.banners ?? [0]).map((_: any, i: number) => (
+                <View key={i} style={{ width: i === slide ? 14 : 4, height: 4, borderRadius: 2, backgroundColor: i === slide ? colors.primary : colors.lineStrong }} />
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Rates: 2 rows of 4 square tiles */}
+        <View style={{ gap: 8 }}>
+          <SectionHeader title="Today's rates" action={`See all ${prices.length || ''}`.trim()} onAction={() => nav.navigate('Prices')} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {homePicks(prices).map((p) => (
+              <CategoryTile key={p._id} price={p} width={tileW} onPress={() => nav.navigate('SellCategory', { preselect: p.category })} />
             ))}
           </View>
         </View>
 
-        {/* Rates */}
-        <SectionHeader title="Today's rates" action={`See all ${prices.length || ''}`.trim()} onAction={() => nav.navigate('Prices')} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {homePicks(prices).map((p) => (
-            <CategoryTile key={p._id} price={p} width={Math.floor((width - 32 - 20) / 3)} onPress={() => nav.navigate('SellCategory', { preselect: p.category })} />
-          ))}
-        </View>
-
-        {/* How it works */}
-        <Card style={{ flexDirection: 'row', gap: 10 }}>
+        {/* How it works (one compact strip) */}
+        <View style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center' }}>
           {[
-            { n: '1 · BOOK', t: 'Pick items & a slot', Icon: PackageCheck },
-            { n: '2 · WEIGH', t: 'Digital scale at your door', Icon: Scale },
-            { n: '3 · GET PAID', t: 'UPI or wallet, instantly', Icon: IndianRupee },
+            { n: 'Book', t: 'Items & slot', Icon: PackageCheck },
+            { n: 'Weigh', t: 'At your door', Icon: Scale },
+            { n: 'Get paid', t: 'UPI / wallet', Icon: IndianRupee },
           ].map((s, i) => (
             <React.Fragment key={s.n}>
-              {i ? <View style={{ width: 1, backgroundColor: colors.line }} /> : null}
-              <View style={{ flex: 1, gap: 6 }}>
-                <s.Icon size={18} color={colors.brand} />
-                <T size={11} w="extrabold" color={colors.primary}>{s.n}</T>
-                <T size={12} color={colors.ink2} lh={16}>{s.t}</T>
+              {i ? <ChevronRight size={14} color={colors.faint} /> : null}
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
+                <s.Icon size={16} color={colors.brand} />
+                <View style={{ flexShrink: 1 }}>
+                  <T size={11} w="extrabold" lh={14}>{s.n}</T>
+                  <T size={10} color={colors.muted} lh={13} numberOfLines={1}>{s.t}</T>
+                </View>
               </View>
             </React.Fragment>
           ))}
-        </Card>
-
-        {/* Cleaning + refer */}
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Card onPress={() => nav.navigate('Cleaning')} style={{ flex: 1, gap: 8 }}>
-            <IconBadge tone="blue"><Sparkles size={18} color={colors.blueText} /></IconBadge>
-            <T size={14} w="extrabold">Cleaning services</T>
-            <T size={12} color={colors.muted} lh={16}>Home, office and debris clearing</T>
-          </Card>
-          <Card tone="gold" onPress={() => nav.navigate('Main', { screen: 'Refer' })} style={{ flex: 1, gap: 8 }}>
-            <IconBadge tone="gold"><Gift size={18} color={colors.goldText} /></IconBadge>
-            <T size={14} w="extrabold" color="#5C3B00">Earn ₹50 per friend</T>
-            <T size={12} color={colors.goldText} lh={16}>Share your referral code</T>
-          </Card>
         </View>
       </ScrollView>
     </Screen>
   );
 }
 
-/** The six most-sold categories for the home grid (admin order as fallback, no repeated photos). */
-const POPULAR = ['Newspaper', 'Copper', 'E-waste', 'Plastic', 'Split AC', 'Steel'];
+/** The eight most-sold categories for the home grid (admin order as fallback, no repeated photos). */
+const POPULAR = ['Newspaper', 'Copper', 'E-waste', 'Plastic', 'Split AC', 'Steel', 'Iron', 'Aluminium'];
 function homePicks(prices: Price[]): Price[] {
-  const picked = POPULAR.map((n) => prices.find((p) => p.category === n)).filter(Boolean) as Price[];
+  const byName = (n: string) => prices.find((p) => p.category.toLowerCase() === n.toLowerCase());
+  const picked = POPULAR.map(byName).filter(Boolean) as Price[];
   for (const p of prices) {
-    if (picked.length >= 6) break;
+    if (picked.length >= 8) break;
     if (!picked.includes(p) && !picked.some((q) => categoryMeta(q.category).image === categoryMeta(p.category).image)) picked.push(p);
   }
-  return picked.slice(0, 6);
+  return picked.slice(0, 8);
 }
 
 /** Horizontal fade from the banner tint into the photo. */
@@ -224,10 +242,10 @@ export function CategoriesScreen({ navigation }: P<'Categories'>) {
       <FlatList
         data={list}
         keyExtractor={(p) => p._id}
-        numColumns={3}
-        columnWrapperStyle={{ gap: 10 }}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
-        renderItem={({ item }) => <CategoryTile price={item} width={Math.floor((width - 32 - 20) / 3)} onPress={() => navigation.navigate('SellCategory', { preselect: item.category })} />}
+        numColumns={4}
+        columnWrapperStyle={{ gap: 8 }}
+        contentContainerStyle={{ padding: 12, gap: 8 }}
+        renderItem={({ item }) => <CategoryTile price={item} width={Math.floor((width - 24 - 3 * 8) / 4)} onPress={() => navigation.navigate('SellCategory', { preselect: item.category })} />}
         ListEmptyComponent={<EmptyState icon={<Search size={30} color={colors.primary} />} title="Nothing found" text="Try another word, or pick “Other” in the sell flow and describe it in the notes." />}
         ListHeaderComponent={
           <Card tone="green" onPress={() => navigation.navigate('Cleaning')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 }}>
@@ -261,7 +279,7 @@ export function PricesScreen({ navigation }: P<'Prices'>) {
       <FlatList
         data={list}
         keyExtractor={(p) => p._id}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 12 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={loadPrices} colors={[colors.primary]} />}
         ListHeaderComponent={<T size={12} color={colors.muted} style={{ marginBottom: 10 }}>Final amount is set by digital weighing at your door.</T>}
         renderItem={({ item, index }) => <PriceRow p={item} first={index === 0} last={index === list.length - 1} onPress={() => navigation.navigate('SellCategory', { preselect: item.category })} />}
@@ -315,7 +333,7 @@ export function NotificationsScreen({ navigation }: P<'Notifications'>) {
       <FlatList
         data={list}
         keyExtractor={(n) => n._id}
-        contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}
         ListEmptyComponent={q.loading ? undefined : <EmptyState icon={<BellOff size={30} color={colors.primary} />} title="No notifications yet" text="Pickup updates, payments and rate alerts will show up here." />}
         renderItem={({ item }) => (

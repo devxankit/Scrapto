@@ -93,3 +93,6 @@ android/app/src/debug/res/
 *.jks
 *.keystore.bak
 android/keystore.properties.*
+
+# Firebase config (from the original Play Store app); kept out of the public repo
+android/app/google-services.json

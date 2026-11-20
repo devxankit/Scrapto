@@ -23,26 +23,28 @@ export type Price = { _id: string; category: string; pricePerKg: number; unit?: 
 
 export const unitOf = (p: Price) => p.unit ?? categoryMeta(p.category).unit;
 
-/** Photo tile with name, rate and today's trend (home grid, 3 per row). */
+/**
+ * Square rate tile (4 per row): a compact box with the item photo, name and
+ * rate. The photo sits small inside the box so every item reads at a glance.
+ */
 export function CategoryTile({ price, onPress, width, style }: { price: Price; onPress?: () => void; width: number; style?: StyleProp<ViewStyle> }) {
   const meta = categoryMeta(price.category);
   const ch = price.change ?? 0;
+  const img = Math.round(width * 0.42);
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${price.category}, ${inr(price.pricePerKg)} per ${unitOf(price)}`}
-      style={({ pressed }) => [{ width, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 14, overflow: 'hidden', opacity: pressed ? 0.88 : 1 }, style]}>
-      <View style={{ width: width - 2, height: width - 2, padding: 6, backgroundColor: colors.white }}>
-        <Image source={meta.image} style={{ width: width - 14, height: width - 14, borderRadius: 10 }} resizeMode="contain" />
-      </View>
-      <View style={{ height: 1, backgroundColor: colors.lineSoft, marginHorizontal: 10 }} />
-      <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10, gap: 3 }}>
-        <T size={13} w="bold" numberOfLines={1}>{price.category}</T>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <T size={13} w="extrabold" color={colors.primary} raw numberOfLines={1}>{`${inr(price.pricePerKg)}/${unitOf(price)}`}</T>
-          {ch ? <T size={10} w="bold" color={ch > 0 ? colors.primary : colors.red} raw>{ch > 0 ? '▲' : '▼'}</T> : null}
-        </View>
+      style={({ pressed }) => [
+        { width, height: width, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, gap: 3, opacity: pressed ? 0.85 : 1 },
+        style,
+      ]}>
+      <Image source={meta.image} style={{ width: img, height: img }} resizeMode="contain" />
+      <T size={11} w="bold" lh={14} numberOfLines={1} style={{ textAlign: 'center', maxWidth: width - 8 }}>{price.category}</T>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+        <T size={11} w="extrabold" lh={14} color={colors.primary} raw numberOfLines={1}>{`${inr(price.pricePerKg)}/${unitOf(price)}`}</T>
+        {ch ? <T size={8} w="bold" color={ch > 0 ? colors.primary : colors.red} raw>{ch > 0 ? '▲' : '▼'}</T> : null}
       </View>
     </Pressable>
   );

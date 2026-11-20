@@ -26,7 +26,7 @@ export function CleaningScreen({ navigation }: P<'Cleaning'>) {
   return (
     <Screen>
       <AppBar title="Cleaning services" subtitle="By Scraptox verified teams" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
         <Card tone="green" style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
           <ShieldCheck size={20} color={colors.primary} />
           <T size={13} color={colors.deep} style={{ flex: 1 }} lh={18}>We clear the space and buy any scrap we find, so the cleaning often pays for itself.</T>
@@ -90,7 +90,7 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
   return (
     <Screen>
       <AppBar title={svc.name} subtitle="Book a visit" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 10 }}>
           <T size={15} w="extrabold">Size of the space</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

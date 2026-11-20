@@ -67,7 +67,7 @@ export function RequestsScreen() {
       <FlatList
         data={list}
         keyExtractor={(o) => o._id}
-        contentContainerStyle={{ padding: 16, gap: 12, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => { q.reload(); market.reload(); }} colors={[colors.primary]} />}
         ListHeaderComponent={(tab === 'all' || tab === 'active') && lots.length ? <View style={{ gap: 12, marginBottom: 12 }}>{lots.map((l) => <BidCard key={l._id} lot={l} onDone={market.reload} />)}</View> : undefined}
         ListEmptyComponent={
@@ -272,7 +272,7 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
       </View>
 
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: height * 0.5, backgroundColor: colors.white, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, ...shadow.sheet }}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 10, gap: 14, paddingBottom: insets.bottom + 20 }}>
+        <ScrollView contentContainerStyle={{ padding: 12, paddingTop: 10, gap: 10, paddingBottom: insets.bottom + 20 }}>
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong }} />
           {/* Progress */}
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
@@ -378,7 +378,7 @@ function Receipt({ o }: { o: any }) {
   return (
     <Screen>
       <AppBar title={done ? 'Pickup receipt' : 'Cancelled pickup'} subtitle={`#${o.orderNo}`} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
         <Card style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
           <StatusPill status={o.status} label={done ? 'Paid to wallet' : 'Cancelled'} />
           <T size={34} w="extrabold" color={done ? colors.deep : colors.faint} raw style={{ letterSpacing: -0.6 }}>{inr(o.totalAmount, true)}</T>
@@ -432,7 +432,7 @@ export function ReviewScreen({ route, navigation }: P<'Review'>) {
   return (
     <Screen>
       <AppBar title="Rate your pickup" subtitle={o ? `#${o.orderNo}` : undefined} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <Card style={{ alignItems: 'center', gap: 12, paddingVertical: 22 }}>
           <Avatar source={images.avatarPartner} size={72} />
           <T size={17} w="extrabold">{o?.scrapper?.name ?? 'Your collector'}</T>
@@ -496,7 +496,7 @@ export function MyReviewsScreen() {
       <FlatList
         data={list}
         keyExtractor={(r) => r._id}
-        contentContainerStyle={{ padding: 16, gap: 12, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         ListEmptyComponent={q.loading ? <Loading /> : <EmptyState icon={<Star size={30} color={colors.primary} />} title="No reviews yet" text="After a pickup, rate your collector to help others." />}
         renderItem={({ item }) => (
           <Card style={{ gap: 8 }}>

@@ -124,7 +124,7 @@ export function EditProfileScreen({ navigation }: P<'EditProfile'>) {
   return (
     <Screen>
       <AppBar title="Edit profile" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: 'center', paddingVertical: 8 }}>
           <Avatar source={images.avatarUser} size={88} />
         </View>
@@ -163,7 +163,7 @@ export function AddressesScreen({ navigation }: P<'Addresses'>) {
       <FlatList
         data={addresses}
         keyExtractor={(a) => a._id}
-        contentContainerStyle={{ padding: 16, gap: 12, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         ListEmptyComponent={<EmptyState icon={<MapPinned size={30} color={colors.primary} />} title="No saved addresses" text="Save your home or office to book pickups faster." />}
         renderItem={({ item }) => (
           <View style={{ gap: 0 }}>
@@ -226,7 +226,7 @@ export function AddressFormScreen({ navigation, route }: P<'AddressForm'>) {
   return (
     <Screen>
       <AppBar title={editing ? 'Edit address' : 'New address'} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <View style={{ height: 180, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }}>
           <MapView
             provider={PROVIDER_GOOGLE}
@@ -373,7 +373,7 @@ export function LeaderboardScreen() {
     <Screen>
       <AppBar title="Leaderboard" subtitle={d ? `${d.month} · Delhi NCR` : undefined} />
       {!d ? <Loading /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
             {[d.leaders[1], d.leaders[0], d.leaders[2]].filter(Boolean).map((l: any) => (
               <Card key={l.rank} style={{ flex: 1, alignItems: 'center', gap: 6, paddingVertical: l.rank === 1 ? 22 : 14 }}>
@@ -423,7 +423,7 @@ export function HelpScreen({ navigation }: P<'Help'>) {
   return (
     <Screen>
       <AppBar title="Help & support" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <Card style={{ paddingVertical: 4 }}>
           {FAQ.map(([q, a], i) => (
             <View key={q} style={{ paddingVertical: 12, gap: 4, borderBottomWidth: i === FAQ.length - 1 ? 0 : 1, borderBottomColor: colors.lineSoft }}>
@@ -513,7 +513,7 @@ export function SettingsLanguageScreen({ navigation }: P<'SettingsLanguage'>) {
   return (
     <Screen>
       <AppBar title="Language" />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 12 }}>
         <SettingsLanguagePicker onDone={() => navigation.goBack()} />
       </ScrollView>
     </Screen>

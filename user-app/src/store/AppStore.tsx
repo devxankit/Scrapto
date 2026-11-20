@@ -10,6 +10,7 @@ import i18n from '../i18n';
 import { api, getRefreshToken, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
 import { resetMock } from '../api/mock';
 import { connectSocket, disconnectSocket } from '../api/socket';
+import { pausePush, startPush, stopPush } from '../api/push';
 import { clearQueryCache } from '../hooks/useQuery';
 import type { Price } from '../components/brand';
 import type { Photo } from '../utils/media';
@@ -102,6 +103,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signedOut = useCallback(async () => {
+    pausePush();
     await setToken(null);
     disconnectSocket();
     clearQueryCache();
@@ -136,6 +138,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           setUser(me.data.user);
           AsyncStorage.setItem(USER_KEY, JSON.stringify(me.data.user)).catch(() => {});
           loadAddresses();
+          startPush();
         } catch (e: any) {
           if (e?.status === 401) signedOut();
         }
@@ -182,6 +185,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     connectSocket(token);
     setUser(u);
     loadAddresses();
+    startPush({ isNewLogin: true });
   }, [loadAddresses]);
 
   const updateProfile = useCallback(async (p: { name: string; email?: string }) => {
@@ -191,6 +195,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await stopPush();
     try {
       await api('/auth/logout', { method: 'POST', body: { refreshToken: getRefreshToken() } });
     } catch {

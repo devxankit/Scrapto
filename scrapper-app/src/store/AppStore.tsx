@@ -10,6 +10,7 @@ import i18n from '../i18n';
 import { api, getRefreshToken, loadConnection, setToken, setUnauthorizedHandler } from '../api/client';
 import { resetMock } from '../api/mock';
 import { connectSocket, disconnectSocket } from '../api/socket';
+import { pausePush, startPush, stopPush } from '../api/push';
 import { clearQueryCache } from '../hooks/useQuery';
 import type { Price } from '../components/brand';
 import { askLocationPermission, currentPosition, DEMO_POINT, LatLng } from '../utils/location';
@@ -117,6 +118,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signedOut = useCallback(async () => {
+    pausePush();
     await setToken(null);
     disconnectSocket();
     clearQueryCache();
@@ -154,7 +156,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       }
       setReady(true);
       loadPrices();
-      if (token) refreshMe();
+      if (token) {
+        const me = await refreshMe();
+        if (me) startPush();
+      }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -196,6 +201,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     // The auth user has no KYC/subscription; load the partner profile so a
     // verified partner lands on the dashboard instead of the KYC screen.
     await refreshMe();
+    startPush({ isNewLogin: true });
   }, [keep, refreshMe]);
 
   const updateProfile = useCallback(async (p: Partial<Pick<Partner, 'name' | 'email' | 'city' | 'services' | 'vehicleInfo'>>) => {
@@ -222,6 +228,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, [keep, locate]);
 
   const logout = useCallback(async () => {
+    await stopPush();
     try {
       if (user?.isOnline) await api('/scrappers/me', { method: 'PUT', body: { isOnline: false } });
       await api('/auth/logout', { method: 'POST', body: { refreshToken: getRefreshToken() } });

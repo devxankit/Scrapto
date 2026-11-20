@@ -84,7 +84,8 @@ export const translateText = async (req, res) => {
             if (!API_KEY) {
                 const translatedObj = {};
                 keys.forEach((key, index) => {
-                    translatedObj[key] = `[${targetClean}] ${values[index]}`;
+                    // No API key: return the original text rather than a "[hi] ..." placeholder.
+                    translatedObj[key] = values[index];
                 });
                 return res.status(200).json({
                     success: true,
@@ -195,8 +196,9 @@ export const translateText = async (req, res) => {
 
         // MOCK TRANSLATION (Fallback)
         if (!API_KEY) {
-            const translations = q.map(t => `[${targetClean}] ${t}`);
-            setCache(cacheKey, translations);
+            // No API key: return the original text (not cached, so a key added
+            // later takes effect) rather than a "[hi] ..." placeholder.
+            const translations = [...q];
 
             return res.status(200).json({
                 success: true,

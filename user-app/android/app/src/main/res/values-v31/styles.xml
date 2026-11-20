@@ -1,0 +1,10 @@
+<resources>
+
+    <!-- Android 12+: the system splash shows the launcher icon (the Scraptox logo) on white. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+    </style>
+
+</resources>

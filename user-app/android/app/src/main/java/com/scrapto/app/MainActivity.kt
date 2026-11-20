@@ -1,4 +1,4 @@
-package com.scrapto.user
+package com.scrapto.app
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

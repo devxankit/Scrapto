@@ -97,8 +97,8 @@ android {
         applicationId "com.scrapto.partner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 3
+        versionName "2.0.0"
         manifestPlaceholders = [MAPS_API_KEY: secretProps.getProperty("MAPS_API_KEY", "")]
     }
     signingConfigs {

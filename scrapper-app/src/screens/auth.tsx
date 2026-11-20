@@ -26,13 +26,10 @@ type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
 export function SplashScreen() {
   return (
-    <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', gap: 18 }}>
-      <Image source={images.logoMark} style={{ width: 84, height: 84 }} resizeMode="contain" />
-      <View style={{ alignItems: 'center', gap: 4 }}>
-        <T size={26} w="extrabold" raw style={{ letterSpacing: -0.4 }}>Scraptox</T>
-        <T size={13} w="bold" color={colors.deep} raw style={{ letterSpacing: 2 }}>PARTNER</T>
-      </View>
-      <ActivityIndicator color={colors.primary} style={{ marginTop: 12 }} />
+    // Same logo, size and position as the native launch screen, so the hand-off is seamless.
+    <View style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
+      <Image source={images.logoFull} style={{ width: 200, height: 159 }} resizeMode="contain" accessibilityLabel="Scraptox Partner" />
+      <ActivityIndicator color={colors.primary} style={{ position: 'absolute', bottom: '22%' }} />
     </View>
   );
 }

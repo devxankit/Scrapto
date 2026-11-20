@@ -1,4 +1,4 @@
-package com.scrapto.user
+package com.scrapto.app
 
 import android.app.Application
 import com.facebook.react.PackageList

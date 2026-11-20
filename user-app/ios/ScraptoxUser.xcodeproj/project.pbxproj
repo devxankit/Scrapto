@@ -271,7 +271,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.scrapto.user";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.scrapto.app";
 				PRODUCT_NAME = ScraptoxUser;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -300,7 +300,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.scrapto.user";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.scrapto.app";
 				PRODUCT_NAME = ScraptoxUser;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

@@ -4,7 +4,7 @@ The customer app for selling scrap: book a doorstep pickup, track the collector 
 
 | | |
 |---|---|
-| Package | `com.scrapto.user` · app name **Scraptox** |
+| Package | `com.scrapto.app` · app name **Scraptox** |
 | Stack | React Native CLI 0.87.1 (New Architecture, Hermes), TypeScript, React Navigation 7 |
 | Look | Plus Jakarta Sans, tokens in `src/theme/index.ts` (copied from the canvas) |
 | Languages | 13 (en, hi, bn, mr, te, ta, gu, ur, kn, or, ml, pa, as) via i18next plus the auto-translating `T` (Driver Finder setup) |
@@ -70,7 +70,7 @@ The APK is written to `android/app/build/outputs/apk/release/app-release.apk`. C
 - `android/app/scraptox-user-upload.keystore` and `android/keystore.properties` (passwords). Both are git-ignored.
 - Every Play Store update must be signed with this same key. **Copy both somewhere safe outside this PC.**
 - A release build stops with an error if `keystore.properties` is missing, so it can never fall back to the debug key.
-- `android/secrets.properties` holds `MAPS_API_KEY` (git-ignored). The key must allow the Android Maps SDK for `com.scrapto.user`.
+- `android/secrets.properties` holds `MAPS_API_KEY` (git-ignored). The key must allow the Android Maps SDK for `com.scrapto.app`.
 
 ## Icons
 

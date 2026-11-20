@@ -88,3 +88,8 @@ release/*.aab
 # Debug-only JS bundle + assets generated for on-device testing without Metro
 android/app/src/debug/assets/
 android/app/src/debug/res/
+
+# Signing keys (any format)
+*.jks
+*.keystore.bak
+android/keystore.properties.*

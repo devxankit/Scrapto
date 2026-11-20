@@ -11,6 +11,8 @@ import { FamilyKey } from '../theme';
 
 export const images = {
   logoMark: require('../assets/images/logo_mark.png'),
+  /** Full Scraptox logo (mark + wordmark), the same image as the launcher icon and splash. */
+  logoFull: require('../assets/images/logo_full.png'),
   heroUser: require('../assets/images/hero_user.jpg'),
   avatarUser: require('../assets/images/avatar_user.jpg'),
   avatarPartner: require('../assets/images/avatar_partner.jpg'),

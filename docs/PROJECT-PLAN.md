@@ -11,7 +11,7 @@ The method copies the Driver Finder project (`E:\Appzeto Projects\driver finder 
 | 1 | Data | **Mock first** behind a service layer that mirrors the real backend API shapes; wire the real backend later |
 | 2 | Tech | **React Native CLI 0.87.x + TypeScript**, the same stack as Driver Finder (no Expo) |
 | 3 | Location/brand | This repo: `scrapto/user-app` and `scrapto/scrapper-app`, fully separate (no shared package). App names **"Scraptox"** and **"Scraptox Partner"** (brand confirmed by the user on 2026-11-16) |
-| 4 | Package IDs | `com.scrapto.user` and `com.scrapto.partner` |
+| 4 | Package IDs | `com.scrapto.app` and `com.scrapto.partner` |
 | 5 | i18n | The same setup as Driver Finder: i18next, the auto-translating `T`, `i18n-extract` and `i18n-translate` scripts using google-translate-api-x, and a Language screen. **All 13 languages**: en, hi, bn, mr, te, ta, gu, ur (RTL), kn, or, ml, pa, as |
 | 6 | Maps | **Google Maps now**: `react-native-maps` with the Google provider and the existing key |
 | 7 | Extras included | Scrapper KYC flow (turned on), Notifications screen (both apps), Cleaning services (user), Referral leaderboard |
@@ -61,7 +61,7 @@ Key controls are clickable and sample data is marked as sample. Iterate board by
 ## Phase 4: Native setup (for each app)
 - Scaffold:
   ```
-  npx @react-native-community/cli init <App> --version 0.87.1 --package-name com.scrapto.user|partner --skip-git-init --pm npm --install-pods false
+  npx @react-native-community/cli init <App> --version 0.87.1 --package-name com.scrapto.app (user) or com.scrapto.partner --skip-git-init --pm npm --install-pods false
   ```
 - Copy the Driver Finder settings:
   - `metro.config.js` with the watchFolders fix

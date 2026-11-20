@@ -127,6 +127,9 @@ class SMSIndiaHubService {
         };
       } else if (responseData.ErrorCode && responseData.ErrorCode !== '000') {
         throw new Error(`SMSIndia Hub API error: ${responseData.ErrorMessage} (Code: ${responseData.ErrorCode})`);
+      } else if (typeof responseData === 'string' && /fail|invalid|error/i.test(responseData)) {
+        // Plain-text rejections like "Failed#senderid not valid" come back with HTTP 200.
+        throw new Error(`SMSIndia Hub rejected the SMS: ${responseData}`);
       } else {
         // Fallback for unexpected response format
         return {

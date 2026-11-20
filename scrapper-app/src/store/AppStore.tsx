@@ -193,7 +193,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     await setToken(r.data.token, r.data.refreshToken ?? null);
     connectSocket(r.data.token);
     keep(r.data.user);
-  }, [keep]);
+    // The auth user has no KYC/subscription; load the partner profile so a
+    // verified partner lands on the dashboard instead of the KYC screen.
+    await refreshMe();
+  }, [keep, refreshMe]);
 
   const updateProfile = useCallback(async (p: Partial<Pick<Partner, 'name' | 'email' | 'city' | 'services' | 'vehicleInfo'>>) => {
     const r = await api('/scrappers/me', { method: 'PUT', body: p });

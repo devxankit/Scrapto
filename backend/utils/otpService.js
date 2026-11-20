@@ -34,8 +34,13 @@ export const hashOtp = (phone, otp) => hmacSha256(`${phone}:${otp}`, otpSecret()
 
 export const generateOtpCode = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 
+// Production ignores OTP_TEST_NUMBERS unless explicitly opted in (temporary,
+// e.g. while the SMS sender ID is pending approval). Remove the flag after.
+export const testNumbersAllowedInProduction = () =>
+  process.env.OTP_TEST_NUMBERS_IN_PRODUCTION === 'true';
+
 const parseTestNumbers = () => {
-  if (isProduction()) return new Map();
+  if (isProduction() && !testNumbersAllowedInProduction()) return new Map();
   const raw = process.env.OTP_TEST_NUMBERS || '';
   const map = new Map();
   for (const entry of raw.split(',')) {

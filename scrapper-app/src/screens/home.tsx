@@ -310,7 +310,7 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
               ))}
             </View>
             <View style={{ flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 14, paddingVertical: 10 }}>
-              {[[`${o.distanceKm} km`, 'Distance'], [`${o.etaMin} min`, 'ETA'], [o.pickupSlot ? o.pickupSlot.dayLabel : 'Now', o.pickupSlot ? o.pickupSlot.time : 'Slot']].map(([v, l], i) => (
+              {[[`${o.distanceKm} km`, 'Distance'], [`${o.etaMin ?? (typeof o.distanceKm === 'number' ? Math.max(5, Math.round(o.distanceKm * 3)) : '—')} min`, 'ETA'], [o.pickupSlot ? o.pickupSlot.dayLabel : 'Now', o.pickupSlot ? o.pickupSlot.time : 'Slot']].map(([v, l], i) => (
                 <View key={l} style={{ flex: 1, alignItems: 'center', gap: 2, borderLeftWidth: i ? 1 : 0, borderLeftColor: colors.line }}>
                   <T size={15} w="extrabold" raw numberOfLines={1}>{v}</T>
                   <T size={11} w="semibold" color={colors.muted} numberOfLines={1}>{l}</T>

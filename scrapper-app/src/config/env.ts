@@ -22,8 +22,8 @@ const envFlag =
 /** Real backend by default; `true` only for the offline demo build. */
 export const USE_MOCK: boolean = envFlag === 'true' || envFlag === '1';
 
-/** Production API host (Render). Used by every release build. */
-export const PROD_API_URL = 'http://192.168.1.50:7000';
+/** Production API host (scraptox.com VPS; backend served under /api). Used by every release build. */
+export const PROD_API_URL = 'https://scraptox.com';
 
 /**
  * Development API host: the backend running on the developer PC, reached by a
@@ -35,7 +35,8 @@ export const PROD_API_URL = 'http://192.168.1.50:7000';
 export const DEV_API_URL = 'http://192.168.1.50:7000';
 
 /** Debug builds talk to the dev PC; release builds talk to production. */
-export const DEFAULT_API_URL = DEV_API_URL;
+declare const __DEV__: boolean;
+export const DEFAULT_API_URL = __DEV__ ? DEV_API_URL : PROD_API_URL;
 
 /**
  * Android emulators cannot reach the host machine over `localhost`.

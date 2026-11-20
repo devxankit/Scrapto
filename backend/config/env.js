@@ -102,7 +102,11 @@ export const validateEnv = () => {
       problems.push(`Missing production environment variables: ${missingProd.join(', ')}`);
     }
     if (process.env.OTP_TEST_NUMBERS) {
-      problems.push('OTP_TEST_NUMBERS must not be set in production (fixed OTPs are disabled)');
+      if (process.env.OTP_TEST_NUMBERS_IN_PRODUCTION === 'true') {
+        logger.warn('[config] OTP_TEST_NUMBERS is active in production (fixed OTPs). Remove it before real launch.');
+      } else {
+        problems.push('OTP_TEST_NUMBERS must not be set in production unless OTP_TEST_NUMBERS_IN_PRODUCTION=true');
+      }
     }
     if (process.env.OTP_DEBUG_LOG === 'true') {
       problems.push('OTP_DEBUG_LOG must not be enabled in production');

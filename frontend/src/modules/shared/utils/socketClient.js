@@ -31,7 +31,8 @@ class SocketClient {
     try {
       // Robustly handle the URL extraction
       // If API_BASE_URL is a full URL like "https://api.example.com/api", this extracts "https://api.example.com"
-      const urlObj = new URL(API_BASE_URL);
+      // A relative base ("/api", same-domain deploy) resolves against the page origin.
+      const urlObj = new URL(API_BASE_URL, window.location.origin);
       socketUrl = urlObj.origin;
     } catch (e) {
       console.warn('SocketClient: Failed to parse API_BASE_URL, falling back to simple replace or localhost');

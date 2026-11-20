@@ -240,7 +240,8 @@ const startServer = async () => {
       logger.warn("Cloudinary credentials not provided; uploads will fail until configured");
     }
 
-    const server = app.listen(PORT, () => {
+    // HOST (e.g. 127.0.0.1) keeps the port private behind nginx; unset = all interfaces.
+    const server = app.listen(PORT, process.env.HOST || undefined, () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`);
     });
 

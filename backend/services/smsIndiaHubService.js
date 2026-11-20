@@ -78,21 +78,42 @@ class SMSIndiaHubService {
         throw new Error(`Invalid phone number format: ${phone}. Expected 10-digit Indian mobile number.`);
       }
 
-      // Use the exact template that works with SMSIndiaHub
-      const message = `Welcome to the Scrapto powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
-      
-      // Build the API URL with query parameters
-      const params = new URLSearchParams({
-        APIKey: apiKey,
-        msisdn: normalizedPhone,
-        sid: senderId,
-        msg: message,
-        fl: '0', // Flash message flag (0 = normal SMS)
-        dc: '0', // Delivery confirmation (0 = no confirmation)
-        gwid: '2' // Gateway ID (2 = transactional)
-      });
+      // Must match the DLT-approved template exactly ("App Login", sender BGADPL):
+      // "Welcome to ##var##, powered by ##var##. Your OTP for registration ##var##.
+      //  This OTP is valid for 10 minutes. Please do not share it with anyone.BGADPL"
+      const brand = process.env.SMS_TEMPLATE_BRAND || 'Scraptox';
+      const poweredBy = process.env.SMS_TEMPLATE_POWERED_BY || 'BGADPL';
+      const message = `Welcome to ${brand}, powered by ${poweredBy}. Your OTP for registration ${otp}. This OTP is valid for 10 minutes. Please do not share it with anyone.BGADPL`;
 
-      const apiUrl = `${this.baseUrl}?${params.toString()}`;
+      // DLT templates only match through the newer SendSMS API with DLTTemplateId;
+      // the legacy pushsms.aspx endpoint rejects them ("Invalid template text").
+      const templateId = process.env.SMSINDIAHUB_DLT_TEMPLATE_ID;
+      let apiUrl;
+      if (templateId) {
+        const params = new URLSearchParams({
+          APIKey: apiKey,
+          senderid: senderId,
+          channel: 'Trans',
+          DCS: '0',
+          flashsms: '0',
+          number: normalizedPhone,
+          text: message,
+          route: '0',
+          DLTTemplateId: templateId
+        });
+        apiUrl = `http://cloud.smsindiahub.in/api/mt/SendSMS?${params.toString()}`;
+      } else {
+        const params = new URLSearchParams({
+          APIKey: apiKey,
+          msisdn: normalizedPhone,
+          sid: senderId,
+          msg: message,
+          fl: '0', // Flash message flag (0 = normal SMS)
+          dc: '0', // Delivery confirmation (0 = no confirmation)
+          gwid: '2' // Gateway ID (2 = transactional)
+        });
+        apiUrl = `${this.baseUrl}?${params.toString()}`;
+      }
 
       // Make GET request to SMSIndia Hub API
       const response = await axios.get(apiUrl, {

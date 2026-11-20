@@ -40,5 +40,5 @@ nginx serves `dist/` directly, so no reload is needed.
 
 - `backend/.env` on the server has secrets created only for production: `JWT_SECRET`, `JWT_REFRESH_SECRET`, `OTP_HMAC_SECRET`, `KYC_ENCRYPTION_KEY`. **Back up `KYC_ENCRYPTION_KEY`**: if it's lost, encrypted KYC data can't be decrypted.
 - **Test logins are ON (temporary).** `OTP_TEST_NUMBERS_IN_PRODUCTION=true` and `OTP_TEST_NUMBERS` in the server `.env` let one test user and one test partner log in with a fixed OTP and no SMS (the numbers are only in the server `.env`, never in this public repo). Remove both lines from `backend/.env` and run `pm2 restart scraptox-backend --update-env` before the real launch.
-- **SMS OTP is broken.** SMSIndiaHub rejects sender ID `SMSHUB` (`Failed#senderid not valid`). Set `SMSINDIAHUB_SENDER_ID` to the approved DLT sender ID, and make sure the message text in `services/smsIndiaHubService.js` matches the approved template.
+- **SMS OTP:** SMSIndiaHub via the `api/mt/SendSMS` API, sender `BGADPL`, DLT template "App Login" (`SMSINDIAHUB_DLT_TEMPLATE_ID` in the server `.env`). The text in `services/smsIndiaHubService.js` must match the approved template exactly; a new wording needs a new DLT approval.
 - `backend/package-lock.json` is out of sync with `package.json`, so `npm ci` fails. Run `npm install` locally and commit the lock file.

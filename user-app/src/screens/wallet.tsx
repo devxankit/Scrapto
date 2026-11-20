@@ -12,6 +12,8 @@ import { useQuery } from '../hooks/useQuery';
 import { dateLabel, inr } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
+import { openRazorpay, PaymentCancelled } from '../api/razorpay';
+import { useStore } from '../store/AppStore';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
@@ -110,6 +112,7 @@ export function WalletScreen({ navigation }: P<'Wallet'>) {
 }
 
 function AddMoneySheet({ visible, onClose, onDone }: { visible: boolean; onClose: () => void; onDone: () => void }) {
+  const { user } = useStore();
   const [amount, setAmount] = useState('500');
   const [busy, setBusy] = useState(false);
   const n = Number(amount);
@@ -117,11 +120,11 @@ function AddMoneySheet({ visible, onClose, onDone }: { visible: boolean; onClose
     setBusy(true);
     try {
       const c = await api('/wallet/recharge/create', { method: 'POST', body: { amount: n } });
-      // Real build: open Razorpay Checkout with c.data.orderId, then verify with its signature.
-      await api('/wallet/recharge/verify', { method: 'POST', body: { amount: n, razorpay_order_id: c.data.orderId } });
+      const paid = await openRazorpay({ keyId: c.data.keyId, orderId: c.data.orderId, amountPaise: c.data.amount, description: 'Add money to Scraptox wallet', prefill: { name: user?.name, email: user?.email, contact: user?.phone } });
+      await api('/wallet/recharge/verify', { method: 'POST', body: paid });
       onDone();
     } catch (e: any) {
-      Alert.alert('Payment failed', e.message);
+      if (!(e instanceof PaymentCancelled)) Alert.alert('Payment failed', e.message);
     } finally {
       setBusy(false);
     }
@@ -133,7 +136,6 @@ function AddMoneySheet({ visible, onClose, onDone }: { visible: boolean; onClose
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {[200, 500, 1000, 2000].map((v) => <Chip key={v} label={inr(v)} active={n === v} onPress={() => setAmount(String(v))} />)}
         </View>
-        <DemoNote text="Demo build: no real payment is taken. The live app opens Razorpay (UPI, cards, net banking)." />
         <Button label={`Pay ${inr(n || 0)}`} disabled={!(n >= 10)} loading={busy} onPress={pay} />
       </View>
     </Sheet>

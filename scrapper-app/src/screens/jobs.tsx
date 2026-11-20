@@ -16,6 +16,7 @@ import { inr, phoneLabel, qty, whenLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import { itemsLine } from './home';
 import type { RootParams } from '../navigation/RootNavigator';
+import { openRazorpay, PaymentCancelled } from '../api/razorpay';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
@@ -161,7 +162,7 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
     try {
       await fn();
     } catch (e: any) {
-      Alert.alert('Something went wrong', e.message);
+      if (!(e instanceof PaymentCancelled)) Alert.alert('Something went wrong', e.message);
     } finally {
       setBusy(false);
     }
@@ -178,8 +179,8 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
             if (method === 'razorpay') {
               const need = Math.max(0, Math.ceil(amount - balance));
               const c = await api('/wallet/recharge/create', { method: 'POST', body: { amount: need } });
-              // Real build: Razorpay Checkout with c.data.orderId, then verify with its signature.
-              await api('/wallet/recharge/verify', { method: 'POST', body: { amount: need, razorpay_order_id: c.data.orderId } });
+              const paid = await openRazorpay({ keyId: c.data.keyId, orderId: c.data.orderId, amountPaise: c.data.amount, description: `Top up to pay pickup #${o.orderNo}` });
+              await api('/wallet/recharge/verify', { method: 'POST', body: paid });
             }
             await api('/wallet/pay-order', { method: 'POST', body: { orderId: o._id, amount } });
             await update({ status: 'in_progress', paymentStatus: 'completed', paidAmount: amount });
@@ -339,7 +340,6 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
                 <T size={12} color={colors.muted}>UPI, cards or net banking</T>
               </View>
             </Pressable>
-            {method === 'razorpay' ? <DemoNote text="Demo build: no real payment is taken." /> : null}
           </Card>
         ) : null}
 

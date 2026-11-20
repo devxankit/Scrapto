@@ -20,6 +20,7 @@ import { dateLabel, inr } from '../utils/format';
 import { Photo, pickPhotos, takePhoto } from '../utils/media';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
+import { openRazorpay, PaymentCancelled } from '../api/razorpay';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
@@ -296,7 +297,8 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
       const o = await api('/subscriptions/subscribe', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code } });
       // If plan requires payment verification with Razorpay
       if (!o.data?.subscription && o.data?.razorpayOrderId) {
-        await api('/subscriptions/verify-payment', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code, razorpay_order_id: o.data.razorpayOrderId } });
+        const paid = await openRazorpay({ keyId: o.data.keyId, orderId: o.data.razorpayOrderId, amountPaise: o.data.amount, description: `${plan.name} plan`, prefill: { name: user?.name, email: user?.email, contact: user?.phone } });
+        await api('/subscriptions/verify-payment', { method: 'POST', body: { planId: plan._id, couponCode: coupon?.code, ...paid } });
       }
       setPayOpen(false);
       const me = await refreshMe();
@@ -305,7 +307,7 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
         if (navigation.canGoBack()) navigation.goBack();
       }
     } catch (e: any) {
-      Alert.alert('Payment failed', e.message);
+      if (!(e instanceof PaymentCancelled)) Alert.alert('Payment failed', e.message);
     } finally {
       setPaying(false);
     }
@@ -404,7 +406,6 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
                 <T size={15} w="extrabold" color={colors.deep} raw>{inr(amount)}</T>
               </View>
             </Card>
-            <DemoNote text="Demo build: no real payment is taken. The live app opens Razorpay here." />
             <Button variant="deep" label={`Pay ${inr(amount)}`} loading={paying} onPress={pay} />
           </View>
         ) : null}

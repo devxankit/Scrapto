@@ -109,7 +109,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const loadPrices = useCallback(async () => {
     try {
       const r = await api('/public/prices');
-      const list: Price[] = r.data?.prices ?? [];
+      // Per-piece items (AC, fridge, …) carry their rate in `price`, with pricePerKg 0.
+      const list: Price[] = (r.data?.prices ?? []).map((p: any) => ({ ...p, pricePerKg: Number(p.pricePerKg) > 0 ? p.pricePerKg : Number(p.price) || 0 }));
       setPrices(list);
       AsyncStorage.setItem(PRICES_KEY, JSON.stringify(list)).catch(() => {});
     } catch {

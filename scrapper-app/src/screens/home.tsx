@@ -14,7 +14,7 @@ import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { useStore } from '../store/AppStore';
 import { categoryMeta, images } from '../data/catalog';
-import { ago, agoLabel, dateLabel, firstName, greeting, inr, qty } from '../utils/format';
+import { ago, agoLabel, dateLabel, firstName, greeting, inr, qty, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
@@ -24,14 +24,14 @@ const daysLeft = (iso?: string) => (iso ? Math.max(0, Math.ceil((Date.parse(iso)
 
 /** "Newspaper 12 kg · Copper 2 kg · Split AC × 1" */
 export function itemsLine(items: any[] = []) {
-  return items.map((i) => `${i.category} ${categoryMeta(i.category).unit === 'pc' ? `× ${i.weight}` : qty(i.weight)}`).join(' · ');
+  return items.map((i) => `${catName(i.category)} ${categoryMeta(i.category).unit === 'pc' ? `× ${i.weight}` : qty(i.weight)}`).join(' · ');
 }
 
 /** Short summary for the request card: "≈ ₹5,808 · 14 kg + 1 AC" */
 function requestSummary(o: any) {
   const kg = o.scrapItems.filter((i: any) => categoryMeta(i.category).unit === 'kg').reduce((n: number, i: any) => n + i.weight, 0);
   const pcs = o.scrapItems.filter((i: any) => categoryMeta(i.category).unit === 'pc');
-  const parts = [kg ? qty(kg) : '', ...pcs.map((i: any) => `${i.weight} ${i.category}`)].filter(Boolean);
+  const parts = [kg ? qty(kg) : '', ...pcs.map((i: any) => `${i.weight} ${catName(i.category)}`)].filter(Boolean);
   return `≈ ${inr(o.totalAmount)} · ${parts.join(' + ')}`;
 }
 
@@ -91,12 +91,12 @@ export function DashboardScreen() {
     <Screen>
       {focused ? <StatusBar barStyle="light-content" /> : null}
       <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={reload} colors={[colors.primary]} />} contentContainerStyle={{ paddingBottom: 28 }}>
-        <View style={{ backgroundColor: colors.deep, paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 18, gap: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Image source={images.avatarPartner} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: colors.green400 }} />
+        <View style={{ backgroundColor: colors.deep, paddingTop: insets.top + 6, paddingHorizontal: 12, paddingBottom: 12, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Image source={images.avatarPartner} style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: colors.green400 }} />
             <View style={{ flex: 1 }}>
-              <T size={12} w="semibold" color={colors.green200}>{greeting()}</T>
-              <T size={18} w="extrabold" color={colors.white} numberOfLines={1}>{`Hi, ${firstName(user?.name)}`}</T>
+              <T size={11} w="semibold" color={colors.green200}>{greeting()}</T>
+              <T size={16} w="extrabold" color={colors.white} numberOfLines={1}>{`Hi, ${firstName(user?.name)}`}</T>
             </View>
             <IconButton label="Notifications" tone="deep" badge={unread > 0} onPress={() => nav.navigate('Notifications')}>
               <Bell size={20} color={colors.white} />
@@ -108,28 +108,28 @@ export function DashboardScreen() {
             accessibilityRole="switch"
             accessibilityState={{ checked: online }}
             accessibilityLabel={online ? 'You are online' : 'You are offline'}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: online ? colors.white : colors.deep2 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: online ? colors.green50 : 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-              <Radar size={22} color={online ? colors.brand : colors.green200} />
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 10, borderRadius: radius.lg, backgroundColor: online ? colors.white : colors.deep2 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: online ? colors.green50 : 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+              <Radar size={18} color={online ? colors.brand : colors.green200} />
             </View>
             <View style={{ flex: 1 }}>
-              <T size={16} w="extrabold" color={online ? colors.deep : colors.white}>{switching ? (online ? 'Going offline…' : 'Going online…') : online ? 'You are online' : 'You are offline'}</T>
+              <T size={14} w="extrabold" color={online ? colors.deep : colors.white}>{switching ? (online ? 'Going offline…' : 'Going online…') : online ? 'You are online' : 'You are offline'}</T>
               <T size={12} color={online ? colors.ink2 : colors.green200} numberOfLines={1}>{online ? `Receiving pickups near ${user?.city ?? 'you'}` : 'Go online to get new pickup requests'}</T>
             </View>
-            <View style={{ width: 52, height: 30, borderRadius: 15, padding: 3, backgroundColor: online ? colors.brand : '#3A6B50', alignItems: online ? 'flex-end' : 'flex-start' }}>
-              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.white }} />
+            <View style={{ width: 44, height: 26, borderRadius: 13, padding: 3, backgroundColor: online ? colors.brand : '#3A6B50', alignItems: online ? 'flex-end' : 'flex-start' }}>
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.white }} />
             </View>
           </Pressable>
         </View>
 
-        <View style={{ padding: 16, gap: 14 }}>
+        <View style={{ padding: 12, gap: 10 }}>
           {requests.length ? (
-            <Pressable onPress={() => nav.navigate('Requests')} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.primary }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-                <BellRing size={20} color={colors.white} />
+            <Pressable onPress={() => nav.navigate('Requests')} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.lg, backgroundColor: colors.primary }}>
+              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+                <BellRing size={17} color={colors.white} />
               </View>
               <View style={{ flex: 1 }}>
-                <T size={15} w="extrabold" color={colors.white}>{requests.length === 1 ? '1 new pickup request' : `${requests.length} new pickup requests`}</T>
+                <T size={14} w="extrabold" color={colors.white}>{requests.length === 1 ? '1 new pickup request' : `${requests.length} new pickup requests`}</T>
                 <T size={12} color={colors.green100} numberOfLines={1} raw>{`${requests[0].user.name} · ${requests[0].distanceKm} km · ${requestSummary(requests[0])}`}</T>
               </View>
               <ChevronRight size={20} color={colors.white} />
@@ -145,11 +145,11 @@ export function DashboardScreen() {
             </Card>
           ) : null}
 
-          <Card style={{ gap: 12 }}>
+          <Card style={{ gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
               <View style={{ flex: 1, gap: 2 }}>
                 <T size={12} w="semibold" color={colors.muted}>Paid to customers this week</T>
-                <T size={24} w="extrabold" color={colors.ink} raw>{s ? inr(weekOut) : '—'}</T>
+                <T size={20} w="extrabold" color={colors.ink} raw>{s ? inr(weekOut) : '—'}</T>
                 {s ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     {change >= 0 ? <TrendingUp size={14} color={colors.primary} /> : <TrendingDown size={14} color={colors.red} />}
@@ -159,28 +159,32 @@ export function DashboardScreen() {
               </View>
               <T size={13} w="bold" color={colors.primary} onPress={() => nav.navigate('Earnings')} style={{ padding: 4 }}>Earnings ›</T>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 78 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 56 }}>
               {(s?.days ?? []).map((d: any, i: number) => (
                 <View key={i} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: '100%', height: Math.max(4, Math.round((d.amount / maxDay) * 56)), borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, backgroundColor: i === 6 ? colors.green200 : colors.brand }} />
+                  <View style={{ width: '100%', height: Math.max(3, Math.round((d.amount / maxDay) * 38)), borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 2, borderBottomRightRadius: 2, backgroundColor: i === 6 ? colors.green200 : colors.brand }} />
                   <T size={11} w="semibold" color={colors.muted} raw>{d.day}</T>
                 </View>
               ))}
             </View>
           </Card>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Card onPress={() => nav.navigate('Main', { screen: 'Jobs' })} style={{ flex: 1, gap: 6 }}>
-              <IconBadge><Package size={18} color={colors.primary} /></IconBadge>
-              <T size={22} w="extrabold" raw>{String(active.length)}</T>
-              <T size={13} w="bold">{active.length === 1 ? 'Active pickup' : 'Active pickups'}</T>
-              <T size={12} color={colors.muted} numberOfLines={2}>{next ? (next.pickupSlot ? `Next: ${next.pickupSlot.dayLabel}, ${next.pickupSlot.time}` : `Next: ${firstName(next.user.name)}, now`) : 'Accept a request to start'}</T>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Card onPress={() => nav.navigate('Main', { screen: 'Jobs' })} style={{ flex: 1, gap: 2, paddingVertical: 10, paddingHorizontal: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <IconBadge size={30}><Package size={16} color={colors.primary} /></IconBadge>
+                <T size={20} w="extrabold" raw>{String(active.length)}</T>
+              </View>
+              <T size={12} w="bold">{active.length === 1 ? 'Active pickup' : 'Active pickups'}</T>
+              <T size={11} color={colors.muted} numberOfLines={1}>{next ? (next.pickupSlot ? `Next: ${next.pickupSlot.dayLabel}, ${next.pickupSlot.time}` : `Next: ${firstName(next.user.name)}, now`) : 'Accept a request to start'}</T>
             </Card>
-            <Card onPress={() => nav.navigate('Main', { screen: 'Market' })} style={{ flex: 1, gap: 6 }}>
-              <IconBadge tone="gold"><Gavel size={18} color={colors.goldText} /></IconBadge>
-              <T size={22} w="extrabold" raw>{String(s?.myOpenBids ?? 0)}</T>
-              <T size={13} w="bold">Bids running</T>
-              <T size={12} color={colors.muted}>{`${s?.openLots ?? 0} open bulk lots`}</T>
+            <Card onPress={() => nav.navigate('Main', { screen: 'Market' })} style={{ flex: 1, gap: 2, paddingVertical: 10, paddingHorizontal: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <IconBadge size={30} tone="gold"><Gavel size={16} color={colors.goldText} /></IconBadge>
+                <T size={20} w="extrabold" raw>{String(s?.myOpenBids ?? 0)}</T>
+              </View>
+              <T size={12} w="bold">Bids running</T>
+              <T size={11} color={colors.muted} numberOfLines={1}>{`${s?.openLots ?? 0} open bulk lots`}</T>
             </Card>
           </View>
 
@@ -303,9 +307,9 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
             <T size={20} w="extrabold" color={colors.deep} raw>{requestSummary(o)}</T>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {o.scrapItems.map((i: any) => (
-                <View key={i.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4, paddingRight: 10, height: 32, borderRadius: radius.pill, backgroundColor: colors.bg }}>
+                <View key={catName(i.category)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4, paddingRight: 10, height: 32, borderRadius: radius.pill, backgroundColor: colors.bg }}>
                   <Image source={categoryMeta(i.category).image} style={{ width: 24, height: 24, borderRadius: 12 }} />
-                  <T size={12} w="bold" raw>{`${i.category} ${categoryMeta(i.category).unit === 'pc' ? `× ${i.weight}` : qty(i.weight)}`}</T>
+                  <T size={12} w="bold" raw>{`${catName(i.category)} ${categoryMeta(i.category).unit === 'pc' ? `× ${i.weight}` : qty(i.weight)}`}</T>
                 </View>
               ))}
             </View>
@@ -357,7 +361,7 @@ export function NotificationsScreen({ navigation }: P<'Notifications'>) {
       <FlatList
         data={list}
         keyExtractor={(n) => n._id}
-        contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}
         ListEmptyComponent={q.loading ? <Loading /> : (
           <View style={{ alignItems: 'center', paddingTop: 30, gap: 8 }}>
@@ -397,7 +401,7 @@ export function PricesScreen() {
       <FlatList
         data={prices}
         keyExtractor={(p) => p._id}
-        contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, flexGrow: 1 }}
         ListHeaderComponent={<T size={12} color={colors.muted} lh={17} style={{ marginBottom: 12 }}>These are the rates customers see in the Scraptox app. Pay at least these rates at the door.</T>}
         ListEmptyComponent={<Loading />}
         renderItem={({ item, index }) => {
@@ -405,7 +409,7 @@ export function PricesScreen() {
           return (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderTopWidth: index ? 0 : 1, borderTopLeftRadius: index ? 0 : radius.lg, borderTopRightRadius: index ? 0 : radius.lg, borderBottomLeftRadius: index === prices.length - 1 ? radius.lg : 0, borderBottomRightRadius: index === prices.length - 1 ? radius.lg : 0 }}>
               <Image source={categoryMeta(item.category).image} style={{ width: 40, height: 40, borderRadius: 10 }} />
-              <T size={14} w="bold" style={{ flex: 1 }}>{item.category}</T>
+              <T size={14} w="bold" style={{ flex: 1 }}>{catName(item.category)}</T>
               {ch ? <T size={11} w="bold" color={ch > 0 ? colors.primary : colors.red} raw>{`${ch > 0 ? '▲' : '▼'} ${Math.abs(ch)}%`}</T> : null}
               <T size={14} w="extrabold" color={colors.deep} raw style={{ minWidth: 76, textAlign: 'right' }}>{`${inr(item.pricePerKg)}/${unitOf(item)}`}</T>
             </View>

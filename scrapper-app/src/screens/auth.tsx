@@ -400,7 +400,7 @@ export function SignupScreen({ route, navigation }: P<'Signup'>) {
   return (
     <KeyboardSafe style={{ backgroundColor: colors.bg }}>
       <AppBar title="Partner details" subtitle={`+91 ${phoneLabel(phone)}`} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, gap: 12 }}>
         <View style={{ gap: 12 }}>
           <Field label="Full name (as on Aadhaar)" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
           <Field label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" error={emailOk ? undefined : 'Please check the email address'} />

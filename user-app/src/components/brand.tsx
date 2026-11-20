@@ -5,7 +5,7 @@ import Pressable from './Pressable';
 import { CheckBox } from './ui';
 import { colors, family as familyTokens, radius } from '../theme';
 import { categoryMeta, images } from '../data/catalog';
-import { inr } from '../utils/format';
+import { inr, catName } from '../utils/format';
 
 /** Logo mark (from the frontend logo) + "Scraptox" wordmark. */
 export function Logo({ size = 30, text = true, light, pill }: { size?: number; text?: boolean; light?: boolean; pill?: boolean }) {
@@ -35,13 +35,13 @@ export function CategoryTile({ price, onPress, width, style }: { price: Price; o
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${price.category}, ${inr(price.pricePerKg)} per ${unitOf(price)}`}
+      accessibilityLabel={`${catName(price.category)}, ${inr(price.pricePerKg)} per ${unitOf(price)}`}
       style={({ pressed }) => [
         { width, height: width, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, gap: 3, opacity: pressed ? 0.85 : 1 },
         style,
       ]}>
       <Image source={meta.image} style={{ width: img, height: img }} resizeMode="contain" />
-      <T size={11} w="bold" lh={14} numberOfLines={1} style={{ textAlign: 'center', maxWidth: width - 8 }}>{price.category}</T>
+      <T size={11} w="bold" lh={14} numberOfLines={1} style={{ textAlign: 'center', maxWidth: width - 8 }}>{catName(price.category)}</T>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
         <T size={11} w="extrabold" lh={14} color={colors.primary} raw numberOfLines={1}>{`${inr(price.pricePerKg)}/${unitOf(price)}`}</T>
         {ch ? <T size={8} w="bold" color={ch > 0 ? colors.primary : colors.red} raw>{ch > 0 ? '▲' : '▼'}</T> : null}
@@ -58,7 +58,7 @@ export function CategoryPick({ price, on, onPress }: { price: Price; on: boolean
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: on }}
-      accessibilityLabel={price.category}
+      accessibilityLabel={catName(price.category)}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -72,7 +72,7 @@ export function CategoryPick({ price, on, onPress }: { price: Price; on: boolean
       })}>
       <Image source={meta.image} style={{ width: 46, height: 46, borderRadius: 10, backgroundColor: familyTokens[meta.family].bg }} />
       <View style={{ flex: 1, gap: 2 }}>
-        <T size={13} w="bold" numberOfLines={2} lh={16}>{price.category}</T>
+        <T size={13} w="bold" numberOfLines={2} lh={16}>{catName(price.category)}</T>
         <T size={12} w="extrabold" color={colors.primary} raw numberOfLines={1}>{`${inr(price.pricePerKg)}/${unitOf(price)}`}</T>
       </View>
       <CheckBox on={on} />

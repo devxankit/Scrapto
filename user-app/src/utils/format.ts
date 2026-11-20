@@ -74,3 +74,8 @@ export function nextDays(n = 7) {
   }
   return out;
 }
+
+const UPPER_WORDS = new Set(['ac', 'tv', 'led', 'lcd', 'cpu', 'ups', 'pc']);
+/** Display name for a scrap category stored in lowercase ("split ac" -> "Split AC"). */
+export const catName = (c?: string | null) =>
+  (c ?? '').replace(/[a-z0-9]+/gi, (w) => (UPPER_WORDS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)));

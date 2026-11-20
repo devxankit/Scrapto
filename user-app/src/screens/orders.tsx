@@ -13,7 +13,7 @@ import { colors, radius, shadow } from '../theme';
 import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { categoryMeta, CLEANING_SERVICES, images } from '../data/catalog';
-import { dateLabel, firstName, inr, qty, whenLabel } from '../utils/format';
+import { dateLabel, firstName, inr, qty, whenLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
@@ -324,7 +324,7 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
 
           <View style={{ backgroundColor: colors.bg, borderRadius: radius.lg, padding: 14, gap: 8 }}>
             <InfoRow label="Order" value={`#${o.orderNo} · ${whenLabel(o.createdAt)}`} />
-            <InfoRow label={o.orderType === 'cleaning_service' ? 'Service' : 'Items'} value={o.orderType === 'cleaning_service' ? `${CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType)?.name ?? 'Cleaning'} · ${o.serviceDetails?.description ?? ''}` : o.scrapItems.map((i: any) => `${i.category} ${qty(i.weight, unitFor(i.category))}`).join(' · ')} />
+            <InfoRow label={o.orderType === 'cleaning_service' ? 'Service' : 'Items'} value={o.orderType === 'cleaning_service' ? `${CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType)?.name ?? 'Cleaning'} · ${o.serviceDetails?.description ?? ''}` : o.scrapItems.map((i: any) => `${catName(i.category)} ${qty(i.weight, unitFor(i.category))}`).join(' · ')} />
             <InfoRow label="Pickup at" value={[o.pickupAddress.street, o.pickupAddress.city].filter(Boolean).join(', ')} />
             <InfoRow label="Estimate" value={inr(o.totalAmount)} strong valueColor={colors.deep} />
           </View>
@@ -388,10 +388,10 @@ function Receipt({ o }: { o: any }) {
           {o.scrapItems.map((it: any, i: number) => {
             const u = unitFor(it.category);
             return (
-              <View key={it.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: i === o.scrapItems.length - 1 ? 0 : 1, borderBottomColor: colors.lineSoft }}>
+              <View key={catName(it.category)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: i === o.scrapItems.length - 1 ? 0 : 1, borderBottomColor: colors.lineSoft }}>
                 <Image source={categoryMeta(it.category).image} style={{ width: 40, height: 40, borderRadius: 10 }} />
                 <View style={{ flex: 1 }}>
-                  <T size={14} w="bold">{it.category}</T>
+                  <T size={14} w="bold">{catName(it.category)}</T>
                   <T size={12} color={colors.muted} raw>
                     {`${qty(it.weight, u)} × ${inr(it.rate)}/${u}${it.estimatedWeight && it.estimatedWeight !== it.weight ? `  (you said ${qty(it.estimatedWeight, u)})` : ''}`}
                   </T>

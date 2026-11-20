@@ -12,7 +12,7 @@ import { colors, radius } from '../theme';
 import { api } from '../api/client';
 import { clearQueryCache, useQuery } from '../hooks/useQuery';
 import { categoryMeta, images } from '../data/catalog';
-import { inr, phoneLabel, qty, whenLabel } from '../utils/format';
+import { inr, phoneLabel, qty, whenLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import { itemsLine } from './home';
 import type { RootParams } from '../navigation/RootNavigator';
@@ -62,7 +62,7 @@ export function JobsScreen() {
         data={list}
         keyExtractor={(o) => o._id}
         refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}
-        contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         ListEmptyComponent={q.loading ? <Loading /> : (
           <View style={{ alignItems: 'center', paddingTop: 30, gap: 8, paddingHorizontal: 24 }}>
             <Image source={images.emptyJobs} style={{ width: 170, height: 170, borderRadius: 24 }} />
@@ -82,7 +82,7 @@ export function JobsScreen() {
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <View style={{ flexDirection: 'row' }}>
                 {o.scrapItems.slice(0, 3).map((i: any, k: number) => (
-                  <Image key={i.category} source={categoryMeta(i.category).image} style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.white, marginLeft: k ? -12 : 0 }} />
+                  <Image key={catName(i.category)} source={categoryMeta(i.category).image} style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.white, marginLeft: k ? -12 : 0 }} />
                 ))}
               </View>
               <View style={{ flex: 1 }}>
@@ -233,7 +233,7 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}>
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           {step === 0 ? (
             <View style={{ height: 150 }}>
@@ -285,10 +285,10 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
           {(step === 1 ? weighed.items : o.scrapItems).map((i: any) => {
             const unit = categoryMeta(i.category).unit;
             return (
-              <View key={i.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.lineSoft }}>
+              <View key={catName(i.category)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.lineSoft }}>
                 <Image source={categoryMeta(i.category).image} style={{ width: 36, height: 36, borderRadius: 10 }} />
                 <View style={{ flex: 1 }}>
-                  <T size={14} w="bold">{i.category}</T>
+                  <T size={14} w="bold">{catName(i.category)}</T>
                   <T size={12} color={colors.muted} raw>{`${inr(i.rate)}/${unit}`}</T>
                 </View>
                 {step === 1 ? (
@@ -299,7 +299,7 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
                         value={weights[i.category] ?? ''}
                         onChangeText={(v) => setWeights((w) => ({ ...w, [i.category]: v.replace(unit === 'pc' ? /\D/g : /[^\d.]/g, '').slice(0, 6) }))}
                         keyboardType={unit === 'pc' ? 'number-pad' : 'decimal-pad'}
-                        accessibilityLabel={`Actual ${unit === 'pc' ? 'count' : 'weight'} of ${i.category}`}
+                        accessibilityLabel={`Actual ${unit === 'pc' ? 'count' : 'weight'} of ${catName(i.category)}`}
                         style={{ flex: 1, fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 15, color: colors.ink, paddingVertical: 0, textAlign: 'right' }}
                       />
                       <T size={12} w="bold" color={colors.muted} style={{ marginLeft: 4 }} raw>{unit === 'pc' ? 'pc' : 'kg'}</T>

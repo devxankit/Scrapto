@@ -25,7 +25,7 @@ export function ChatsScreen({ navigation }: P<'Chats'>) {
       <FlatList
         data={list}
         keyExtractor={(c) => c._id}
-        contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         ListEmptyComponent={q.loading ? <Loading /> : <EmptyState icon={<MessageCircle size={30} color={colors.primary} />} title="No chats yet" text="Chats with customers and bulk-lot sellers show up here." />}
         renderItem={({ item }) => {
           const last = item.messages?.length ? item.messages[item.messages.length - 1] : (item.lastMessage ? { text: item.lastMessage } : null);
@@ -119,7 +119,7 @@ export function ChatThreadScreen({ route }: P<'ChatThread'>) {
           data={[...list].reverse()}
           inverted
           keyExtractor={(m) => m._id}
-          contentContainerStyle={{ padding: 16, gap: 8 }}
+          contentContainerStyle={{ padding: 12, gap: 8 }}
           renderItem={({ item }) => {
             const mine = item.from === 'me';
             const tr = mine ? { text: item.text, translated: false } : txInfo(item.text);
@@ -134,7 +134,7 @@ export function ChatThreadScreen({ route }: P<'ChatThread'>) {
           }}
         />
         <View style={{ backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10) + 4, gap: 10 }}>
-          <FlatList horizontal data={QUICK} keyExtractor={(q) => q} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }} renderItem={({ item }) => (
+          <FlatList horizontal data={QUICK} keyExtractor={(q) => q} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12 }} renderItem={({ item }) => (
             <Pressable onPress={() => send(item)} style={{ height: 32, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.green200, backgroundColor: colors.green50, justifyContent: 'center' }}>
               <T size={12} w="semibold" color={colors.deep}>{item}</T>
             </Pressable>

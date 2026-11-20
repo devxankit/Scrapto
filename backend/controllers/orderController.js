@@ -65,9 +65,11 @@ const buildScrapItems = async (rawItems, regionCode = 'IN-DL') => {
       throw new AppError(`Item ${index + 1}: invalid weight`, 400);
     }
     const authoritative = priceMap.get(category);
+    // Per-piece items (AC, fridge, …) keep their admin price in `price` with pricePerKg 0.
+    const adminRate = authoritative ? (Number(authoritative.pricePerKg) > 0 ? Number(authoritative.pricePerKg) : Number(authoritative.price)) : 0;
     let rate;
-    if (authoritative && Number(authoritative.pricePerKg) > 0) {
-      rate = roundMoney(authoritative.pricePerKg);
+    if (adminRate > 0) {
+      rate = roundMoney(adminRate);
     } else {
       rate = Number(item.rate);
       if (!Number.isFinite(rate) || rate < 0 || rate > MAX_RATE_PER_KG) {

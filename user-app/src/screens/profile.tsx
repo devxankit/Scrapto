@@ -16,7 +16,7 @@ import { Address, useStore } from '../store/AppStore';
 import { api, USE_MOCK } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { HELP_TOPICS, LANGUAGES, images } from '../data/catalog';
-import { dateLabel, inr, phoneLabel } from '../utils/format';
+import { dateLabel, inr, phoneLabel, catName } from '../utils/format';
 import { askLocationPermission, currentPosition, DEMO_POINT, reverseGeocode } from '../utils/location';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
@@ -469,7 +469,7 @@ export function HelpScreen({ navigation }: P<'Help'>) {
               <Tag tone={t.status === 'open' ? 'gold' : 'green'} label={t.status === 'open' ? 'Open' : 'Resolved'} />
             </View>
             <T size={14} w="bold">{t.subject}</T>
-            <T size={12} color={colors.muted}>{t.category}</T>
+            <T size={12} color={colors.muted}>{catName(t.category)}</T>
           </Card>
         ))}
       </ScrollView>

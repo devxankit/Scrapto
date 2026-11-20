@@ -11,7 +11,7 @@ import { api } from '../api/client';
 import { clearQueryCache, useQuery } from '../hooks/useQuery';
 import { useStore } from '../store/AppStore';
 import { categoryMeta, images, REPORT_REASONS } from '../data/catalog';
-import { agoLabel, inr, qty } from '../utils/format';
+import { agoLabel, inr, qty, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
@@ -48,7 +48,7 @@ export function MarketScreen() {
         data={list}
         keyExtractor={(l) => l._id}
         refreshControl={<RefreshControl refreshing={false} onRefresh={q.reload} colors={[colors.primary]} />}
-        contentContainerStyle={{ padding: 16, gap: 12, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 12, gap: 8, flexGrow: 1 }}
         ListEmptyComponent={q.loading ? <Loading /> : (
           <View style={{ alignItems: 'center', paddingTop: 30, gap: 8, paddingHorizontal: 24 }}>
             <Image source={images.emptyBids} style={{ width: 170, height: 170, borderRadius: 24 }} />
@@ -139,8 +139,8 @@ export function LotScreen({ route, navigation }: P<'Lot'>) {
 
   return (
     <Screen>
-      <AppBar title={lot.title} subtitle={`${lot.category} · ${lot.unit === 'pc' ? `${lot.estimatedWeight} pcs` : lotQty(lot)}`} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+      <AppBar title={lot.title} subtitle={`${catName(lot.category)} · ${lot.unit === 'pc' ? `${lot.estimatedWeight} pcs` : lotQty(lot)}`} />
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           <Image source={categoryMeta(lot.category).image} style={{ width: '100%', height: 170, backgroundColor: colors.bg }} resizeMode="cover" />
           <View style={{ padding: 14, gap: 8 }}>

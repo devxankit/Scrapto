@@ -132,7 +132,7 @@ export function KycScreen({ navigation }: P<'Kyc'>) {
       <AppBar title="Verify your identity" subtitle={`Hi ${user?.name?.split(' ')[0] ?? ''}`} back={inMain(user) && navigation.canGoBack()} right={<LogoutLink />}>
         <OnboardSteps at={0} />
       </AppBar>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         {rejected ? (
           <Card style={{ flexDirection: 'row', gap: 10, backgroundColor: colors.redSoft, borderColor: colors.redLine }}>
             <CircleAlert size={18} color={colors.red} />
@@ -191,7 +191,7 @@ export function KycStatusScreen({ navigation }: P<'KycStatus'>) {
       <AppBar title="KYC status" back={inMain(user) && navigation.canGoBack()} right={hasPlan ? undefined : <LogoutLink />}>
         {!hasPlan ? <OnboardSteps at={status === 'verified' ? 2 : 1} /> : null}
       </AppBar>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }}>
         {status === 'verified' ? (
           <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 20 }}>
             <Image source={images.kycApproved} style={{ width: 150, height: 150, borderRadius: 20 }} />
@@ -323,7 +323,7 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
           ))}
         </View>
       </AppBar>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
         <T size={13} color={colors.muted} lh={19}>
           {kind === 'general' ? 'A plan is needed to accept pickups. Gold and Platinum also let you bid on bulk lots.' : 'Optional add-on: daily mandi rates so you know what to pay and where to sell.'}
         </T>

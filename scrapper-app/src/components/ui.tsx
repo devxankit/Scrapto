@@ -51,7 +51,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
   full?: boolean;
 }) {
-  const h = size === 'lg' ? 54 : size === 'md' ? 44 : 36;
+  const h = size === 'lg' ? 48 : size === 'md' ? 40 : 32;
   const off = disabled || loading;
   const v = {
     primary: { bg: colors.primary, fg: colors.white, border: colors.primary },
@@ -74,11 +74,11 @@ export function Button({
       style={({ pressed }) => [
         {
           height: h,
-          borderRadius: size === 'sm' ? 10 : radius.md + 2,
+          borderRadius: size === 'sm' ? 8 : radius.md,
           backgroundColor: bg,
           borderWidth: variant === 'outline' || variant === 'danger' ? 1.5 : 0,
           borderColor: disabled ? colors.disabled : v.border,
-          paddingHorizontal: size === 'sm' ? 12 : 18,
+          paddingHorizontal: size === 'sm' ? 10 : 16,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
@@ -89,7 +89,7 @@ export function Button({
         style,
       ]}>
       {loading ? <ActivityIndicator color={fg} /> : icon}
-      <T w={size === 'sm' ? 'bold' : 'extrabold'} size={size === 'lg' ? 16 : size === 'md' ? 14 : 13} color={fg} numberOfLines={1}>
+      <T w={size === 'sm' ? 'bold' : 'extrabold'} size={size === 'lg' ? 15 : size === 'md' ? 14 : 12} color={fg} numberOfLines={1}>
         {label}
       </T>
       {!loading && iconRight}
@@ -102,7 +102,7 @@ export function Button({
 export function BackButton({ onPress, light }: { onPress: () => void; light?: boolean }) {
   return (
     <IconButton label="Back" onPress={onPress} tone={light ? 'deep' : 'outline'}>
-      <ChevronLeft size={22} color={light ? colors.white : colors.ink} strokeWidth={2.4} />
+      <ChevronLeft size={20} color={light ? colors.white : colors.ink} strokeWidth={2.4} />
     </IconButton>
   );
 }
@@ -112,7 +112,7 @@ export function IconButton({
   onPress,
   label,
   tone = 'outline',
-  size = 44,
+  size = 38,
   badge,
 }: {
   children: React.ReactNode;
@@ -142,7 +142,7 @@ export function IconButton({
         ...(tone === 'white' ? shadow.raised : null),
       })}>
       {children}
-      {badge ? <View style={{ position: 'absolute', top: 9, right: 10, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.white }} /> : null}
+      {badge ? <View style={{ position: 'absolute', top: 6, right: 7, width: 8, height: 8, borderRadius: 5, backgroundColor: colors.red, borderWidth: 2, borderColor: colors.white }} /> : null}
     </Pressable>
   );
 }
@@ -167,12 +167,12 @@ export function AppBar({
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
   return (
-    <View style={{ backgroundColor: colors.white, paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: border ? 1 : 0, borderBottomColor: colors.line, gap: 12 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 }}>
+    <View style={{ backgroundColor: colors.white, paddingTop: insets.top + 4, paddingHorizontal: 12, paddingBottom: 8, borderBottomWidth: border ? 1 : 0, borderBottomColor: colors.line, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 }}>
         {back ? <BackButton onPress={onBack ?? (() => nav.goBack())} /> : null}
         <View style={{ flex: 1 }}>
-          {subtitle ? <T size={12} w="semibold" color={colors.muted}>{subtitle}</T> : null}
-          {title ? <T size={back ? 18 : 22} w="extrabold" numberOfLines={1}>{title}</T> : null}
+          {subtitle ? <T size={11} w="semibold" color={colors.muted}>{subtitle}</T> : null}
+          {title ? <T size={back ? 16 : 19} w="extrabold" numberOfLines={1}>{title}</T> : null}
         </View>
         {right}
       </View>
@@ -197,7 +197,7 @@ export function Steps({ total, current }: { total: number; current: number }) {
 export function Card({ children, style, onPress, tone = 'white' }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; tone?: 'white' | 'soft' | 'green' | 'gold' }) {
   const bg = { white: colors.white, soft: colors.bg, green: colors.green50, gold: '#FFF8E8' }[tone];
   const border = { white: colors.line, soft: colors.bg, green: colors.green100, gold: colors.goldLine }[tone];
-  const s: StyleProp<ViewStyle> = [{ backgroundColor: bg, borderRadius: radius.lg, borderWidth: 1, borderColor: border, padding: 14 }, style];
+  const s: StyleProp<ViewStyle> = [{ backgroundColor: bg, borderRadius: radius.lg, borderWidth: 1, borderColor: border, padding: 12 }, style];
   if (!onPress) return <View style={s}>{children}</View>;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [s, { opacity: pressed ? 0.92 : 1 }]}>
@@ -209,10 +209,10 @@ export function Card({ children, style, onPress, tone = 'white' }: { children: R
 export function SectionHeader({ title, action, onAction, style }: { title: string; action?: string; onAction?: () => void; style?: StyleProp<ViewStyle> }) {
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, style]}>
-      <T size={17} w="bold">{title}</T>
+      <T size={15} w="extrabold">{title}</T>
       {action ? (
         <Pressable onPress={onAction} hitSlop={10} accessibilityRole="button">
-          <T size={13} w="bold" color={colors.primary}>{action}</T>
+          <T size={12} w="bold" color={colors.primary}>{action}</T>
         </Pressable>
       ) : null}
     </View>
@@ -223,7 +223,7 @@ export function SectionHeader({ title, action, onAction, style }: { title: strin
 export function BottomBar({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12) + 6, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line }, style]}>
+    <View style={[{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) + 4, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line }, style]}>
       {children}
     </View>
   );
@@ -257,7 +257,7 @@ export function ListRow({
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 10, borderBottomWidth: last ? 0 : 1, borderBottomColor: colors.lineSoft, opacity: pressed ? 0.7 : 1 })}>
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingVertical: 8, borderBottomWidth: last ? 0 : 1, borderBottomColor: colors.lineSoft, opacity: pressed ? 0.7 : 1 })}>
       {icon}
       <View style={{ flex: 1 }}>
         <T size={14} w="semibold" color={danger ? colors.red : colors.ink}>{title}</T>
@@ -289,8 +289,8 @@ export function Chip({ label, active, onPress, icon, dark }: { label: string; ac
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
       style={({ pressed }) => ({
-        height: 38,
-        paddingHorizontal: 14,
+        height: 32,
+        paddingHorizontal: 12,
         borderRadius: radius.pill,
         backgroundColor: active ? onBg : colors.white,
         borderWidth: active ? 0 : 1,
@@ -301,7 +301,7 @@ export function Chip({ label, active, onPress, icon, dark }: { label: string; ac
         opacity: pressed ? 0.85 : 1,
       })}>
       {icon}
-      <T size={13} w={active ? 'bold' : 'semibold'} color={active ? colors.white : colors.ink2}>{label}</T>
+      <T size={12} w={active ? 'bold' : 'semibold'} color={active ? colors.white : colors.ink2}>{label}</T>
     </Pressable>
   );
 }
@@ -309,9 +309,9 @@ export function Chip({ label, active, onPress, icon, dark }: { label: string; ac
 export function StatusPill({ status, label }: { status: string; label?: string }) {
   const s = statusTokens[(status as StatusKey)] ?? statusTokens.pending;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: s.bg, alignSelf: 'flex-start' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, height: 22, borderRadius: radius.pill, backgroundColor: s.bg, alignSelf: 'flex-start' }}>
       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: s.dot }} />
-      <T size={12} w="bold" color={s.fg}>{label ?? s.label}</T>
+      <T size={11} w="bold" color={s.fg}>{label ?? s.label}</T>
     </View>
   );
 }
@@ -386,7 +386,7 @@ export const Field = React.forwardRef<React.ComponentRef<typeof TextInput>, Text
           style={{
             flexDirection: 'row',
             alignItems: multiline ? 'flex-start' : 'center',
-            minHeight: multiline ? 96 : 52,
+            minHeight: multiline ? 88 : 46,
             borderWidth: focused || error ? 1.5 : 1,
             borderColor: border,
             borderRadius: radius.md,
@@ -409,7 +409,7 @@ export const Field = React.forwardRef<React.ComponentRef<typeof TextInput>, Text
             multiline={multiline}
             textAlignVertical={multiline ? 'top' : 'center'}
             maxFontSizeMultiplier={1.3}
-            style={[{ flex: 1, fontFamily: 'PlusJakartaSans-SemiBold', fontSize: 15, color: colors.ink, paddingVertical: multiline ? 12 : 0, minHeight: multiline ? 90 : 48 }, style]}
+            style={[{ flex: 1, fontFamily: 'PlusJakartaSans-SemiBold', fontSize: 14, color: colors.ink, paddingVertical: multiline ? 10 : 0, minHeight: multiline ? 82 : 42 }, style]}
             {...rest}
           />
           {right}

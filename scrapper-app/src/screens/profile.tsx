@@ -14,7 +14,7 @@ import { Partner, useStore } from '../store/AppStore';
 import { api, USE_MOCK } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { HELP_TOPICS, LANGUAGES, SERVICES, VEHICLES, images } from '../data/catalog';
-import { dateLabel, inr, phoneLabel } from '../utils/format';
+import { dateLabel, inr, phoneLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
@@ -140,7 +140,7 @@ export function EditProfileScreen({ navigation }: P<'EditProfile'>) {
   return (
     <Screen>
       <AppBar title="Edit profile" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: 'center', paddingVertical: 4 }}>
           <Avatar source={images.avatarPartner} size={84} />
         </View>
@@ -283,7 +283,7 @@ export function LeaderboardScreen() {
     <Screen>
       <AppBar title="Top partners" subtitle={d ? `${d.month} · Delhi NCR` : undefined} />
       {!d ? <Loading /> : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
           <Image source={images.podium} style={{ width: '100%', height: 150, borderRadius: radius.lg }} resizeMode="cover" />
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
             {[d.leaders[1], d.leaders[0], d.leaders[2]].filter(Boolean).map((l: any) => (
@@ -335,7 +335,7 @@ export function HelpScreen() {
   return (
     <Screen>
       <AppBar title="Help & support" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <Card style={{ paddingVertical: 4 }}>
           {FAQ.map(([q, a], i) => (
             <View key={q} style={{ paddingVertical: 12, gap: 4, borderBottomWidth: i === FAQ.length - 1 ? 0 : 1, borderBottomColor: colors.lineSoft }}>
@@ -382,7 +382,7 @@ export function HelpScreen() {
               <Tag tone={t.status === 'open' ? 'gold' : 'green'} label={t.status === 'open' ? 'Open' : 'Resolved'} />
             </View>
             <T size={14} w="bold">{t.subject}</T>
-            <T size={12} color={colors.muted}>{t.category}</T>
+            <T size={12} color={colors.muted}>{catName(t.category)}</T>
           </Card>
         ))}
       </ScrollView>
@@ -428,7 +428,7 @@ export function SettingsLanguageScreen({ navigation }: P<'SettingsLanguage'>) {
   return (
     <Screen>
       <AppBar title="Language" />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 12 }}>
         <SettingsLanguagePicker onDone={() => navigation.goBack()} />
       </ScrollView>
     </Screen>

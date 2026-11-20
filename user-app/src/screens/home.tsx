@@ -14,7 +14,7 @@ import { useStore } from '../store/AppStore';
 import { useQuery } from '../hooks/useQuery';
 import { api } from '../api/client';
 import { categoryMeta, images } from '../data/catalog';
-import { ago, firstName, greeting, inr } from '../utils/format';
+import { ago, firstName, greeting, inr, catName } from '../utils/format';
 import type { RootParams } from '../navigation/RootNavigator';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
@@ -295,7 +295,7 @@ function PriceRow({ p, first, last, onPress }: { p: Price; first: boolean; last:
     <Pressable onPress={onPress} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: colors.white, borderLeftWidth: 1, borderRightWidth: 1, borderTopWidth: first ? 1 : 0, borderBottomWidth: 1, borderColor: colors.line, borderBottomColor: last ? colors.line : colors.lineSoft, borderTopLeftRadius: first ? radius.lg : 0, borderTopRightRadius: first ? radius.lg : 0, borderBottomLeftRadius: last ? radius.lg : 0, borderBottomRightRadius: last ? radius.lg : 0 }}>
       <Image source={meta.image} style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: family[meta.family].bg }} />
       <View style={{ flex: 1 }}>
-        <T size={15} w="bold">{p.category}</T>
+        <T size={15} w="bold">{catName(p.category)}</T>
         <T size={12} color={colors.muted} numberOfLines={1}>{meta.hint}</T>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 2 }}>

@@ -1,3 +1,4 @@
+import { DetailSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -164,25 +165,20 @@ const UserDetail = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p style={{ color: '#718096' }}>{getTranslatedText("Loading user details...")}</p>
-        </div>
-      </div>
+      <DetailSkeleton />
     );
   }
 
   if (error || !user) {
     return (
       <div className="text-center py-12">
-        <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+        <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
           {error || getTranslatedText('User not found')}
         </p>
         <button
           onClick={() => navigate('/admin/users')}
           className="text-sm px-4 py-2 rounded-lg font-semibold text-white"
-          style={{ backgroundColor: '#64946e' }}
+          style={{ backgroundColor: 'var(--ad-primary)' }}
         >
           {getTranslatedText("Back to Users List")}
         </button>
@@ -198,7 +194,7 @@ const UserDetail = () => {
         animate={{ opacity: 1, x: 0 }}
         onClick={() => navigate('/admin/users')}
         className="flex items-center gap-2 text-sm font-semibold"
-        style={{ color: '#64946e' }}
+        style={{ color: 'var(--ad-primary)' }}
       >
         <FaArrowLeft />
         {getTranslatedText("Back to Users")}
@@ -213,7 +209,7 @@ const UserDetail = () => {
         <div className="flex flex-col md:flex-row md:items-start gap-6">
           <div
             className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0 mx-auto md:mx-0 text-3xl font-bold text-white uppercase"
-            style={{ backgroundColor: '#64946e' }}
+            style={{ backgroundColor: 'var(--ad-primary)' }}
           >
             {user.name?.charAt(0) || 'U'}
           </div>
@@ -221,7 +217,7 @@ const UserDetail = () => {
           <div className="flex-1">
             <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold" style={{ color: '#2d3748' }}>
+                <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                   {user.name}
                 </h1>
                 <p className="text-sm text-gray-500">
@@ -295,7 +291,7 @@ const UserDetail = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: getTranslatedText('Total Orders'), value: orders.length, icon: FaShoppingBag, color: '#64946e' },
+          { label: getTranslatedText('Total Orders'), value: orders.length, icon: FaShoppingBag, color: 'var(--ad-primary)' },
           {
             label: getTranslatedText('Completed'),
             value: orders.filter(o => o.status === 'completed').length,
@@ -325,11 +321,11 @@ const UserDetail = () => {
               className="bg-white rounded-xl p-4 shadow-md"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}20` }}>
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `color-mix(in srgb, ${stat.color} 13%, transparent)` }}>
                   <Icon style={{ color: stat.color, fontSize: '20px' }} />
                 </div>
                 <div>
-                  <p className="text-xl font-bold" style={{ color: '#2d3748' }}>{stat.value}</p>
+                  <p className="text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>{stat.value}</p>
                   <p className="text-xs text-gray-500">{stat.label}</p>
                 </div>
               </div>
@@ -345,7 +341,7 @@ const UserDetail = () => {
         transition={{ delay: 0.3 }}
         className="bg-white rounded-2xl shadow-lg p-6"
       >
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#2d3748' }}>
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--ad-ink)' }}>
           <FaHistory />
           {getTranslatedText("Order History")}
         </h2>

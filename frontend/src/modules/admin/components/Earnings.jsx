@@ -1,3 +1,4 @@
+import { DashboardSkeleton } from '../ui/components';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { adminAPI } from '../../shared/utils/api';
@@ -46,9 +47,7 @@ const Earnings = () => {
 
     if (loading && !analyticsData) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
-            </div>
+            <DashboardSkeleton />
         );
     }
 

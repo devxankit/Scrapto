@@ -1,3 +1,4 @@
+import { FormSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -135,9 +136,7 @@ const ReferralSettings = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <FaSpinner className="animate-spin text-4xl text-green-600" />
-      </div>
+      <FormSkeleton fields={8} />
     );
   }
 
@@ -155,15 +154,15 @@ const ReferralSettings = () => {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+              style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
             >
-              <FaGift className="text-3xl" style={{ color: '#64946e' }} />
+              <FaGift className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Referral Settings")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("Configure referral system and reward amounts")}
               </p>
             </div>
@@ -180,10 +179,10 @@ const ReferralSettings = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg md:text-xl font-bold mb-1" style={{ color: '#2d3748' }}>
+            <h2 className="text-lg md:text-xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Referral System Status")}
             </h2>
-            <p className="text-sm" style={{ color: '#718096' }}>
+            <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Enable or disable the referral system globally")}
             </p>
           </div>
@@ -196,7 +195,7 @@ const ReferralSettings = () => {
             {settings.enabled ? (
               <FaToggleOn className="text-4xl" style={{ color: '#10b981' }} />
             ) : (
-              <FaToggleOff className="text-4xl" style={{ color: '#cbd5e0' }} />
+              <FaToggleOff className="text-4xl" style={{ color: 'var(--ad-border-strong)' }} />
             )}
           </motion.button>
         </div>
@@ -204,7 +203,7 @@ const ReferralSettings = () => {
           className={`p-3 rounded-lg ${settings.enabled ? 'bg-green-50' : 'bg-gray-50'
             }`}
         >
-          <p className="text-sm font-medium" style={{ color: settings.enabled ? '#10b981' : '#718096' }}>
+          <p className="text-sm font-medium" style={{ color: settings.enabled ? '#10b981' : 'var(--ad-muted)' }}>
             {settings.enabled ? getTranslatedText('✓ Referral system is active') : getTranslatedText('✗ Referral system is disabled')}
           </p>
         </div>
@@ -219,10 +218,10 @@ const ReferralSettings = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg md:text-xl font-bold mb-1" style={{ color: '#2d3748' }}>
+            <h2 className="text-lg md:text-xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Cross-Referral System")}
             </h2>
-            <p className="text-sm" style={{ color: '#718096' }}>
+            <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Allow users to refer scrappers and vice versa")}
             </p>
           </div>
@@ -240,7 +239,7 @@ const ReferralSettings = () => {
             {settings.allowCrossReferrals ? (
               <FaToggleOn className="text-4xl" style={{ color: '#10b981' }} />
             ) : (
-              <FaToggleOff className="text-4xl" style={{ color: '#cbd5e0' }} />
+              <FaToggleOff className="text-4xl" style={{ color: 'var(--ad-border-strong)' }} />
             )}
           </motion.button>
         </div>
@@ -248,7 +247,7 @@ const ReferralSettings = () => {
           className={`p-3 rounded-lg ${settings.allowCrossReferrals ? 'bg-green-50' : 'bg-gray-50'
             }`}
         >
-          <p className="text-sm font-medium" style={{ color: settings.allowCrossReferrals ? '#10b981' : '#718096' }}>
+          <p className="text-sm font-medium" style={{ color: settings.allowCrossReferrals ? '#10b981' : 'var(--ad-muted)' }}>
             {settings.allowCrossReferrals ? getTranslatedText('✓ Cross-referrals are enabled') : getTranslatedText('✗ Cross-referrals are disabled')}
           </p>
         </div>
@@ -262,31 +261,31 @@ const ReferralSettings = () => {
         className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
       >
         <div className="flex items-center gap-3 mb-4">
-          <FaUsers className="text-2xl" style={{ color: '#64946e' }} />
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <FaUsers className="text-2xl" style={{ color: 'var(--ad-primary)' }} />
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("User Referral Rewards")}
           </h2>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Signup Bonus (Referrer)")}
             </label>
-            <p className="text-xs mb-2" style={{ color: '#718096' }}>
+            <p className="text-xs mb-2" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Amount credited to referrer when referee signs up")}
             </p>
             <div className="relative">
-              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
               <input
                 type="number"
                 value={settings.userRewards?.signupBonus || 0}
                 onChange={(e) => handleChange('userRewards.signupBonus', e.target.value)}
                 className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                 style={{
-                  borderColor: '#e2e8f0',
-                  backgroundColor: '#f7fafc',
-                  color: '#2d3748'
+                  borderColor: 'var(--ad-border)',
+                  backgroundColor: 'var(--ad-surface-2)',
+                  color: 'var(--ad-ink)'
                 }}
                 min="0"
                 step="1"
@@ -295,23 +294,23 @@ const ReferralSettings = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Welcome Bonus (Referee)")}
             </label>
-            <p className="text-xs mb-2" style={{ color: '#718096' }}>
+            <p className="text-xs mb-2" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Amount credited to new user when they sign up with referral code")}
             </p>
             <div className="relative">
-              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
               <input
                 type="number"
                 value={settings.userRewards?.refereeWelcomeBonus || 0}
                 onChange={(e) => handleChange('userRewards.refereeWelcomeBonus', e.target.value)}
                 className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                 style={{
-                  borderColor: '#e2e8f0',
-                  backgroundColor: '#f7fafc',
-                  color: '#2d3748'
+                  borderColor: 'var(--ad-border)',
+                  backgroundColor: 'var(--ad-surface-2)',
+                  color: 'var(--ad-ink)'
                 }}
                 min="0"
                 step="1"
@@ -329,31 +328,31 @@ const ReferralSettings = () => {
         className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
       >
         <div className="flex items-center gap-3 mb-4">
-          <FaTruck className="text-2xl" style={{ color: '#64946e' }} />
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <FaTruck className="text-2xl" style={{ color: 'var(--ad-primary)' }} />
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Scrapper Referral Rewards")}
           </h2>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Signup Bonus (Referrer)")}
             </label>
-            <p className="text-xs mb-2" style={{ color: '#718096' }}>
+            <p className="text-xs mb-2" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Amount credited to referrer when referee signs up")}
             </p>
             <div className="relative">
-              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
               <input
                 type="number"
                 value={settings.scrapperRewards?.signupBonus || 0}
                 onChange={(e) => handleChange('scrapperRewards.signupBonus', e.target.value)}
                 className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                 style={{
-                  borderColor: '#e2e8f0',
-                  backgroundColor: '#f7fafc',
-                  color: '#2d3748'
+                  borderColor: 'var(--ad-border)',
+                  backgroundColor: 'var(--ad-surface-2)',
+                  color: 'var(--ad-ink)'
                 }}
                 min="0"
                 step="1"
@@ -362,23 +361,23 @@ const ReferralSettings = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Welcome Bonus (Referee)")}
             </label>
-            <p className="text-xs mb-2" style={{ color: '#718096' }}>
+            <p className="text-xs mb-2" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Amount credited to new scrapper when they sign up with referral code")}
             </p>
             <div className="relative">
-              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+              <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
               <input
                 type="number"
                 value={settings.scrapperRewards?.refereeWelcomeBonus || 0}
                 onChange={(e) => handleChange('scrapperRewards.refereeWelcomeBonus', e.target.value)}
                 className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                 style={{
-                  borderColor: '#e2e8f0',
-                  backgroundColor: '#f7fafc',
-                  color: '#2d3748'
+                  borderColor: 'var(--ad-border)',
+                  backgroundColor: 'var(--ad-surface-2)',
+                  color: 'var(--ad-ink)'
                 }}
                 min="0"
                 step="1"
@@ -398,7 +397,7 @@ const ReferralSettings = () => {
         >
           <div className="flex items-center gap-3 mb-4">
             <FaGift className="text-2xl" style={{ color: '#3b82f6' }} />
-            <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+            <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Cross-Referral Rewards")}
             </h2>
           </div>
@@ -406,25 +405,25 @@ const ReferralSettings = () => {
           <div className="space-y-6">
             {/* User to Scrapper */}
             <div>
-              <h3 className="text-base font-semibold mb-3" style={{ color: '#2d3748' }}>
+              <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("User → Scrapper Referrals")}
               </h3>
-              <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: '#e2e8f0' }}>
+              <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: 'var(--ad-border)' }}>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Referrer Bonus (User gets)")}
                   </label>
                   <div className="relative">
-                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={settings.crossReferralRewards?.userToScrapper?.referrerBonus || 0}
                       onChange={(e) => handleChange('crossReferralRewards.userToScrapper.referrerBonus', e.target.value)}
                       className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                       step="1"
@@ -432,20 +431,20 @@ const ReferralSettings = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Welcome Bonus (Scrapper gets)")}
                   </label>
                   <div className="relative">
-                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={settings.crossReferralRewards?.userToScrapper?.refereeWelcomeBonus || 0}
                       onChange={(e) => handleChange('crossReferralRewards.userToScrapper.refereeWelcomeBonus', e.target.value)}
                       className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                       step="1"
@@ -457,25 +456,25 @@ const ReferralSettings = () => {
 
             {/* Scrapper to User */}
             <div>
-              <h3 className="text-base font-semibold mb-3" style={{ color: '#2d3748' }}>
+              <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Scrapper → User Referrals")}
               </h3>
-              <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: '#e2e8f0' }}>
+              <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: 'var(--ad-border)' }}>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Referrer Bonus (Scrapper gets)")}
                   </label>
                   <div className="relative">
-                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={settings.crossReferralRewards?.scrapperToUser?.referrerBonus || 0}
                       onChange={(e) => handleChange('crossReferralRewards.scrapperToUser.referrerBonus', e.target.value)}
                       className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                       step="1"
@@ -483,20 +482,20 @@ const ReferralSettings = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Welcome Bonus (User gets)")}
                   </label>
                   <div className="relative">
-                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={settings.crossReferralRewards?.scrapperToUser?.refereeWelcomeBonus || 0}
                       onChange={(e) => handleChange('crossReferralRewards.scrapperToUser.refereeWelcomeBonus', e.target.value)}
                       className="w-full pl-8 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                       step="1"
@@ -523,7 +522,7 @@ const ReferralSettings = () => {
           disabled={saving}
           className="px-6 py-3 rounded-xl font-semibold text-base flex items-center gap-2 transition-all"
           style={{
-            backgroundColor: saved ? '#10b981' : '#64946e',
+            backgroundColor: saved ? '#10b981' : 'var(--ad-primary)',
             color: '#ffffff'
           }}
         >

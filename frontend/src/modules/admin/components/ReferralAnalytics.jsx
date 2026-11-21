@@ -1,3 +1,4 @@
+import { DashboardSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -10,8 +11,7 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaTrophy,
-  FaDownload,
-  FaSpinner
+  FaDownload
 } from 'react-icons/fa';
 
 const ReferralAnalytics = () => {
@@ -163,9 +163,7 @@ const ReferralAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <FaSpinner className="animate-spin text-4xl text-green-600" />
-      </div>
+      <DashboardSkeleton />
     );
   }
 
@@ -181,15 +179,15 @@ const ReferralAnalytics = () => {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+              style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
             >
-              <FaChartBar className="text-3xl" style={{ color: '#64946e' }} />
+              <FaChartBar className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Referral Analytics")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("Comprehensive referral system insights")}
               </p>
             </div>
@@ -199,7 +197,7 @@ const ReferralAnalytics = () => {
             whileTap={{ scale: 0.95 }}
             onClick={handleExport}
             className="px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-            style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+            style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
           >
             <FaDownload />
             {getTranslatedText("Export")}
@@ -215,8 +213,8 @@ const ReferralAnalytics = () => {
               className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all capitalize ${period === p ? 'shadow-md' : ''
                 }`}
               style={{
-                backgroundColor: period === p ? '#64946e' : '#f7fafc',
-                color: period === p ? '#ffffff' : '#2d3748'
+                backgroundColor: period === p ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                color: period === p ? '#ffffff' : 'var(--ad-ink)'
               }}
             >
               {p === 'all' ? getTranslatedText('All Time') : getTranslatedText(p.charAt(0).toUpperCase() + p.slice(1))}
@@ -234,13 +232,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <FaUsers className="text-xl" style={{ color: '#64946e' }} />
+            <FaUsers className="text-xl" style={{ color: 'var(--ad-primary)' }} />
             <FaArrowUp className="text-sm" style={{ color: '#10b981' }} />
           </div>
-          <p className="text-2xl font-bold mb-1" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
             {analytics.totalReferrals}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Total Referrals")}</p>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Total Referrals")}</p>
         </motion.div>
 
         <motion.div
@@ -250,13 +248,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <FaTruck className="text-xl" style={{ color: '#64946e' }} />
+            <FaTruck className="text-xl" style={{ color: 'var(--ad-primary)' }} />
             <FaArrowUp className="text-sm" style={{ color: '#10b981' }} />
           </div>
-          <p className="text-2xl font-bold mb-1" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
             {analytics.activeReferrals}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Active Referrals")}</p>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Active Referrals")}</p>
         </motion.div>
 
         <motion.div
@@ -266,13 +264,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <FaRupeeSign className="text-xl" style={{ color: '#64946e' }} />
+            <FaRupeeSign className="text-xl" style={{ color: 'var(--ad-primary)' }} />
             <FaArrowUp className="text-sm" style={{ color: '#10b981' }} />
           </div>
-          <p className="text-2xl font-bold mb-1" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
             ₹{analytics.totalRewardsPaid.toLocaleString()}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Total Rewards Paid")}</p>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Total Rewards Paid")}</p>
         </motion.div>
 
         <motion.div
@@ -282,13 +280,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <FaChartBar className="text-xl" style={{ color: '#64946e' }} />
+            <FaChartBar className="text-xl" style={{ color: 'var(--ad-primary)' }} />
             <FaArrowUp className="text-sm" style={{ color: '#10b981' }} />
           </div>
-          <p className="text-2xl font-bold mb-1" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
             {analytics.conversionRate}%
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Conversion Rate")}</p>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Conversion Rate")}</p>
         </motion.div>
       </div>
 
@@ -301,13 +299,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center gap-3 mb-4">
-            <FaUsers className="text-xl" style={{ color: '#64946e' }} />
-            <h3 className="font-bold" style={{ color: '#2d3748' }}>{getTranslatedText("User Referrals")}</h3>
+            <FaUsers className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+            <h3 className="font-bold" style={{ color: 'var(--ad-ink)' }}>{getTranslatedText("User Referrals")}</h3>
           </div>
-          <p className="text-3xl font-bold mb-1" style={{ color: '#64946e' }}>
+          <p className="text-3xl font-bold mb-1" style={{ color: 'var(--ad-primary)' }}>
             {analytics.userReferrals}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
             {analytics.totalReferrals > 0
               ? getTranslatedText("{percentage}% of total", { percentage: ((analytics.userReferrals / analytics.totalReferrals) * 100).toFixed(1) })
               : getTranslatedText("0% of total")}
@@ -321,13 +319,13 @@ const ReferralAnalytics = () => {
           className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
         >
           <div className="flex items-center gap-3 mb-4">
-            <FaTruck className="text-xl" style={{ color: '#64946e' }} />
-            <h3 className="font-bold" style={{ color: '#2d3748' }}>{getTranslatedText("Scrapper Referrals")}</h3>
+            <FaTruck className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+            <h3 className="font-bold" style={{ color: 'var(--ad-ink)' }}>{getTranslatedText("Scrapper Referrals")}</h3>
           </div>
-          <p className="text-3xl font-bold mb-1" style={{ color: '#64946e' }}>
+          <p className="text-3xl font-bold mb-1" style={{ color: 'var(--ad-primary)' }}>
             {analytics.scrapperReferrals}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
             {analytics.totalReferrals > 0
               ? getTranslatedText("{percentage}% of total", { percentage: ((analytics.scrapperReferrals / analytics.totalReferrals) * 100).toFixed(1) })
               : getTranslatedText("0% of total")}
@@ -342,12 +340,12 @@ const ReferralAnalytics = () => {
         >
           <div className="flex items-center gap-3 mb-4">
             <FaUsers className="text-xl" style={{ color: '#3b82f6' }} />
-            <h3 className="font-bold" style={{ color: '#2d3748' }}>{getTranslatedText("Cross-Referrals")}</h3>
+            <h3 className="font-bold" style={{ color: 'var(--ad-ink)' }}>{getTranslatedText("Cross-Referrals")}</h3>
           </div>
           <p className="text-3xl font-bold mb-1" style={{ color: '#3b82f6' }}>
             {analytics.crossReferrals}
           </p>
-          <p className="text-xs" style={{ color: '#718096' }}>
+          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
             {analytics.totalReferrals > 0
               ? getTranslatedText("{percentage}% of total", { percentage: ((analytics.crossReferrals / analytics.totalReferrals) * 100).toFixed(1) })
               : getTranslatedText("0% of total")}
@@ -363,14 +361,14 @@ const ReferralAnalytics = () => {
         className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
       >
         <div className="flex items-center gap-3 mb-4">
-          <FaTrophy className="text-xl" style={{ color: '#64946e' }} />
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <FaTrophy className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Top 10 Referrers")}
           </h2>
         </div>
         <div className="space-y-3">
           {topReferrers.length === 0 ? (
-            <p className="text-center py-8 text-sm" style={{ color: '#718096' }}>
+            <p className="text-center py-8 text-sm" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("No referrers yet")}
             </p>
           ) : (
@@ -378,32 +376,32 @@ const ReferralAnalytics = () => {
               <div
                 key={`${referrer.id}`}
                 className="flex items-center justify-between p-3 rounded-xl"
-                style={{ backgroundColor: '#f7fafc' }}
+                style={{ backgroundColor: 'var(--ad-surface-2)' }}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
                     style={{
-                      backgroundColor: index < 3 ? '#ffd700' : 'rgba(100, 148, 110, 0.1)',
-                      color: index < 3 ? '#2d3748' : '#64946e'
+                      backgroundColor: index < 3 ? '#ffd700' : 'rgba(var(--ad-primary-rgb), 0.1)',
+                      color: index < 3 ? 'var(--ad-ink)' : 'var(--ad-primary)'
                     }}
                   >
                     {index + 1}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                       {referrer.role === 'user' ? getTranslatedText('User') : getTranslatedText('Scrapper')} - {referrer.name}
                     </p>
-                    <p className="text-xs" style={{ color: '#718096' }}>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                       {referrer.count} {getTranslatedText("referrals")}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold" style={{ color: '#64946e' }}>
+                  <p className="text-sm font-bold" style={{ color: 'var(--ad-primary)' }}>
                     ₹{referrer.earnings.toLocaleString()}
                   </p>
-                  <p className="text-xs" style={{ color: '#718096' }}>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                     {getTranslatedText("Earnings")}
                   </p>
                 </div>

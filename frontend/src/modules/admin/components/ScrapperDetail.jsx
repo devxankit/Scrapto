@@ -1,3 +1,4 @@
+import { DetailSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -253,25 +254,20 @@ const ScrapperDetail = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p style={{ color: '#718096' }}>{getTranslatedText("Loading scrapper details...")}</p>
-        </div>
-      </div>
+      <DetailSkeleton />
     );
   }
 
   if (error || !scrapper) {
     return (
       <div className="text-center py-12">
-        <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+        <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
           {error || getTranslatedText('Scrapper not found')}
         </p>
         <button
           onClick={() => navigate('/admin/scrappers')}
           className="text-sm px-4 py-2 rounded-lg font-semibold text-white"
-          style={{ backgroundColor: '#64946e' }}
+          style={{ backgroundColor: 'var(--ad-primary)' }}
         >
           {getTranslatedText("Back to Scrappers List")}
         </button>
@@ -287,7 +283,7 @@ const ScrapperDetail = () => {
         animate={{ opacity: 1, x: 0 }}
         onClick={() => navigate('/admin/scrappers')}
         className="flex items-center gap-2 text-sm font-semibold"
-        style={{ color: '#64946e' }}
+        style={{ color: 'var(--ad-primary)' }}
       >
         <FaArrowLeft />
         {getTranslatedText("Back to Scrappers")}
@@ -303,7 +299,7 @@ const ScrapperDetail = () => {
           {/* Avatar */}
           <div
             className="w-24 h-24 rounded-xl flex items-center justify-center flex-shrink-0 mx-auto md:mx-0 overflow-hidden"
-            style={{ backgroundColor: '#f7fafc' }}
+            style={{ backgroundColor: 'var(--ad-surface-2)' }}
           >
             {scrapper.profilePic ? (
               <img
@@ -312,14 +308,14 @@ const ScrapperDetail = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <FaTruck style={{ color: '#64946e', fontSize: '48px' }} />
+              <FaTruck style={{ color: 'var(--ad-primary)', fontSize: '48px' }} />
             )}
           </div>
 
           {/* Scrapper Info */}
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-bold" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                 {scrapper.name}
               </h1>
               {getKYCStatusBadge(scrapper.kycStatus)}
@@ -336,17 +332,17 @@ const ScrapperDetail = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="flex items-center gap-3">
-                <FaPhone style={{ color: '#64946e' }} />
+                <FaPhone style={{ color: 'var(--ad-primary)' }} />
                 <div>
-                  <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Phone")}</p>
-                  <p className="font-semibold" style={{ color: '#2d3748' }}>{scrapper.phone}</p>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Phone")}</p>
+                  <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{scrapper.phone}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <FaIdCard style={{ color: '#64946e' }} />
+                <FaIdCard style={{ color: 'var(--ad-primary)' }} />
                 <div>
-                  <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Aadhaar")}</p>
-                  <p className="font-semibold" style={{ color: '#2d3748' }}>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Aadhaar")}</p>
+                  <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {scrapper.kycData?.aadhaarNumber
                       ? `${scrapper.kycData.aadhaarNumber.substring(0, 4)}-****-${scrapper.kycData.aadhaarNumber.substring(8)}`
                       : getTranslatedText('N/A')}
@@ -356,23 +352,23 @@ const ScrapperDetail = () => {
               <div className="flex items-center gap-3">
                 <FaStar style={{ color: '#fbbf24' }} />
                 <div>
-                  <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Rating")}</p>
-                  <p className="font-semibold" style={{ color: '#2d3748' }}>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Rating")}</p>
+                  <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {scrapper.rating > 0 ? scrapper.rating.toFixed(1) : getTranslatedText('N/A')} {scrapper.rating > 0 ? '⭐' : ''}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <FaCar style={{ color: '#64946e' }} />
+                <FaCar style={{ color: 'var(--ad-primary)' }} />
                 <div>
-                  <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Vehicle")}</p>
-                  <p className="font-semibold" style={{ color: '#2d3748' }}>{getTranslatedText(scrapper.vehicleInfo)}</p>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Vehicle")}</p>
+                  <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{getTranslatedText(scrapper.vehicleInfo)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <FaMapMarkerAlt style={{ color: '#64946e' }} />
+                <FaMapMarkerAlt style={{ color: 'var(--ad-primary)' }} />
                 <div>
-                  <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("City")}</p>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("City")}</p>
                   <p className="font-semibold text-emerald-600" style={{ color: '#059669' }}>{scrapper.city}</p>
                 </div>
               </div>
@@ -399,14 +395,14 @@ const ScrapperDetail = () => {
               className="bg-white rounded-2xl shadow-lg p-4"
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}20` }}>
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `color-mix(in srgb, ${stat.color} 13%, transparent)` }}>
                   <Icon style={{ color: stat.color, fontSize: '20px' }} />
                 </div>
                 <div className="flex-1">
-                  <p className="text-2xl font-bold" style={{ color: '#2d3748' }}>
+                  <p className="text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                     {stat.value}
                   </p>
-                  <p className="text-xs" style={{ color: '#718096' }}>{stat.label}</p>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{stat.label}</p>
                 </div>
               </div>
             </motion.div>
@@ -423,7 +419,7 @@ const ScrapperDetail = () => {
           className="bg-white rounded-2xl shadow-lg p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold" style={{ color: '#2d3748' }}>
+            <h2 className="text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("KYC Information")}
             </h2>
             <div className="flex items-center gap-3">
@@ -459,12 +455,12 @@ const ScrapperDetail = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Aadhaar Number")}</p>
-              <p className="font-semibold" style={{ color: '#2d3748' }}>{scrapper.kycData.aadhaarNumber || getTranslatedText('Not provided')}</p>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Aadhaar Number")}</p>
+              <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{scrapper.kycData.aadhaarNumber || getTranslatedText('Not provided')}</p>
             </div>
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Verified On")}</p>
-              <p className="font-semibold" style={{ color: '#2d3748' }}>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Verified On")}</p>
+              <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {scrapper.kycData.verifiedAt ? new Date(scrapper.kycData.verifiedAt).toLocaleDateString() : getTranslatedText('N/A')}
               </p>
             </div>
@@ -477,11 +473,11 @@ const ScrapperDetail = () => {
           </div>
 
           {/* KYC Documents */}
-          <h3 className="text-md font-semibold mb-3 border-t pt-4" style={{ color: '#4a5568' }}>{getTranslatedText("Documents")}</h3>
+          <h3 className="text-md font-semibold mb-3 border-t pt-4" style={{ color: 'var(--ad-ink-2)' }}>{getTranslatedText("Documents")}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {scrapper.kycData.aadhaarPhotoUrl && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold" style={{ color: '#718096' }}>{getTranslatedText("Aadhaar Photo")}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Aadhaar Photo")}</p>
                 <div className="border rounded-lg overflow-hidden h-40 bg-gray-50 flex items-center justify-center">
                   <img src={scrapper.kycData.aadhaarPhotoUrl} alt={getTranslatedText("Aadhaar Photo")} className="max-w-full max-h-full object-contain cursor-pointer hover:scale-105 transition-transform"
                     onClick={() => window.open(scrapper.kycData.aadhaarPhotoUrl, '_blank')}
@@ -491,7 +487,7 @@ const ScrapperDetail = () => {
             )}
             {scrapper.kycData.licenseUrl && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold" style={{ color: '#718096' }}>{getTranslatedText("Driving License")}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Driving License")}</p>
                 <div className="border rounded-lg overflow-hidden h-40 bg-gray-50 flex items-center justify-center">
                   <img src={scrapper.kycData.licenseUrl} alt={getTranslatedText("Driving License")} className="max-w-full max-h-full object-contain cursor-pointer hover:scale-105 transition-transform"
                     onClick={() => window.open(scrapper.kycData.licenseUrl, '_blank')}
@@ -501,7 +497,7 @@ const ScrapperDetail = () => {
             )}
             {scrapper.kycData.selfieUrl && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold" style={{ color: '#718096' }}>{getTranslatedText("Selfie")}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Selfie")}</p>
                 <div className="border rounded-lg overflow-hidden h-40 bg-gray-50 flex items-center justify-center">
                   <img src={scrapper.kycData.selfieUrl} alt={getTranslatedText("Selfie")} className="max-w-full max-h-full object-contain cursor-pointer hover:scale-105 transition-transform"
                     onClick={() => window.open(scrapper.kycData.selfieUrl, '_blank')}
@@ -524,35 +520,35 @@ const ScrapperDetail = () => {
           transition={{ delay: 0.4 }}
           className="bg-white rounded-2xl shadow-lg p-6"
         >
-          <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Subscription Details")}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Plan")}</p>
-              <p className="font-semibold" style={{ color: '#2d3748' }}>{scrapper.subscription.planName}</p>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Plan")}</p>
+              <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{scrapper.subscription.planName}</p>
             </div>
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Status")}</p>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Status")}</p>
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold inline-block" style={{ backgroundColor: '#d1fae5', color: '#10b981' }}>
                 <FaCheckCircle className="text-xs" />
                 {getTranslatedText(scrapper.subscription.status.charAt(0).toUpperCase() + scrapper.subscription.status.slice(1))}
               </span>
             </div>
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Price")}</p>
-              <p className="font-semibold" style={{ color: '#2d3748' }}>₹{scrapper.subscription.price}{getTranslatedText("/month")}</p>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Price")}</p>
+              <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>₹{scrapper.subscription.price}{getTranslatedText("/month")}</p>
             </div>
             <div>
-              <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Expires On")}</p>
-              <p className="font-semibold" style={{ color: '#2d3748' }}>
+              <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Expires On")}</p>
+              <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {scrapper.subscription.expiryDate ? new Date(scrapper.subscription.expiryDate).toLocaleDateString() : getTranslatedText('N/A')}
               </p>
             </div>
             {scrapper.subscription.startDate && (
               <div>
-                <p className="text-xs mb-1" style={{ color: '#718096' }}>{getTranslatedText("Purchased On")}</p>
-                <p className="font-semibold" style={{ color: '#2d3748' }}>
+                <p className="text-xs mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Purchased On")}</p>
+                <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                   {new Date(scrapper.subscription.startDate).toLocaleDateString()}
                 </p>
               </div>
@@ -568,12 +564,12 @@ const ScrapperDetail = () => {
         transition={{ delay: 0.5 }}
         className="bg-white rounded-2xl shadow-lg p-6"
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
           {getTranslatedText("Completed Orders ({count})", { count: orders.length })}
         </h2>
         <div className="space-y-4">
           {orders.length === 0 ? (
-            <p className="text-center py-8 text-sm" style={{ color: '#718096' }}>
+            <p className="text-center py-8 text-sm" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("No completed orders yet")}
             </p>
           ) : (
@@ -583,14 +579,14 @@ const ScrapperDetail = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + index * 0.05 }}
-                className="p-4 rounded-xl border-2" style={{ borderColor: '#e2e8f0' }}
+                className="p-4 rounded-xl border-2" style={{ borderColor: 'var(--ad-border)' }}
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold" style={{ color: '#2d3748' }}>{order.orderId || order.id}</span>
+                      <span className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{order.orderId || order.id}</span>
                     </div>
-                    <div className="space-y-1 text-sm" style={{ color: '#718096' }}>
+                    <div className="space-y-1 text-sm" style={{ color: 'var(--ad-muted)' }}>
                       <p>{getTranslatedText("User: ")}{order.userName || getTranslatedText('User')}</p>
                       <p>{getTranslatedText("Categories: ")}{order.categories?.join(', ') || getTranslatedText('N/A')}</p>
                       <p>{getTranslatedText("Weight: ")}{order.weight || getTranslatedText('N/A')}{getTranslatedText(" kg • Amount Paid: ₹")}{order.paidAmount || 0}</p>

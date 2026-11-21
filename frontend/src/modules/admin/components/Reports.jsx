@@ -1,3 +1,4 @@
+import { DashboardSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import {
@@ -228,9 +229,7 @@ const Reports = () => {
 
   if (loading && !stats) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <FaSpinner className="animate-spin text-3xl" style={{ color: '#64946e' }} />
-      </div>
+      <DashboardSkeleton />
     );
   }
 
@@ -244,10 +243,10 @@ const Reports = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Reports & Analytics")}
             </h1>
-            <p className="text-xs md:text-sm lg:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-sm lg:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("View platform statistics and generate reports")}
             </p>
           </div>
@@ -257,8 +256,8 @@ const Reports = () => {
               onChange={(e) => setDateRange(e.target.value)}
               className="px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2"
               style={{
-                borderColor: '#e2e8f0',
-                focusBorderColor: '#64946e'
+                borderColor: 'var(--ad-border)',
+                focusBorderColor: 'var(--ad-primary)'
               }}
             >
               <option value="today">{getTranslatedText("Today")}</option>
@@ -290,10 +289,10 @@ const Reports = () => {
                   <Icon style={{ color: card.color, fontSize: '16px' }} className="md:text-2xl" />
                 </div>
               </div>
-              <h3 className="text-lg md:text-2xl lg:text-3xl font-bold mb-0.5 md:mb-1" style={{ color: '#2d3748' }}>
+              <h3 className="text-lg md:text-2xl lg:text-3xl font-bold mb-0.5 md:mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {card.value}
               </h3>
-              <p className="text-[10px] md:text-sm lg:text-base leading-tight" style={{ color: '#718096' }}>
+              <p className="text-[10px] md:text-sm lg:text-base leading-tight" style={{ color: 'var(--ad-muted)' }}>
                 {card.title}
               </p>
             </motion.div>
@@ -308,7 +307,7 @@ const Reports = () => {
         transition={{ delay: 0.3 }}
         className="bg-white rounded-2xl shadow-lg p-6"
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
           {getTranslatedText("Export Reports")}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -330,17 +329,17 @@ const Reports = () => {
                 onClick={() => handleExportReport(report.type)}
                 disabled={exportLoading}
                 className="p-4 rounded-xl flex flex-col items-center gap-2 transition-all disabled:opacity-50"
-                style={{ backgroundColor: '#f7fafc' }}
+                style={{ backgroundColor: 'var(--ad-surface-2)' }}
               >
                 {exportLoading ? (
-                  <FaSpinner className="animate-spin text-2xl" style={{ color: '#64946e' }} />
+                  <FaSpinner className="animate-spin text-2xl" style={{ color: 'var(--ad-primary)' }} />
                 ) : (
-                  <Icon style={{ color: '#64946e', fontSize: '24px' }} />
+                  <Icon style={{ color: 'var(--ad-primary)', fontSize: '24px' }} />
                 )}
-                <span className="text-sm font-medium" style={{ color: '#2d3748' }}>
+                <span className="text-sm font-medium" style={{ color: 'var(--ad-ink)' }}>
                   {report.label}
                 </span>
-                <FaDownload className="text-xs" style={{ color: '#718096' }} />
+                <FaDownload className="text-xs" style={{ color: 'var(--ad-muted)' }} />
               </motion.button>
             );
           })}
@@ -354,10 +353,10 @@ const Reports = () => {
         transition={{ delay: 0.5 }}
         className="bg-white rounded-2xl shadow-lg p-6"
       >
-        <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+        <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
           {getTranslatedText("Revenue Trends ({range})", { range: getTranslatedText(dateRange.charAt(0).toUpperCase() + dateRange.slice(1)) })}
         </h2>
-        <div className="h-64 flex items-end justify-center gap-2 md:gap-4 p-4" style={{ backgroundColor: '#f7fafc', borderRadius: '12px' }}>
+        <div className="h-64 flex items-end justify-center gap-2 md:gap-4 p-4" style={{ backgroundColor: 'var(--ad-surface-2)', borderRadius: '12px' }}>
           {/* Simple CSS Bar Chart for visualization */}
           {revenueStats?.dailyRevenue?.length > 0 ? (
             revenueStats.dailyRevenue.slice(-10).map((day, idx) => {

@@ -1,3 +1,4 @@
+import { Skeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { adminAPI } from '../../shared/utils/api';
@@ -455,12 +456,7 @@ const ScrapperLeads = () => {
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm font-medium">
               {loading ? (
-                <tr>
-                  <td colSpan="8" className="p-12 text-center text-gray-400">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>
-                    <p className="font-bold">Loading Meta Leads...</p>
-                  </td>
-                </tr>
+                <>{Array.from({ length: 6 }).map((_, i) => (<tr key={i} aria-hidden="true"><td colSpan="8" style={{ padding: '14px 16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Skeleton w={34} h={34} r={10} /><div style={{ flex: 1, display: 'grid', gap: 7 }}><Skeleton h={10} w={`${45 + ((i * 17) % 40)}%`} /><Skeleton h={8} w={`${25 + ((i * 11) % 30)}%`} /></div><Skeleton w={72} h={24} r={999} /></div></td></tr>))}</>
               ) : leads.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="p-12 text-center text-gray-400">

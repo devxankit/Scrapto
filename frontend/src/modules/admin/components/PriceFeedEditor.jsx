@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { FaRupeeSign, FaSave, FaUpload, FaDownload, FaEdit, FaCheck, FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
@@ -331,10 +332,10 @@ const PriceFeedEditor = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Price Feed Management")}
             </h1>
-            <p className="text-xs md:text-sm lg:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-sm lg:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Manage scrap category prices per kilogram")}
             </p>
           </div>
@@ -344,7 +345,7 @@ const PriceFeedEditor = () => {
               whileTap={{ scale: 0.98 }}
               onClick={handleAddClick}
               className="px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1 md:gap-2 transition-all"
-              style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+              style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
             >
               <FaPlus className="text-xs md:text-sm" />
               <span className="hidden sm:inline">{getTranslatedText("Add Material")}</span>
@@ -355,7 +356,7 @@ const PriceFeedEditor = () => {
               whileTap={{ scale: 0.98 }}
               onClick={handleExportCSV}
               className="px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1 md:gap-2 transition-all"
-              style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+              style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
             >
               <FaDownload className="text-xs md:text-sm" />
               <span className="hidden sm:inline">{getTranslatedText("Export CSV")}</span>
@@ -366,7 +367,7 @@ const PriceFeedEditor = () => {
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowCSVModal(true)}
               className="px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1 md:gap-2 transition-all"
-              style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+              style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
             >
               <FaUpload className="text-xs md:text-sm" />
               <span className="hidden sm:inline">{getTranslatedText("Import CSV")}</span>
@@ -378,7 +379,7 @@ const PriceFeedEditor = () => {
               onClick={handleBulkSave}
               disabled={isSaving}
               className="px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1 md:gap-2 transition-all"
-              style={{ backgroundColor: '#2d3748', color: '#ffffff' }}
+              style={{ backgroundColor: 'var(--ad-ink)', color: '#ffffff' }}
             >
               <FaSave className="text-xs md:text-sm" />
               <span className="hidden sm:inline">{getTranslatedText("Save All")}</span>
@@ -415,16 +416,7 @@ const PriceFeedEditor = () => {
       {/* Loading / Error State */}
       {
         loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
-          >
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-            <p className="text-sm md:text-base font-semibold" style={{ color: '#2d3748' }}>
-              {getTranslatedText("Loading prices...")}
-            </p>
-          </motion.div>
+          <TableSkeleton rows={8} />
         )
       }
 
@@ -435,13 +427,13 @@ const PriceFeedEditor = () => {
             animate={{ opacity: 1 }}
             className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
           >
-            <p className="text-sm md:text-base mb-4" style={{ color: '#718096' }}>
+            <p className="text-sm md:text-base mb-4" style={{ color: 'var(--ad-muted)' }}>
               {error}
             </p>
             <button
               onClick={loadPrices}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-              style={{ backgroundColor: '#64946e' }}
+              style={{ backgroundColor: 'var(--ad-primary)' }}
             >
               {getTranslatedText("Retry")}
             </button>
@@ -460,25 +452,25 @@ const PriceFeedEditor = () => {
           >
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead style={{ backgroundColor: '#f7fafc' }}>
+                <thead style={{ backgroundColor: 'var(--ad-surface-2)' }}>
                   <tr>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                       {activeTab === PRICE_TYPES.MATERIAL ? getTranslatedText('Category') : getTranslatedText('Service Name')}
                     </th>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                       {getTranslatedText("Image")}
                     </th>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                       <span className="hidden sm:inline">{activeTab === PRICE_TYPES.MATERIAL ? getTranslatedText('Price per Kg (₹)') : getTranslatedText('Service Fee (₹)')}</span>
                       <span className="sm:hidden">{activeTab === PRICE_TYPES.MATERIAL ? getTranslatedText('Price') : getTranslatedText('Fee')}</span>
                     </th>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold hidden md:table-cell" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold hidden md:table-cell" style={{ color: 'var(--ad-ink)' }}>
                       {getTranslatedText("Region")}
                     </th>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold hidden lg:table-cell" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-left text-xs md:text-sm font-semibold hidden lg:table-cell" style={{ color: 'var(--ad-ink)' }}>
                       {getTranslatedText("Last Updated")}
                     </th>
-                    <th className="px-2 py-2 md:px-6 md:py-4 text-center text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+                    <th className="px-2 py-2 md:px-6 md:py-4 text-center text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                       {getTranslatedText("Actions")}
                     </th>
                   </tr>
@@ -490,10 +482,10 @@ const PriceFeedEditor = () => {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.1 + index * 0.05 }}
-                      className="border-b" style={{ borderColor: '#e2e8f0' }}
+                      className="border-b" style={{ borderColor: 'var(--ad-border)' }}
                     >
                       <td className="px-2 py-2 md:px-6 md:py-4">
-                        <span className="font-semibold text-xs md:text-sm" style={{ color: '#2d3748' }}>{price.category}</span>
+                        <span className="font-semibold text-xs md:text-sm" style={{ color: 'var(--ad-ink)' }}>{price.category}</span>
                       </td>
                       <td className="px-2 py-2 md:px-6 md:py-4">
                         {price.image ? (
@@ -506,17 +498,17 @@ const PriceFeedEditor = () => {
                       </td>
                       <td className="px-2 py-2 md:px-6 md:py-4">
                         <div className="flex items-center gap-2">
-                          <FaRupeeSign style={{ color: '#64946e' }} />
-                          <span className="font-semibold" style={{ color: '#2d3748' }}>
+                          <FaRupeeSign style={{ color: 'var(--ad-primary)' }} />
+                          <span className="font-semibold" style={{ color: 'var(--ad-ink)' }}>
                             {price.type === PRICE_TYPES.SERVICE ? (price.price || price.pricePerKg) : price.pricePerKg}
                           </span>
                         </div>
                       </td>
                       <td className="px-2 py-2 md:px-6 md:py-4 hidden md:table-cell">
-                        <span className="text-xs md:text-sm" style={{ color: '#718096' }}>{price.region}</span>
+                        <span className="text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>{price.region}</span>
                       </td>
                       <td className="px-2 py-2 md:px-6 md:py-4 hidden lg:table-cell">
-                        <span className="text-xs md:text-sm" style={{ color: '#718096' }}>
+                        <span className="text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                           {new Date(price.updatedAt).toLocaleDateString()}
                         </span>
                       </td>
@@ -527,7 +519,7 @@ const PriceFeedEditor = () => {
                             whileTap={{ scale: 0.9 }}
                             onClick={() => handleEditClick(price)}
                             className="p-1.5 md:p-2 rounded-lg transition-all"
-                            style={{ backgroundColor: '#f7fafc', color: '#64946e' }}
+                            style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-primary)' }}
                             title={getTranslatedText("Edit price")}
                           >
                             <FaEdit className="text-xs md:text-sm" />
@@ -569,10 +561,10 @@ const PriceFeedEditor = () => {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full"
             >
-              <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+              <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Import Prices from CSV")}
               </h2>
-              <p className="text-sm mb-4" style={{ color: '#718096' }}>
+              <p className="text-sm mb-4" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("Upload a CSV file with columns: Category, Price per Kg, Image URL, Region, Effective Date")}
               </p>
               <input
@@ -580,7 +572,7 @@ const PriceFeedEditor = () => {
                 accept=".csv"
                 onChange={handleImportCSV}
                 className="w-full px-4 py-3 rounded-xl border-2 mb-4"
-                style={{ borderColor: '#e2e8f0' }}
+                style={{ borderColor: 'var(--ad-border)' }}
               />
               <div className="flex gap-3">
                 <motion.button
@@ -588,7 +580,7 @@ const PriceFeedEditor = () => {
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowCSVModal(false)}
                   className="flex-1 px-4 py-3 rounded-xl font-semibold transition-all"
-                  style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                  style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                 >
                   {getTranslatedText("Cancel")}
                 </motion.button>
@@ -613,7 +605,7 @@ const PriceFeedEditor = () => {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full"
             >
-              <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+              <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
                 {modalMode === 'add'
                   ? getTranslatedText("Add New {type}", { type: activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Service') : getTranslatedText('Material') })
                   : getTranslatedText("Edit {type}", { type: activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Service') : getTranslatedText('Material') })
@@ -621,7 +613,7 @@ const PriceFeedEditor = () => {
               </h2>
               <form onSubmit={handleModalSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: '#4a5568' }}>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--ad-ink-2)' }}>
                     {activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Service Name') : getTranslatedText('Category Name')}
                   </label>
                   <input
@@ -630,12 +622,12 @@ const PriceFeedEditor = () => {
                     onChange={(e) => setCurrentPriceData(prev => ({ ...prev, category: e.target.value }))}
                     placeholder={activeTab === PRICE_TYPES.SERVICE ? getTranslatedText("e.g. Garage Cleaning") : getTranslatedText("e.g. Copper Wire")}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-                    style={{ borderColor: '#e2e8f0', focusRingColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusRingColor: 'var(--ad-primary)' }}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: '#4a5568' }}>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--ad-ink-2)' }}>
                     {activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Fixed Fee (₹)') : getTranslatedText('Price per Kg (₹)')}
                   </label>
                   <input
@@ -644,14 +636,14 @@ const PriceFeedEditor = () => {
                     onChange={(e) => setCurrentPriceData(prev => ({ ...prev, price: e.target.value }))}
                     placeholder={activeTab === PRICE_TYPES.SERVICE ? getTranslatedText("e.g. 500") : getTranslatedText("e.g. 450")}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-                    style={{ borderColor: '#e2e8f0', focusRingColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusRingColor: 'var(--ad-primary)' }}
                     required
                     min="0"
                     step="0.01"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: '#4a5568' }}>
+                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--ad-ink-2)' }}>
                     {getTranslatedText('Image URL (Optional)')}
                   </label>
                   <input
@@ -660,7 +652,7 @@ const PriceFeedEditor = () => {
                     onChange={(e) => setCurrentPriceData(prev => ({ ...prev, image: e.target.value }))}
                     placeholder={getTranslatedText("https://example.com/image.jpg")}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 focus:border-transparent transition-all"
-                    style={{ borderColor: '#e2e8f0', focusRingColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusRingColor: 'var(--ad-primary)' }}
                   />
                   {currentPriceData.image && (
                     <div className="mt-2 w-full h-32 rounded-lg overflow-hidden border border-gray-200">
@@ -675,7 +667,7 @@ const PriceFeedEditor = () => {
                     type="button"
                     onClick={() => setShowModal(false)}
                     className="flex-1 px-4 py-2 rounded-xl font-semibold transition-all"
-                    style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                    style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                   >
                     {getTranslatedText("Cancel")}
                   </motion.button>
@@ -685,7 +677,7 @@ const PriceFeedEditor = () => {
                     type="submit"
                     disabled={isSaving}
                     className="flex-1 px-4 py-2 rounded-xl font-semibold text-white transition-all shadow-md"
-                    style={{ backgroundColor: '#64946e' }}
+                    style={{ backgroundColor: 'var(--ad-primary)' }}
                   >
                     {isSaving ? getTranslatedText('Saving...') : (modalMode === 'add' ? (activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Add Service') : getTranslatedText('Add Material')) : (activeTab === PRICE_TYPES.SERVICE ? getTranslatedText('Update Service') : getTranslatedText('Update Material')))}
                   </motion.button>

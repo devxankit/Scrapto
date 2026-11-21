@@ -1,3 +1,4 @@
+import { CardGridSkeleton } from '../ui/components';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -318,9 +319,7 @@ const CouponsList = () => {
 
             {/* Coupons Grid/List */}
             {loading ? (
-                <div className="flex justify-center p-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-                </div>
+                <CardGridSkeleton count={6} min={280} />
             ) : filteredCoupons.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
                     <div className="text-gray-300 mb-4">

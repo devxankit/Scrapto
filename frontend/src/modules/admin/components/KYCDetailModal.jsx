@@ -89,19 +89,19 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
           className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b p-4 md:p-6 flex items-center justify-between z-10" style={{ borderColor: '#e2e8f0' }}>
+          <div className="sticky top-0 bg-white border-b p-4 md:p-6 flex items-center justify-between z-10" style={{ borderColor: 'var(--ad-border)' }}>
             <div className="flex items-center gap-3">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: '#f7fafc' }}
+                style={{ backgroundColor: 'var(--ad-surface-2)' }}
               >
-                <FaUserShield style={{ color: '#64946e', fontSize: '24px' }} />
+                <FaUserShield style={{ color: 'var(--ad-primary)', fontSize: '24px' }} />
               </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-bold" style={{ color: '#2d3748' }}>
+                <h2 className="text-xl md:text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("KYC Verification Details")}
                 </h2>
-                <p className="text-sm" style={{ color: '#718096' }}>
+                <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                   {getTranslatedText("Review all documents before making a decision")}
                 </p>
               </div>
@@ -110,7 +110,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
               onClick={onClose}
               className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
             >
-              <FaTimes style={{ color: '#718096' }} />
+              <FaTimes style={{ color: 'var(--ad-muted)' }} />
             </button>
           </div>
 
@@ -118,36 +118,36 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
           <div className="p-4 md:p-6 space-y-6">
             {/* Scrapper Information */}
             <div className="bg-gray-50 rounded-xl p-4 md:p-6 space-y-4">
-              <h3 className="text-lg font-bold" style={{ color: '#2d3748' }}>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Scrapper Information")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
-                  <FaUserShield style={{ color: '#64946e' }} />
+                  <FaUserShield style={{ color: 'var(--ad-primary)' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Name")}</p>
-                    <p className="font-semibold" style={{ color: '#2d3748' }}>{kyc.scrapperName}</p>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Name")}</p>
+                    <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{kyc.scrapperName}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <FaPhone style={{ color: '#64946e' }} />
+                  <FaPhone style={{ color: 'var(--ad-primary)' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Phone")}</p>
-                    <p className="font-semibold" style={{ color: '#2d3748' }}>{kyc.scrapperPhone}</p>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Phone")}</p>
+                    <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{kyc.scrapperPhone}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <FaIdCard style={{ color: '#64946e' }} />
+                  <FaIdCard style={{ color: 'var(--ad-primary)' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Aadhaar Number")}</p>
-                    <p className="font-semibold" style={{ color: '#2d3748' }}>{kyc.aadhaarNumber}</p>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Aadhaar Number")}</p>
+                    <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{kyc.aadhaarNumber}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <FaCar style={{ color: '#64946e' }} />
+                  <FaCar style={{ color: 'var(--ad-primary)' }} />
                   <div>
-                    <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Vehicle Info")}</p>
-                    <p className="font-semibold" style={{ color: '#2d3748' }}>{kyc.vehicleInfo}</p>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Vehicle Info")}</p>
+                    <p className="font-semibold" style={{ color: 'var(--ad-ink)' }}>{kyc.vehicleInfo}</p>
                   </div>
                 </div>
               </div>
@@ -155,16 +155,16 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
 
             {/* Documents */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold" style={{ color: '#2d3748' }}>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Documents")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Aadhaar Photo */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                  <label className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Aadhaar Card Photo")}
                   </label>
-                  <div className="relative rounded-xl overflow-hidden border-2" style={{ borderColor: '#e2e8f0' }}>
+                  <div className="relative rounded-xl overflow-hidden border-2" style={{ borderColor: 'var(--ad-border)' }}>
                     <img
                       src={getImageUrl(kyc.aadhaarPhotoUrl)}
                       alt="Aadhaar Card"
@@ -178,10 +178,10 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
 
                 {/* Selfie Photo */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                  <label className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Selfie Photo")}
                   </label>
-                  <div className="relative rounded-xl overflow-hidden border-2" style={{ borderColor: '#e2e8f0' }}>
+                  <div className="relative rounded-xl overflow-hidden border-2" style={{ borderColor: 'var(--ad-border)' }}>
                     <img
                       src={getImageUrl(kyc.selfieUrl)}
                       alt="Selfie"
@@ -198,7 +198,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
             {/* Rejection Reason Form */}
             {showRejectForm && (
               <div className="space-y-2 animate-fadeIn">
-                <label className="block text-sm font-semibold" style={{ color: '#2d3748' }}>
+                <label className="block text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("Rejection Reason *")}
                 </label>
                 <textarea
@@ -208,9 +208,9 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                   style={{
-                    borderColor: '#e2e8f0',
-                    focusBorderColor: '#64946e',
-                    focusRingColor: '#64946e'
+                    borderColor: 'var(--ad-border)',
+                    focusBorderColor: 'var(--ad-primary)',
+                    focusRingColor: 'var(--ad-primary)'
                   }}
                   autoFocus
                 />
@@ -240,7 +240,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
           </div>
 
           {/* Footer Actions */}
-          <div className="sticky bottom-0 bg-white border-t p-4 md:p-6 flex flex-col sm:flex-row gap-3 justify-end" style={{ borderColor: '#e2e8f0' }}>
+          <div className="sticky bottom-0 bg-white border-t p-4 md:p-6 flex flex-col sm:flex-row gap-3 justify-end" style={{ borderColor: 'var(--ad-border)' }}>
             {kyc.status === 'pending' && (
               <>
                 {!showRejectForm ? (
@@ -261,7 +261,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
                       whileTap={{ scale: 0.98 }}
                       onClick={handleApprove}
                       className="px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all"
-                      style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                      style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                       disabled={isProcessing}
                     >
                       <FaCheckCircle />
@@ -278,7 +278,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
                         setRejectionReason('');
                       }}
                       className="px-6 py-3 rounded-xl font-semibold transition-all"
-                      style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                      style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                       disabled={isProcessing}
                     >
                       {getTranslatedText("Cancel")}
@@ -304,7 +304,7 @@ const KYCDetailModal = ({ kyc, onClose, onApprove, onReject }) => {
                 whileTap={{ scale: 0.98 }}
                 onClick={onClose}
                 className="px-6 py-3 rounded-xl font-semibold transition-all"
-                style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
               >
                 {getTranslatedText("Close")}
               </motion.button>

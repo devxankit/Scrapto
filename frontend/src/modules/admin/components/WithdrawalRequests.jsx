@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaMoneyCheckAlt, FaSearch, FaFilter, FaCheckCircle, FaTimesCircle, FaClock, FaUniversity, FaUser } from 'react-icons/fa';
@@ -104,9 +105,7 @@ const WithdrawalRequests = () => {
 
             {/* Content */}
             {loading ? (
-                <div className="flex justify-center py-20">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
-                </div>
+                <TableSkeleton toolbar={false} />
             ) : withdrawals.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm p-10 text-center border border-slate-100">
                     <FaMoneyCheckAlt className="mx-auto text-slate-300 mb-4" size={48} />

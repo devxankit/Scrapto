@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -12,8 +13,7 @@ import {
   FaClock,
   FaRupeeSign,
   FaEye,
-  FaBan,
-  FaSpinner
+  FaBan
 } from 'react-icons/fa';
 
 const ReferralsList = () => {
@@ -124,24 +124,24 @@ const ReferralsList = () => {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+              style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
             >
-              <FaGift className="text-3xl" style={{ color: '#64946e' }} />
+              <FaGift className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("All Referrals")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("View and manage all referral relationships")}
               </p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold" style={{ color: '#64946e' }}>
+            <p className="text-2xl font-bold" style={{ color: 'var(--ad-primary)' }}>
               {referrals.length}
             </p>
-            <p className="text-xs" style={{ color: '#718096' }}>
+            <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Total Referrals")}
             </p>
           </div>
@@ -150,7 +150,7 @@ const ReferralsList = () => {
         {/* Search and Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#718096' }} />
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-muted)' }} />
             <input
               type="text"
               placeholder={getTranslatedText("Search by code, referrer, or referee name...")}
@@ -158,9 +158,9 @@ const ReferralsList = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
               style={{
-                borderColor: '#e2e8f0',
-                backgroundColor: '#f7fafc',
-                color: '#2d3748'
+                borderColor: 'var(--ad-border)',
+                backgroundColor: 'var(--ad-surface-2)',
+                color: 'var(--ad-ink)'
               }}
             />
           </div>
@@ -169,9 +169,9 @@ const ReferralsList = () => {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
             style={{
-              borderColor: '#e2e8f0',
-              backgroundColor: '#f7fafc',
-              color: '#2d3748'
+              borderColor: 'var(--ad-border)',
+              backgroundColor: 'var(--ad-surface-2)',
+              color: 'var(--ad-ink)'
             }}
           >
             <option value="all">{getTranslatedText("All Status")}</option>
@@ -191,18 +191,16 @@ const ReferralsList = () => {
         className="bg-white rounded-2xl shadow-lg overflow-hidden min-h-[400px]"
       >
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <FaSpinner className="animate-spin text-4xl text-green-600" />
-          </div>
+          <TableSkeleton toolbar={false} />
         ) : (
           <AnimatePresence>
             {filteredReferrals.length === 0 ? (
               <div className="p-12 text-center">
-                <FaGift className="text-5xl mx-auto mb-4" style={{ color: '#cbd5e0' }} />
-                <h3 className="text-lg font-bold mb-2" style={{ color: '#2d3748' }}>
+                <FaGift className="text-5xl mx-auto mb-4" style={{ color: 'var(--ad-border-strong)' }} />
+                <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("No Referrals Found")}
                 </h3>
-                <p className="text-sm" style={{ color: '#718096' }}>
+                <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                   {searchTerm || filterStatus !== 'all'
                     ? getTranslatedText('Try adjusting your filters')
                     : getTranslatedText('No referrals have been created yet')}
@@ -217,7 +215,7 @@ const ReferralsList = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`p-3 md:p-6 hover:bg-gray-50 transition-all ${index !== filteredReferrals.length - 1 ? 'border-b' : ''
                     }`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  style={{ borderColor: 'var(--ad-border)' }}
                 >
                   <div className="flex flex-col md:flex-row md:items-center gap-4">
                     {/* Referral Info */}
@@ -225,18 +223,18 @@ const ReferralsList = () => {
                       <div className="flex items-start gap-4">
                         <div
                           className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+                          style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
                         >
-                          <FaGift style={{ color: '#64946e', fontSize: '20px' }} />
+                          <FaGift style={{ color: 'var(--ad-primary)', fontSize: '20px' }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                            <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                               {referral.codeUsed || getTranslatedText('NO CODE')}
                             </h3>
                             {getStatusBadge(referral.status)}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <div className="truncate">
                               <span className="font-semibold block text-gray-800">{getTranslatedText("Referrer")}</span>
                               {referral.referrer?.name ? `${referral.referrer.name}` : (referral.referrer || getTranslatedText('Unknown'))}

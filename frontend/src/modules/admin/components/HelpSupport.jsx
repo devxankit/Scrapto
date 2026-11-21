@@ -1,8 +1,9 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import {
   FaTicketAlt, FaSearch, FaFilter, FaCheckCircle, FaExclamationCircle,
-  FaSpinner, FaUser, FaClock, FaComment
+  FaUser, FaClock, FaComment
 } from 'react-icons/fa';
 import { supportAPI } from '../../shared/utils/api';
 import { usePageTranslation } from '../../../hooks/usePageTranslation';
@@ -15,7 +16,7 @@ const STATUS_CONFIG = {
 };
 
 const PRIORITY_CONFIG = {
-  low: { color: '#718096', icon: FaCheckCircle },
+  low: { color: 'var(--ad-muted)', icon: FaCheckCircle },
   medium: { color: '#3182ce', icon: FaExclamationCircle },
   high: { color: '#d69e2e', icon: FaExclamationCircle },
   urgent: { color: '#e53e3e', icon: FaExclamationCircle }
@@ -125,7 +126,7 @@ const HelpSupport = () => {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Help & Support")}
             </h1>
             <p className="text-gray-600">
@@ -190,9 +191,7 @@ const HelpSupport = () => {
 
           <div className="p-2 space-y-2">
             {loading ? (
-              <div className="flex justify-center p-8">
-                <FaSpinner className="animate-spin text-2xl text-blue-500" />
-              </div>
+              <TableSkeleton rows={5} toolbar={false} />
             ) : tickets.length === 0 ? (
               <div className="text-center p-8 text-gray-500">
                 {getTranslatedText("No tickets found")}

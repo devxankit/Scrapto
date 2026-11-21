@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -224,16 +225,16 @@ const UsersList = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("User Management")}
             </h1>
-            <p className="text-xs md:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Manage all registered users on the platform")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-              <span className="text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+              <span className="text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("{count} Total Users", { count: users.length })}
               </span>
             </div>
@@ -251,7 +252,7 @@ const UsersList = () => {
         <div className="flex flex-col md:flex-row gap-2 md:gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: '#718096' }} />
+            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: 'var(--ad-muted)' }} />
             <input
               type="text"
               placeholder={getTranslatedText("Search by name, phone, or email...")}
@@ -273,9 +274,9 @@ const UsersList = () => {
               }}
               className="w-full pl-10 md:pl-12 pr-3 md:pr-4 py-2 md:py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all text-sm md:text-base"
               style={{
-                borderColor: '#e2e8f0',
-                focusBorderColor: '#64946e',
-                focusRingColor: '#64946e'
+                borderColor: 'var(--ad-border)',
+                focusBorderColor: 'var(--ad-primary)',
+                focusRingColor: 'var(--ad-primary)'
               }}
             />
           </div>
@@ -289,8 +290,8 @@ const UsersList = () => {
                 className={`px-2.5 py-1.5 md:px-4 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm transition-all ${filter === status ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: filter === status ? '#64946e' : '#f7fafc',
-                  color: filter === status ? '#ffffff' : '#2d3748'
+                  backgroundColor: filter === status ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: filter === status ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {getTranslatedText(status)}
@@ -302,16 +303,7 @@ const UsersList = () => {
 
       {/* Loading / Error State */}
       {loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
-        >
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p className="text-sm md:text-base font-semibold" style={{ color: '#2d3748' }}>
-            {getTranslatedText("Loading users...")}
-          </p>
-        </motion.div>
+        <TableSkeleton />
       )}
 
       {error && !loading && (
@@ -321,16 +313,16 @@ const UsersList = () => {
           className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
         >
           <FaUserTimes className="mx-auto mb-4 text-4xl" style={{ color: '#ef4444' }} />
-          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#2d3748' }}>
+          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Error loading users")}
           </h3>
-          <p className="text-sm md:text-base mb-4" style={{ color: '#718096' }}>
+          <p className="text-sm md:text-base mb-4" style={{ color: 'var(--ad-muted)' }}>
             {error}
           </p>
           <button
             onClick={loadUsersData}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: '#64946e' }}
+            style={{ backgroundColor: 'var(--ad-primary)' }}
           >
             {getTranslatedText("Retry")}
           </button>
@@ -352,11 +344,11 @@ const UsersList = () => {
                 animate={{ opacity: 1 }}
                 className="p-12 text-center"
               >
-                <FaUsers className="mx-auto mb-4" style={{ color: '#cbd5e0', fontSize: '48px' }} />
-                <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <FaUsers className="mx-auto mb-4" style={{ color: 'var(--ad-border-strong)', fontSize: '48px' }} />
+                <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("No users found")}
                 </p>
-                <p className="text-sm" style={{ color: '#718096' }}>
+                <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                   {searchQuery ? getTranslatedText('Try a different search term') : getTranslatedText('No users registered yet')}
                 </p>
               </motion.div>
@@ -369,7 +361,7 @@ const UsersList = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`p-3 md:p-6 hover:bg-gray-50 transition-all ${index !== filteredUsers.length - 1 ? 'border-b' : ''
                     }`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  style={{ borderColor: 'var(--ad-border)' }}
                 >
                   <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                     {/* User Info */}
@@ -377,20 +369,20 @@ const UsersList = () => {
                       <div className="flex items-start gap-2 md:gap-4">
                         <div
                           className="w-10 h-10 md:w-16 md:h-16 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: '#f7fafc' }}
+                          style={{ backgroundColor: 'var(--ad-surface-2)' }}
                         >
-                          <span className="text-base md:text-2xl font-bold" style={{ color: '#64946e' }}>
+                          <span className="text-base md:text-2xl font-bold" style={{ color: 'var(--ad-primary)' }}>
                             {user.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2 flex-wrap">
-                            <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                            <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                               {user.name}
                             </h3>
                             {getStatusBadge(user.status)}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 md:gap-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 md:gap-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <div className="flex items-center gap-1.5 md:gap-2">
                               <FaPhone className="text-xs" />
                               <span className="truncate">{user.phone}</span>
@@ -418,7 +410,7 @@ const UsersList = () => {
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleViewDetails(user.id)}
                         className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1.5 md:gap-2 transition-all"
-                        style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                        style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                       >
                         <FaEye className="text-xs md:text-sm" />
                         <span className="hidden sm:inline">{getTranslatedText("View")}</span>

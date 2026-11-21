@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -9,8 +10,7 @@ import {
   FaExclamationTriangle,
   FaEye,
   FaSearch,
-  FaFilter,
-  FaSpinner
+  FaFilter
 } from 'react-icons/fa';
 
 const FraudDetection = () => {
@@ -184,9 +184,7 @@ const FraudDetection = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <FaSpinner className="animate-spin text-4xl text-green-600" />
-      </div>
+      <TableSkeleton />
     );
   }
 
@@ -207,10 +205,10 @@ const FraudDetection = () => {
               <FaShieldAlt className="text-3xl" style={{ color: '#ef4444' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Fraud Detection")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("Review and manage flagged referrals")}
               </p>
             </div>
@@ -219,7 +217,7 @@ const FraudDetection = () => {
             <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>
               {flaggedReferrals.length}
             </p>
-            <p className="text-xs" style={{ color: '#718096' }}>
+            <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Flagged Referrals")}
             </p>
           </div>
@@ -228,7 +226,7 @@ const FraudDetection = () => {
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#718096' }} />
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-muted)' }} />
             <input
               type="text"
               placeholder={getTranslatedText("Search by code, referrer, or referee...")}
@@ -236,9 +234,9 @@ const FraudDetection = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
               style={{
-                borderColor: '#e2e8f0',
-                backgroundColor: '#f7fafc',
-                color: '#2d3748'
+                borderColor: 'var(--ad-border)',
+                backgroundColor: 'var(--ad-surface-2)',
+                color: 'var(--ad-ink)'
               }}
             />
           </div>
@@ -247,9 +245,9 @@ const FraudDetection = () => {
             onChange={(e) => setFilterSeverity(e.target.value)}
             className="px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
             style={{
-              borderColor: '#e2e8f0',
-              backgroundColor: '#f7fafc',
-              color: '#2d3748'
+              borderColor: 'var(--ad-border)',
+              backgroundColor: 'var(--ad-surface-2)',
+              color: 'var(--ad-ink)'
             }}
           >
             <option value="all">{getTranslatedText("All Severities")}</option>
@@ -270,11 +268,11 @@ const FraudDetection = () => {
         <AnimatePresence>
           {filteredReferrals.length === 0 ? (
             <div className="p-12 text-center">
-              <FaShieldAlt className="text-5xl mx-auto mb-4" style={{ color: '#cbd5e0' }} />
-              <h3 className="text-lg font-bold mb-2" style={{ color: '#2d3748' }}>
+              <FaShieldAlt className="text-5xl mx-auto mb-4" style={{ color: 'var(--ad-border-strong)' }} />
+              <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("No Flagged Referrals")}
               </h3>
-              <p className="text-sm" style={{ color: '#718096' }}>
+              <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                 {searchTerm || filterSeverity !== 'all'
                   ? getTranslatedText('Try adjusting your filters')
                   : getTranslatedText('All referrals are clean!')}
@@ -297,7 +295,7 @@ const FraudDetection = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`p-3 md:p-6 hover:bg-gray-50 transition-all cursor-pointer ${index !== filteredReferrals.length - 1 ? 'border-b' : ''
                     }`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  style={{ borderColor: 'var(--ad-border)' }}
                   onClick={() => {
                     setSelectedReferral(referral);
                     setShowDetailModal(true);
@@ -314,13 +312,13 @@ const FraudDetection = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                            <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                               {referral.codeUsed || getTranslatedText('No Code')}
                             </h3>
                             {highestSeverity && getSeverityBadge(highestSeverity.severity)}
 
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <div>
                               <span className="font-semibold">{getTranslatedText("Referrer:")}</span> {referral.referrer?.name || referral.referrerId}
                             </div>
@@ -332,7 +330,7 @@ const FraudDetection = () => {
                             </div>
                           </div>
                           <div className="mt-2">
-                            <p className="text-xs font-semibold mb-1" style={{ color: '#2d3748' }}>
+                            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ad-ink)' }}>
                               {getTranslatedText("Fraud Flags ({count}):", { count: referral.fraudFlags?.length || 0 })}
                             </p>
                             <div className="flex flex-wrap gap-1">
@@ -372,7 +370,7 @@ const FraudDetection = () => {
                           setShowDetailModal(true);
                         }}
                         className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1.5 md:gap-2 transition-all"
-                        style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                        style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                       >
                         <FaEye className="text-xs md:text-sm" />
                         <span className="hidden sm:inline">{getTranslatedText("Review")}</span>
@@ -405,38 +403,38 @@ const FraudDetection = () => {
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold" style={{ color: '#2d3748' }}>
+                  <h2 className="text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Referral Details")}
                   </h2>
                   <button
                     onClick={() => setShowDetailModal(false)}
                     className="p-2 rounded-full hover:bg-gray-100"
                   >
-                    <FaTimesCircle style={{ color: '#718096' }} />
+                    <FaTimesCircle style={{ color: 'var(--ad-muted)' }} />
                   </button>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("Referral Code")}</p>
-                    <p className="text-base" style={{ color: '#2d3748' }}>{selectedReferral.codeUsed || getTranslatedText('None')}</p>
+                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Referral Code")}</p>
+                    <p className="text-base" style={{ color: 'var(--ad-ink)' }}>{selectedReferral.codeUsed || getTranslatedText('None')}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("Referrer")}</p>
-                      <p className="text-base" style={{ color: '#2d3748' }}>{selectedReferral.referrer?.name} ({selectedReferral.referrer?.email})</p>
+                      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Referrer")}</p>
+                      <p className="text-base" style={{ color: 'var(--ad-ink)' }}>{selectedReferral.referrer?.name} ({selectedReferral.referrer?.email})</p>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("Referee")}</p>
-                      <p className="text-base" style={{ color: '#2d3748' }}>{selectedReferral.referee?.name} ({selectedReferral.referee?.email})</p>
+                      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Referee")}</p>
+                      <p className="text-base" style={{ color: 'var(--ad-ink)' }}>{selectedReferral.referee?.name} ({selectedReferral.referee?.email})</p>
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("Created At")}</p>
-                    <p className="text-base" style={{ color: '#2d3748' }}>{new Date(selectedReferral.createdAt).toLocaleString()}</p>
+                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Created At")}</p>
+                    <p className="text-base" style={{ color: 'var(--ad-ink)' }}>{new Date(selectedReferral.createdAt).toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold mb-2" style={{ color: '#718096' }}>{getTranslatedText("Fraud Flags")}</p>
+                    <p className="text-sm font-semibold mb-2" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Fraud Flags")}</p>
                     <div className="space-y-2">
                       {selectedReferral.fraudFlags?.map((flag, index) => (
                         <div
@@ -449,25 +447,25 @@ const FraudDetection = () => {
                         >
                           <div className="flex items-center gap-2 mb-1">
                             {getSeverityBadge(flag.severity)}
-                            <span className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                            <span className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                               {flag.type}
                             </span>
                           </div>
-                          <p className="text-xs" style={{ color: '#718096' }}>{flag.message}</p>
+                          <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{flag.message}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                   {selectedReferral.deviceInfo && (
                     <div>
-                      <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("Device Info")}</p>
-                      <p className="text-xs" style={{ color: '#2d3748' }}>{selectedReferral.deviceInfo}</p>
+                      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Device Info")}</p>
+                      <p className="text-xs" style={{ color: 'var(--ad-ink)' }}>{selectedReferral.deviceInfo}</p>
                     </div>
                   )}
                   {selectedReferral.ipAddress && (
                     <div>
-                      <p className="text-sm font-semibold mb-1" style={{ color: '#718096' }}>{getTranslatedText("IP Address")}</p>
-                      <p className="text-xs" style={{ color: '#2d3748' }}>{selectedReferral.ipAddress}</p>
+                      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("IP Address")}</p>
+                      <p className="text-xs" style={{ color: 'var(--ad-ink)' }}>{selectedReferral.ipAddress}</p>
                     </div>
                   )}
                 </div>

@@ -1,3 +1,4 @@
+import { CardGridSkeleton } from '../ui/components';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaPlus, FaImage, FaTrash, FaToggleOn, FaToggleOff, FaSpinner, FaEye } from 'react-icons/fa';
@@ -279,9 +280,7 @@ const BannerManagement = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {loading ? (
-                    <div className="col-span-full flex justify-center py-12">
-                        <FaSpinner className="text-4xl text-green-600 animate-spin" />
-                    </div>
+                    <div className="col-span-full"><CardGridSkeleton count={6} min={300} height={210} /></div>
                 ) : banners.length === 0 ? (
                     <div className="col-span-full text-center py-12 bg-white rounded-2xl shadow">
                         <p className="text-gray-500 text-lg">{getTranslatedText("No banners found. Create one to get started!")}</p>

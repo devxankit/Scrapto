@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { FaUserShield, FaCheckCircle, FaTimesCircle, FaEye, FaClock, FaFilter } from 'react-icons/fa';
@@ -186,16 +187,16 @@ const KYCQueue = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("KYC Verification Queue")}
             </h1>
-            <p className="text-xs md:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Review and verify scrapper KYC submissions")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-              <span className="text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+              <span className="text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("{count} Pending", { count: filteredKYCs.filter(k => k.status === 'pending').length })}
               </span>
             </div>
@@ -220,9 +221,9 @@ const KYCQueue = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full px-3 py-2 md:px-4 md:py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all text-sm md:text-base"
               style={{
-                borderColor: '#e2e8f0',
-                focusBorderColor: '#64946e',
-                focusRingColor: '#64946e'
+                borderColor: 'var(--ad-border)',
+                focusBorderColor: 'var(--ad-primary)',
+                focusRingColor: 'var(--ad-primary)'
               }}
             />
           </div>
@@ -236,8 +237,8 @@ const KYCQueue = () => {
                 className={`px-2.5 py-1.5 md:px-4 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm transition-all ${filter === status ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: filter === status ? '#64946e' : '#f7fafc',
-                  color: filter === status ? '#ffffff' : '#2d3748'
+                  backgroundColor: filter === status ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: filter === status ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {getTranslatedText(status)}
@@ -249,16 +250,7 @@ const KYCQueue = () => {
 
       {/* Loading / Error State */}
       {loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
-        >
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p className="text-sm md:text-base font-semibold" style={{ color: '#2d3748' }}>
-            {getTranslatedText("Loading KYC data...")}
-          </p>
-        </motion.div>
+        <TableSkeleton />
       )}
 
       {error && !loading && (
@@ -268,16 +260,16 @@ const KYCQueue = () => {
           className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
         >
           <FaTimesCircle className="mx-auto mb-4 text-4xl" style={{ color: '#ef4444' }} />
-          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#2d3748' }}>
+          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Error loading KYC data")}
           </h3>
-          <p className="text-sm md:text-base mb-4" style={{ color: '#718096' }}>
+          <p className="text-sm md:text-base mb-4" style={{ color: 'var(--ad-muted)' }}>
             {error}
           </p>
           <button
             onClick={loadKYCData}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: '#64946e' }}
+            style={{ backgroundColor: 'var(--ad-primary)' }}
           >
             {getTranslatedText("Retry")}
           </button>
@@ -299,11 +291,11 @@ const KYCQueue = () => {
                 animate={{ opacity: 1 }}
                 className="p-12 text-center"
               >
-                <FaUserShield className="mx-auto mb-4" style={{ color: '#cbd5e0', fontSize: '48px' }} />
-                <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <FaUserShield className="mx-auto mb-4" style={{ color: 'var(--ad-border-strong)', fontSize: '48px' }} />
+                <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("No KYC submissions found")}
                 </p>
-                <p className="text-sm" style={{ color: '#718096' }}>
+                <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                   {searchQuery ? getTranslatedText('Try a different search term') : getTranslatedText('All KYC submissions have been processed')}
                 </p>
               </motion.div>
@@ -316,7 +308,7 @@ const KYCQueue = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`p-3 md:p-6 hover:bg-gray-50 transition-all ${index !== filteredKYCs.length - 1 ? 'border-b' : ''
                     }`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  style={{ borderColor: 'var(--ad-border)' }}
                 >
                   <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                     {/* Scrapper Info */}
@@ -324,18 +316,18 @@ const KYCQueue = () => {
                       <div className="flex items-start gap-2 md:gap-4">
                         <div
                           className="w-10 h-10 md:w-16 md:h-16 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: '#f7fafc' }}
+                          style={{ backgroundColor: 'var(--ad-surface-2)' }}
                         >
-                          <FaUserShield style={{ color: '#64946e' }} className="text-lg md:text-2xl" />
+                          <FaUserShield style={{ color: 'var(--ad-primary)' }} className="text-lg md:text-2xl" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2 flex-wrap">
-                            <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                            <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                               {kyc.scrapperName}
                             </h3>
                             {getStatusBadge(kyc.status)}
                           </div>
-                          <div className="space-y-0.5 md:space-y-1 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="space-y-0.5 md:space-y-1 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <p>📱 {kyc.scrapperPhone}</p>
                             <p>{getTranslatedText("🆔 Aadhaar: {number}", { number: kyc.aadhaarNumber })}</p>
                             <p>🚗 {kyc.vehicleInfo}</p>
@@ -352,7 +344,7 @@ const KYCQueue = () => {
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleViewDetails(kyc)}
                         className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1.5 md:gap-2 transition-all"
-                        style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                        style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                       >
                         <FaEye className="text-xs md:text-sm" />
                         <span className="hidden sm:inline">{getTranslatedText("View Details")}</span>

@@ -1,3 +1,4 @@
+import { CardGridSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -124,9 +125,7 @@ const MilestoneRewards = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <FaSpinner className="animate-spin text-4xl text-green-600" />
-      </div>
+      <CardGridSkeleton count={4} />
     );
   }
 
@@ -156,15 +155,15 @@ const MilestoneRewards = () => {
         <div className="flex items-center gap-4">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+            style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
           >
-            <FaGift className="text-3xl" style={{ color: '#64946e' }} />
+            <FaGift className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
           </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+            <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Milestone Rewards")}
             </h1>
-            <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+            <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Configure milestone reward amounts for users and scrappers")}
             </p>
           </div>
@@ -179,8 +178,8 @@ const MilestoneRewards = () => {
         className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
       >
         <div className="flex items-center gap-3 mb-6">
-          <FaUsers className="text-2xl" style={{ color: '#64946e' }} />
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <FaUsers className="text-2xl" style={{ color: 'var(--ad-primary)' }} />
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("User Milestone Rewards")}
           </h2>
         </div>
@@ -189,13 +188,13 @@ const MilestoneRewards = () => {
           {userMilestones.map((milestone) => {
             const config = milestones.user?.[milestone.key] || { enabled: false, referrer: 0, referee: 0 };
             return (
-              <div key={milestone.key} className="p-4 rounded-xl border" style={{ borderColor: '#e2e8f0', backgroundColor: '#f7fafc' }}>
+              <div key={milestone.key} className="p-4 rounded-xl border" style={{ borderColor: 'var(--ad-border)', backgroundColor: 'var(--ad-surface-2)' }}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1" style={{ color: '#2d3748' }}>
+                    <h3 className="font-semibold mb-1" style={{ color: 'var(--ad-ink)' }}>
                       {milestone.label}
                     </h3>
-                    <p className="text-xs" style={{ color: '#718096' }}>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                       {milestone.desc}
                     </p>
                   </div>
@@ -207,7 +206,7 @@ const MilestoneRewards = () => {
                     {config.enabled ? (
                       <FaToggleOn className="text-3xl" style={{ color: '#10b981' }} />
                     ) : (
-                      <FaToggleOff className="text-3xl" style={{ color: '#cbd5e0' }} />
+                      <FaToggleOff className="text-3xl" style={{ color: 'var(--ad-border-strong)' }} />
                     )}
                   </motion.button>
                 </div>
@@ -215,20 +214,20 @@ const MilestoneRewards = () => {
                 {config.enabled && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                      <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                         {getTranslatedText("Referrer Reward (₹)")}
                       </label>
                       <div className="relative">
-                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                         <input
                           type="number"
                           value={config.referrer}
                           onChange={(e) => handleChange('user', milestone.key, 'referrer', e.target.value)}
                           className="w-full pl-8 pr-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 text-sm"
                           style={{
-                            borderColor: '#e2e8f0',
+                            borderColor: 'var(--ad-border)',
                             backgroundColor: '#ffffff',
-                            color: '#2d3748'
+                            color: 'var(--ad-ink)'
                           }}
                           min="0"
                           step="1"
@@ -236,20 +235,20 @@ const MilestoneRewards = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                      <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                         {getTranslatedText("Referee Reward (₹)")}
                       </label>
                       <div className="relative">
-                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                         <input
                           type="number"
                           value={config.referee}
                           onChange={(e) => handleChange('user', milestone.key, 'referee', e.target.value)}
                           className="w-full pl-8 pr-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 text-sm"
                           style={{
-                            borderColor: '#e2e8f0',
+                            borderColor: 'var(--ad-border)',
                             backgroundColor: '#ffffff',
-                            color: '#2d3748'
+                            color: 'var(--ad-ink)'
                           }}
                           min="0"
                           step="1"
@@ -272,8 +271,8 @@ const MilestoneRewards = () => {
         className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
       >
         <div className="flex items-center gap-3 mb-6">
-          <FaTruck className="text-2xl" style={{ color: '#64946e' }} />
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <FaTruck className="text-2xl" style={{ color: 'var(--ad-primary)' }} />
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Scrapper Milestone Rewards")}
           </h2>
         </div>
@@ -282,13 +281,13 @@ const MilestoneRewards = () => {
           {scrapperMilestones.map((milestone) => {
             const config = milestones.scrapper?.[milestone.key] || { enabled: false, referrer: 0, referee: 0 };
             return (
-              <div key={milestone.key} className="p-4 rounded-xl border" style={{ borderColor: '#e2e8f0', backgroundColor: '#f7fafc' }}>
+              <div key={milestone.key} className="p-4 rounded-xl border" style={{ borderColor: 'var(--ad-border)', backgroundColor: 'var(--ad-surface-2)' }}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1" style={{ color: '#2d3748' }}>
+                    <h3 className="font-semibold mb-1" style={{ color: 'var(--ad-ink)' }}>
                       {milestone.label}
                     </h3>
-                    <p className="text-xs" style={{ color: '#718096' }}>
+                    <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                       {milestone.desc}
                     </p>
                   </div>
@@ -300,7 +299,7 @@ const MilestoneRewards = () => {
                     {config.enabled ? (
                       <FaToggleOn className="text-3xl" style={{ color: '#10b981' }} />
                     ) : (
-                      <FaToggleOff className="text-3xl" style={{ color: '#cbd5e0' }} />
+                      <FaToggleOff className="text-3xl" style={{ color: 'var(--ad-border-strong)' }} />
                     )}
                   </motion.button>
                 </div>
@@ -308,20 +307,20 @@ const MilestoneRewards = () => {
                 {config.enabled && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                      <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                         {getTranslatedText("Referrer Reward (₹)")}
                       </label>
                       <div className="relative">
-                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                         <input
                           type="number"
                           value={config.referrer}
                           onChange={(e) => handleChange('scrapper', milestone.key, 'referrer', e.target.value)}
                           className="w-full pl-8 pr-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 text-sm"
                           style={{
-                            borderColor: '#e2e8f0',
+                            borderColor: 'var(--ad-border)',
                             backgroundColor: '#ffffff',
-                            color: '#2d3748'
+                            color: 'var(--ad-ink)'
                           }}
                           min="0"
                           step="1"
@@ -329,20 +328,20 @@ const MilestoneRewards = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                      <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                         {getTranslatedText("Referee Reward (₹)")}
                       </label>
                       <div className="relative">
-                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                        <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                         <input
                           type="number"
                           value={config.referee}
                           onChange={(e) => handleChange('scrapper', milestone.key, 'referee', e.target.value)}
                           className="w-full pl-8 pr-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 text-sm"
                           style={{
-                            borderColor: '#e2e8f0',
+                            borderColor: 'var(--ad-border)',
                             backgroundColor: '#ffffff',
-                            color: '#2d3748'
+                            color: 'var(--ad-ink)'
                           }}
                           min="0"
                           step="1"
@@ -371,7 +370,7 @@ const MilestoneRewards = () => {
           disabled={saving}
           className="px-6 py-3 rounded-xl font-semibold text-base flex items-center gap-2 transition-all"
           style={{
-            backgroundColor: saved ? '#10b981' : '#64946e',
+            backgroundColor: saved ? '#10b981' : 'var(--ad-primary)',
             color: '#ffffff'
           }}
         >

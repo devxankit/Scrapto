@@ -1,3 +1,4 @@
+import { CardGridSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { referralAPI } from '../../shared/utils/api';
@@ -132,9 +133,7 @@ const TierManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <FaSpinner className="animate-spin text-4xl text-green-600" />
-      </div>
+      <CardGridSkeleton count={4} />
     );
   }
 
@@ -150,15 +149,15 @@ const TierManagement = () => {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+              style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
             >
-              <FaTrophy className="text-3xl" style={{ color: '#64946e' }} />
+              <FaTrophy className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Tier Management")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("Configure referral tier thresholds and bonuses")}
               </p>
             </div>
@@ -195,15 +194,15 @@ const TierManagement = () => {
               <div className="flex items-center gap-3 mb-6">
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
-                  style={{ backgroundColor: `${tier.color}20`, border: `2px solid ${tier.color}` }}
+                  style={{ backgroundColor: `color-mix(in srgb, ${tier.color} 13%, transparent)`, border: `2px solid ${tier.color}` }}
                 >
                   <FaTrophy style={{ color: tier.color }} />
                 </div>
                 <div>
-                  <h2 className="text-lg md:text-xl font-bold capitalize" style={{ color: '#2d3748' }}>
+                  <h2 className="text-lg md:text-xl font-bold capitalize" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText(tier.name)} {getTranslatedText("Tier")}
                   </h2>
-                  <p className="text-xs" style={{ color: '#718096' }}>
+                  <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                     {getTranslatedText("Minimum {count} referrals required", { count: tier.minReferrals })}
                   </p>
                 </div>
@@ -211,7 +210,7 @@ const TierManagement = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="lg:col-span-1">
-                  <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Tier Name")}
                   </label>
                   <input
@@ -220,14 +219,14 @@ const TierManagement = () => {
                     onChange={(e) => handleChange(index, 'name', e.target.value)}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
                     style={{
-                      borderColor: '#e2e8f0',
-                      backgroundColor: '#f7fafc',
-                      color: '#2d3748'
+                      borderColor: 'var(--ad-border)',
+                      backgroundColor: 'var(--ad-surface-2)',
+                      color: 'var(--ad-ink)'
                     }}
                   />
                 </div>
                 <div className="lg:col-span-1">
-                  <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Color (Hex)")}
                   </label>
                   <div className="flex gap-2">
@@ -246,7 +245,7 @@ const TierManagement = () => {
                   </div>
                 </div>
                 <div className="lg:col-span-1">
-                  <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Min Referrals")}
                   </label>
                   <input
@@ -255,28 +254,28 @@ const TierManagement = () => {
                     onChange={(e) => handleChange(index, 'minReferrals', e.target.value)}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
                     style={{
-                      borderColor: '#e2e8f0',
-                      backgroundColor: '#f7fafc',
-                      color: '#2d3748'
+                      borderColor: 'var(--ad-border)',
+                      backgroundColor: 'var(--ad-surface-2)',
+                      color: 'var(--ad-ink)'
                     }}
                     min="0"
                   />
                 </div>
                 <div className="lg:col-span-1">
-                  <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Bonus %")}
                   </label>
                   <div className="relative">
-                    <FaPercent className="absolute right-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaPercent className="absolute right-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={tier.bonusPercent}
                       onChange={(e) => handleChange(index, 'bonusPercent', e.target.value)}
                       className="w-full px-4 py-2 pr-8 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                       max="100"
@@ -285,20 +284,20 @@ const TierManagement = () => {
                   </div>
                 </div>
                 <div className="lg:col-span-1">
-                  <label className="block text-xs font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Monthly Bonus (₹)")}
                   </label>
                   <div className="relative">
-                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: '#64946e' }} />
+                    <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--ad-primary)' }} />
                     <input
                       type="number"
                       value={tier.monthlyBonus}
                       onChange={(e) => handleChange(index, 'monthlyBonus', e.target.value)}
                       className="w-full pl-8 pr-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 text-sm"
                       style={{
-                        borderColor: '#e2e8f0',
-                        backgroundColor: '#f7fafc',
-                        color: '#2d3748'
+                        borderColor: 'var(--ad-border)',
+                        backgroundColor: 'var(--ad-surface-2)',
+                        color: 'var(--ad-ink)'
                       }}
                       min="0"
                     />
@@ -324,7 +323,7 @@ const TierManagement = () => {
           disabled={saving}
           className="px-8 py-3 rounded-xl font-bold text-lg flex items-center gap-3 transition-all shadow-lg hover:shadow-xl"
           style={{
-            backgroundColor: saved ? '#10b981' : '#64946e',
+            backgroundColor: saved ? '#10b981' : 'var(--ad-primary)',
             color: '#ffffff'
           }}
         >

@@ -164,10 +164,10 @@ const AdminProfile = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-2xl md:text-3xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("My Profile")}
             </h1>
-            <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+            <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Manage your account settings and preferences")}
             </p>
           </div>
@@ -177,7 +177,7 @@ const AdminProfile = () => {
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsEditing(true)}
               className="px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-              style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+              style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
             >
               <FaEdit />
               {getTranslatedText("Edit Profile")}
@@ -201,9 +201,9 @@ const AdminProfile = () => {
               <div className="relative mx-auto md:mx-0">
                 <div
                   className="w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: '#f7fafc' }}
+                  style={{ backgroundColor: 'var(--ad-surface-2)' }}
                 >
-                  <span className="text-4xl md:text-5xl font-bold" style={{ color: '#64946e' }}>
+                  <span className="text-4xl md:text-5xl font-bold" style={{ color: 'var(--ad-primary)' }}>
                     {formData.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
@@ -212,7 +212,7 @@ const AdminProfile = () => {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     className="absolute bottom-0 right-0 w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
-                    style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                    style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                   >
                     <FaCamera className="text-sm" />
                   </motion.button>
@@ -223,7 +223,7 @@ const AdminProfile = () => {
               <div className="flex-1 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       <FaUser className="inline mr-2" />
                       {getTranslatedText("Full Name")}
                     </label>
@@ -235,20 +235,20 @@ const AdminProfile = () => {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                         style={{
-                          borderColor: '#e2e8f0',
-                          focusBorderColor: '#64946e',
-                          focusRingColor: '#64946e'
+                          borderColor: 'var(--ad-border)',
+                          focusBorderColor: 'var(--ad-primary)',
+                          focusRingColor: 'var(--ad-primary)'
                         }}
                       />
                     ) : (
-                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                         {formData.name}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       <FaEnvelope className="inline mr-2" />
                       {getTranslatedText("Email")}
                     </label>
@@ -260,20 +260,20 @@ const AdminProfile = () => {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                         style={{
-                          borderColor: '#e2e8f0',
-                          focusBorderColor: '#64946e',
-                          focusRingColor: '#64946e'
+                          borderColor: 'var(--ad-border)',
+                          focusBorderColor: 'var(--ad-primary)',
+                          focusRingColor: 'var(--ad-primary)'
                         }}
                       />
                     ) : (
-                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                         {formData.email}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       <FaPhone className="inline mr-2" />
                       {getTranslatedText("Phone")}
                     </label>
@@ -285,20 +285,20 @@ const AdminProfile = () => {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                         style={{
-                          borderColor: '#e2e8f0',
-                          focusBorderColor: '#64946e',
-                          focusRingColor: '#64946e'
+                          borderColor: 'var(--ad-border)',
+                          focusBorderColor: 'var(--ad-primary)',
+                          focusRingColor: 'var(--ad-primary)'
                         }}
                       />
                     ) : (
-                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                         {formData.phone}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       <FaShieldAlt className="inline mr-2" />
                       {getTranslatedText("Role")}
                     </label>
@@ -310,20 +310,20 @@ const AdminProfile = () => {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                         style={{
-                          borderColor: '#e2e8f0',
-                          focusBorderColor: '#64946e',
-                          focusRingColor: '#64946e'
+                          borderColor: 'var(--ad-border)',
+                          focusBorderColor: 'var(--ad-primary)',
+                          focusRingColor: 'var(--ad-primary)'
                         }}
                       />
                     ) : (
-                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                         {formData.role}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       {getTranslatedText("Department")}
                     </label>
                     {isEditing ? (
@@ -334,31 +334,31 @@ const AdminProfile = () => {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                         style={{
-                          borderColor: '#e2e8f0',
-                          focusBorderColor: '#64946e',
-                          focusRingColor: '#64946e'
+                          borderColor: 'var(--ad-border)',
+                          focusBorderColor: 'var(--ad-primary)',
+                          focusRingColor: 'var(--ad-primary)'
                         }}
                       />
                     ) : (
-                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                      <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                         {formData.department}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                    <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                       <FaCalendarAlt className="inline mr-2" />
                       {getTranslatedText("Member Since")}
                     </label>
-                    <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                    <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                       {new Date(admin.createdAt || Date.now()).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Bio")}
                   </label>
                   {isEditing ? (
@@ -369,13 +369,13 @@ const AdminProfile = () => {
                       rows={3}
                       className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                       style={{
-                        borderColor: '#e2e8f0',
-                        focusBorderColor: '#64946e',
-                        focusRingColor: '#64946e'
+                        borderColor: 'var(--ad-border)',
+                        focusBorderColor: 'var(--ad-primary)',
+                        focusRingColor: 'var(--ad-primary)'
                       }}
                     />
                   ) : (
-                    <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}>
+                    <p className="px-4 py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}>
                       {formData.bio}
                     </p>
                   )}
@@ -388,7 +388,7 @@ const AdminProfile = () => {
                       whileTap={{ scale: 0.95 }}
                       onClick={handleSaveProfile}
                       className="px-6 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-                      style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                      style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                     >
                       <FaSave />
                       {getTranslatedText("Save Changes")}
@@ -411,7 +411,7 @@ const AdminProfile = () => {
                         }
                       }}
                       className="px-6 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-                      style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                      style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                     >
                       <FaTimes />
                       {getTranslatedText("Cancel")}
@@ -430,7 +430,7 @@ const AdminProfile = () => {
             className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold" style={{ color: '#2d3748' }}>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                 <FaLock className="inline mr-2" />
                 {getTranslatedText("Change Password")}
               </h2>
@@ -440,7 +440,7 @@ const AdminProfile = () => {
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsChangingPassword(true)}
                   className="px-4 py-2 rounded-xl font-semibold text-sm transition-all"
-                  style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                  style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                 >
                   {getTranslatedText("Change")}
                 </motion.button>
@@ -450,7 +450,7 @@ const AdminProfile = () => {
             {isChangingPassword && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Current Password")}
                   </label>
                   <input
@@ -460,14 +460,14 @@ const AdminProfile = () => {
                     onChange={handlePasswordChange}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                     style={{
-                      borderColor: '#e2e8f0',
-                      focusBorderColor: '#64946e',
-                      focusRingColor: '#64946e'
+                      borderColor: 'var(--ad-border)',
+                      focusBorderColor: 'var(--ad-primary)',
+                      focusRingColor: 'var(--ad-primary)'
                     }}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("New Password")}
                   </label>
                   <input
@@ -477,14 +477,14 @@ const AdminProfile = () => {
                     onChange={handlePasswordChange}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                     style={{
-                      borderColor: '#e2e8f0',
-                      focusBorderColor: '#64946e',
-                      focusRingColor: '#64946e'
+                      borderColor: 'var(--ad-border)',
+                      focusBorderColor: 'var(--ad-primary)',
+                      focusRingColor: 'var(--ad-primary)'
                     }}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Confirm New Password")}
                   </label>
                   <input
@@ -494,9 +494,9 @@ const AdminProfile = () => {
                     onChange={handlePasswordChange}
                     className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                     style={{
-                      borderColor: '#e2e8f0',
-                      focusBorderColor: '#64946e',
-                      focusRingColor: '#64946e'
+                      borderColor: 'var(--ad-border)',
+                      focusBorderColor: 'var(--ad-primary)',
+                      focusRingColor: 'var(--ad-primary)'
                     }}
                   />
                 </div>
@@ -506,7 +506,7 @@ const AdminProfile = () => {
                     whileTap={{ scale: 0.95 }}
                     onClick={handleChangePassword}
                     className="px-6 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-                    style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                    style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                   >
                     <FaKey />
                     {getTranslatedText("Update Password")}
@@ -523,7 +523,7 @@ const AdminProfile = () => {
                       });
                     }}
                     className="px-6 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-                    style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                    style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                   >
                     <FaTimes />
                     {getTranslatedText("Cancel")}
@@ -543,21 +543,21 @@ const AdminProfile = () => {
             transition={{ delay: 0.3 }}
             className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
           >
-            <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+            <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
               <FaBell className="inline mr-2" />
               {getTranslatedText("Notifications")}
             </h2>
             <div className="space-y-4">
               {Object.entries(notifications).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: '#2d3748' }}>
+                  <span className="text-sm font-medium" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText(key.charAt(0).toUpperCase() + key.slice(1) + " Notifications")}
                   </span>
                   <button
                     onClick={() => handleNotificationToggle(key)}
                     className={'w-12 h-6 rounded-full transition-all relative'}
                     style={{
-                      backgroundColor: value ? '#64946e' : '#cbd5e0'
+                      backgroundColor: value ? 'var(--ad-primary)' : 'var(--ad-border-strong)'
                     }}
                   >
                     <span
@@ -579,13 +579,13 @@ const AdminProfile = () => {
             transition={{ delay: 0.4 }}
             className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
           >
-            <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+            <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
               <FaGlobe className="inline mr-2" />
               {getTranslatedText("Preferences")}
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("Language")}
                 </label>
                 <select
@@ -593,9 +593,9 @@ const AdminProfile = () => {
                   onChange={(e) => setLanguage(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all"
                   style={{
-                    borderColor: '#e2e8f0',
-                    focusBorderColor: '#64946e',
-                    focusRingColor: '#64946e'
+                    borderColor: 'var(--ad-border)',
+                    focusBorderColor: 'var(--ad-primary)',
+                    focusRingColor: 'var(--ad-primary)'
                   }}
                 >
                   <option value="en">{getTranslatedText("English")}</option>
@@ -613,17 +613,17 @@ const AdminProfile = () => {
             transition={{ delay: 0.5 }}
             className="bg-white rounded-2xl shadow-lg p-4 md:p-6"
           >
-            <h2 className="text-xl font-bold mb-4" style={{ color: '#2d3748' }}>
+            <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Account Statistics")}
             </h2>
             <div className="space-y-3">
-              <div className="p-3 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-                <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Total Actions")}</p>
-                <p className="text-2xl font-bold" style={{ color: '#2d3748' }}>1,234</p>
+              <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+                <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Total Actions")}</p>
+                <p className="text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>1,234</p>
               </div>
-              <div className="p-3 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-                <p className="text-xs" style={{ color: '#718096' }}>{getTranslatedText("Last Login")}</p>
-                <p className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+              <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+                <p className="text-xs" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Last Login")}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                   {new Date().toLocaleString()}
                 </p>
               </div>

@@ -49,15 +49,15 @@ const LeaderboardManagement = () => {
           <div className="flex items-center gap-4">
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(100, 148, 110, 0.1)' }}
+              style={{ backgroundColor: 'rgba(var(--ad-primary-rgb), 0.1)' }}
             >
-              <FaTrophy className="text-3xl" style={{ color: '#64946e' }} />
+              <FaTrophy className="text-3xl" style={{ color: 'var(--ad-primary)' }} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: '#2d3748' }}>
+              <h1 className="text-2xl md:text-3xl font-bold mb-1" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("Referral Leaderboard")}
               </h1>
-              <p className="text-sm md:text-base" style={{ color: '#718096' }}>
+              <p className="text-sm md:text-base" style={{ color: 'var(--ad-muted)' }}>
                 {getTranslatedText("View top referrers and manage leaderboard settings")}
               </p>
             </div>
@@ -67,7 +67,7 @@ const LeaderboardManagement = () => {
             whileTap={{ scale: 0.95 }}
             onClick={handleExport}
             className="px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
-            style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+            style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
           >
             <FaDownload />
             {getTranslatedText("Export")}
@@ -77,7 +77,7 @@ const LeaderboardManagement = () => {
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("User Type")}
             </label>
             <div className="flex gap-2">
@@ -86,8 +86,8 @@ const LeaderboardManagement = () => {
                 className={`flex-1 px-4 py-2 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${selectedType === 'user' ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: selectedType === 'user' ? '#64946e' : '#f7fafc',
-                  color: selectedType === 'user' ? '#ffffff' : '#2d3748'
+                  backgroundColor: selectedType === 'user' ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: selectedType === 'user' ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 <FaUsers />
@@ -98,8 +98,8 @@ const LeaderboardManagement = () => {
                 className={`flex-1 px-4 py-2 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${selectedType === 'scrapper' ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: selectedType === 'scrapper' ? '#64946e' : '#f7fafc',
-                  color: selectedType === 'scrapper' ? '#ffffff' : '#2d3748'
+                  backgroundColor: selectedType === 'scrapper' ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: selectedType === 'scrapper' ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 <FaTruck />
@@ -108,7 +108,7 @@ const LeaderboardManagement = () => {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+            <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Period")}
             </label>
             <div className="flex gap-2">
@@ -117,8 +117,8 @@ const LeaderboardManagement = () => {
                 className={`flex-1 px-4 py-2 rounded-xl font-semibold text-sm transition-all ${selectedPeriod === 'all' ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: selectedPeriod === 'all' ? '#64946e' : '#f7fafc',
-                  color: selectedPeriod === 'all' ? '#ffffff' : '#2d3748'
+                  backgroundColor: selectedPeriod === 'all' ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: selectedPeriod === 'all' ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {getTranslatedText("All Time")}
@@ -128,8 +128,8 @@ const LeaderboardManagement = () => {
                 className={`flex-1 px-4 py-2 rounded-xl font-semibold text-sm transition-all ${selectedPeriod === 'monthly' ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: selectedPeriod === 'monthly' ? '#64946e' : '#f7fafc',
-                  color: selectedPeriod === 'monthly' ? '#ffffff' : '#2d3748'
+                  backgroundColor: selectedPeriod === 'monthly' ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: selectedPeriod === 'monthly' ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {getTranslatedText("This Month")}
@@ -148,30 +148,30 @@ const LeaderboardManagement = () => {
       >
         <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
           <div className="flex items-center gap-3 mb-2">
-            <FaUsers className="text-xl" style={{ color: '#64946e' }} />
-            <p className="text-sm" style={{ color: '#718096' }}>{getTranslatedText("Total Referrers")}</p>
+            <FaUsers className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+            <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Total Referrers")}</p>
           </div>
-          <p className="text-2xl font-bold" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {/* This would be calculated from leaderboard data */}
             -
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
           <div className="flex items-center gap-3 mb-2">
-            <FaTrophy className="text-xl" style={{ color: '#64946e' }} />
-            <p className="text-sm" style={{ color: '#718096' }}>{getTranslatedText("Top Referrals")}</p>
+            <FaTrophy className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+            <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Top Referrals")}</p>
           </div>
-          <p className="text-2xl font-bold" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {/* This would be calculated from leaderboard data */}
             -
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6">
           <div className="flex items-center gap-3 mb-2">
-            <FaChartBar className="text-xl" style={{ color: '#64946e' }} />
-            <p className="text-sm" style={{ color: '#718096' }}>{getTranslatedText("Total Rewards Paid")}</p>
+            <FaChartBar className="text-xl" style={{ color: 'var(--ad-primary)' }} />
+            <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>{getTranslatedText("Total Rewards Paid")}</p>
           </div>
-          <p className="text-2xl font-bold" style={{ color: '#2d3748' }}>
+          <p className="text-2xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {/* This would be calculated from leaderboard data */}
             -
           </p>
@@ -187,11 +187,11 @@ const LeaderboardManagement = () => {
       >
         <div className="flex items-center gap-3 mb-4">
           {selectedType === 'user' ? (
-            <FaUsers className="text-xl" style={{ color: '#64946e' }} />
+            <FaUsers className="text-xl" style={{ color: 'var(--ad-primary)' }} />
           ) : (
-            <FaTruck className="text-xl" style={{ color: '#64946e' }} />
+            <FaTruck className="text-xl" style={{ color: 'var(--ad-primary)' }} />
           )}
-          <h2 className="text-lg md:text-xl font-bold" style={{ color: '#2d3748' }}>
+          <h2 className="text-lg md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Top {type}", { type: selectedType === 'user' ? getTranslatedText('Users') : getTranslatedText('Scrappers') })}
           </h2>
         </div>

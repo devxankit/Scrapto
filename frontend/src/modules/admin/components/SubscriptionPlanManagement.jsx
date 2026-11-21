@@ -1,3 +1,4 @@
+import { CardGridSkeleton } from '../ui/components';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaCheck, FaTimes, FaSave } from 'react-icons/fa';
@@ -238,10 +239,10 @@ const SubscriptionPlanManagement = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-lg md:text-2xl lg:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Subscription Plan Management")}
             </h1>
-            <p className="text-xs md:text-sm lg:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-sm lg:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Create and manage subscription plans for scrappers")}
             </p>
           </div>
@@ -250,7 +251,7 @@ const SubscriptionPlanManagement = () => {
             whileTap={{ scale: 0.98 }}
             onClick={handleCreate}
             className="px-4 py-2 rounded-lg md:rounded-xl font-semibold text-sm md:text-base flex items-center gap-2 transition-all"
-            style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+            style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
           >
             <FaPlus />
             <span>{getTranslatedText("Create Plan")}</span>
@@ -260,16 +261,7 @@ const SubscriptionPlanManagement = () => {
 
       {/* Loading / Error State */}
       {loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
-        >
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p className="text-sm md:text-base font-semibold" style={{ color: '#2d3748' }}>
-            {getTranslatedText("Loading plans...")}
-          </p>
-        </motion.div>
+        <CardGridSkeleton count={3} min={280} height={260} />
       )}
 
       {error && !loading && (
@@ -278,13 +270,13 @@ const SubscriptionPlanManagement = () => {
           animate={{ opacity: 1 }}
           className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
         >
-          <p className="text-sm md:text-base mb-4" style={{ color: '#718096' }}>
+          <p className="text-sm md:text-base mb-4" style={{ color: 'var(--ad-muted)' }}>
             {error}
           </p>
           <button
             onClick={loadPlans}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: '#64946e' }}
+            style={{ backgroundColor: 'var(--ad-primary)' }}
           >
             {getTranslatedText("Retry")}
           </button>
@@ -302,24 +294,24 @@ const SubscriptionPlanManagement = () => {
               className="bg-white rounded-xl md:rounded-2xl shadow-lg p-4 md:p-6 relative"
             >
               {plan.isPopular && (
-                <div className="absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: '#64946e' }}>
+                <div className="absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: 'var(--ad-primary)' }}>
                   {getTranslatedText("Popular")}
                 </div>
               )}
               <div className="mb-4">
-                <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#2d3748' }}>
+                <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {plan.name}
                 </h3>
                 {plan.description && (
-                  <p className="text-xs md:text-sm mb-3" style={{ color: '#718096' }}>
+                  <p className="text-xs md:text-sm mb-3" style={{ color: 'var(--ad-muted)' }}>
                     {plan.description}
                   </p>
                 )}
                 <div className="flex items-baseline gap-2 mb-3">
-                  <span className="text-2xl md:text-3xl font-bold" style={{ color: '#64946e' }}>
+                  <span className="text-2xl md:text-3xl font-bold" style={{ color: 'var(--ad-primary)' }}>
                     ₹{plan.price}
                   </span>
-                  <span className="text-sm" style={{ color: '#718096' }}>
+                  <span className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                     / {formatDuration(plan.duration, plan.durationType)}
                   </span>
                 </div>
@@ -332,7 +324,7 @@ const SubscriptionPlanManagement = () => {
                       </li>
                     ))}
                     {plan.features.length > 3 && (
-                      <li className="text-xs" style={{ color: '#718096' }}>
+                      <li className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                         {getTranslatedText("+{count} more features", { count: plan.features.length - 3 })}
                       </li>
                     )}
@@ -346,12 +338,12 @@ const SubscriptionPlanManagement = () => {
                     {plan.isActive ? getTranslatedText('Active') : getTranslatedText('Inactive')}
                   </span>
                   {plan.maxPickups && (
-                    <span className="text-xs" style={{ color: '#718096' }}>
+                    <span className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                       {getTranslatedText("Max {count} pickups", { count: plan.maxPickups })}
                     </span>
                   )}
                   {plan.maxMarketplaceRequests && (
-                    <span className="text-xs" style={{ color: '#718096' }}>
+                    <span className="text-xs" style={{ color: 'var(--ad-muted)' }}>
                       {getTranslatedText("Max {count} marketplace requests", { count: plan.maxMarketplaceRequests })}
                     </span>
                   )}
@@ -363,7 +355,7 @@ const SubscriptionPlanManagement = () => {
                   whileTap={{ scale: 0.95 }}
                   onClick={() => handleEdit(plan)}
                   className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#f7fafc', color: '#64946e' }}
+                  style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-primary)' }}
                 >
                   <FaEdit />
                   <span>{getTranslatedText("Edit")}</span>
@@ -397,13 +389,13 @@ const SubscriptionPlanManagement = () => {
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
-            <h2 className="text-xl md:text-2xl font-bold mb-4" style={{ color: '#2d3748' }}>
+            <h2 className="text-xl md:text-2xl font-bold mb-4" style={{ color: 'var(--ad-ink)' }}>
               {editingId ? getTranslatedText('Edit Plan') : getTranslatedText('Create New Plan')}
             </h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("Plan Name *")}
                 </label>
                 <input
@@ -411,20 +403,20 @@ const SubscriptionPlanManagement = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                  style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                   placeholder={getTranslatedText("e.g., Basic Plan")}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("Description")}
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                  style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                   rows="3"
                   placeholder={getTranslatedText("Plan description...")}
                 />
@@ -432,7 +424,7 @@ const SubscriptionPlanManagement = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Price (₹) *")}
                   </label>
                   <input
@@ -440,13 +432,13 @@ const SubscriptionPlanManagement = () => {
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                     min="0"
                     step="0.01"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Duration *")}
                   </label>
                   <input
@@ -454,21 +446,21 @@ const SubscriptionPlanManagement = () => {
                     value={formData.duration}
                     onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                     min="1"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("Duration Type *")}
                 </label>
                 <select
                   value={formData.durationType}
                   onChange={(e) => setFormData({ ...formData, durationType: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                  style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                  style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                 >
                   <option value="daily">{getTranslatedText("Daily")}</option>
                   <option value="monthly">{getTranslatedText("Monthly")}</option>
@@ -479,7 +471,7 @@ const SubscriptionPlanManagement = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Max Pickups (leave empty for unlimited)")}
                   </label>
                   <input
@@ -487,13 +479,13 @@ const SubscriptionPlanManagement = () => {
                     value={formData.maxPickups}
                     onChange={(e) => setFormData({ ...formData, maxPickups: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                     min="0"
                     placeholder={getTranslatedText("Unlimited")}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#2d3748' }}>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Max Marketplace Requests (leave empty for unlimited)")}
                   </label>
                   <input
@@ -501,7 +493,7 @@ const SubscriptionPlanManagement = () => {
                     value={formData.maxMarketplaceRequests}
                     onChange={(e) => setFormData({ ...formData, maxMarketplaceRequests: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
-                    style={{ borderColor: '#e2e8f0', focusBorderColor: '#64946e' }}
+                    style={{ borderColor: 'var(--ad-border)', focusBorderColor: 'var(--ad-primary)' }}
                     min="0"
                     placeholder={getTranslatedText("Unlimited")}
                   />
@@ -517,7 +509,7 @@ const SubscriptionPlanManagement = () => {
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="w-4 h-4"
                   />
-                  <label htmlFor="isActive" className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                  <label htmlFor="isActive" className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Active")}
                   </label>
                 </div>
@@ -529,7 +521,7 @@ const SubscriptionPlanManagement = () => {
                     onChange={(e) => setFormData({ ...formData, isPopular: e.target.checked })}
                     className="w-4 h-4"
                   />
-                  <label htmlFor="isPopular" className="text-sm font-semibold" style={{ color: '#2d3748' }}>
+                  <label htmlFor="isPopular" className="text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                     {getTranslatedText("Popular")}
                   </label>
                 </div>
@@ -541,7 +533,7 @@ const SubscriptionPlanManagement = () => {
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSave}
                   className="flex-1 px-4 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2"
-                  style={{ backgroundColor: '#64946e' }}
+                  style={{ backgroundColor: 'var(--ad-primary)' }}
                 >
                   <FaSave />
                   <span>{getTranslatedText("Save Plan")}</span>
@@ -554,7 +546,7 @@ const SubscriptionPlanManagement = () => {
                     setEditingId(null);
                   }}
                   className="flex-1 px-4 py-3 rounded-xl font-semibold transition-all"
-                  style={{ backgroundColor: '#f7fafc', color: '#2d3748' }}
+                  style={{ backgroundColor: 'var(--ad-surface-2)', color: 'var(--ad-ink)' }}
                 >
                   {getTranslatedText("Cancel")}
                 </motion.button>

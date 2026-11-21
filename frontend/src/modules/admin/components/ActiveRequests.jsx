@@ -232,16 +232,16 @@ const ActiveRequests = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Active Requests")}
             </h1>
-            <p className="text-xs md:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Monitor and manage all pickup requests")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-              <span className="text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+              <span className="text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("{count} Total Requests", { count: requests.length })}
               </span>
             </div>
@@ -253,7 +253,7 @@ const ActiveRequests = () => {
           </p>
         )}
         {loading && !error && (
-          <p className="mt-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+          <p className="mt-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
             {getTranslatedText("Loading requests from server...")}
           </p>
         )}
@@ -269,7 +269,7 @@ const ActiveRequests = () => {
         <div className="flex flex-col md:flex-row gap-2 md:gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: '#718096' }} />
+            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: 'var(--ad-muted)' }} />
             <input
               type="text"
               placeholder={getTranslatedText("Search by request ID, user name, or phone...")}
@@ -277,9 +277,9 @@ const ActiveRequests = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 md:pl-12 pr-3 md:pr-4 py-2 md:py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all text-sm md:text-base"
               style={{
-                borderColor: '#e2e8f0',
-                focusBorderColor: '#64946e',
-                focusRingColor: '#64946e'
+                borderColor: 'var(--ad-border)',
+                focusBorderColor: 'var(--ad-primary)',
+                focusRingColor: 'var(--ad-primary)'
               }}
             />
           </div>
@@ -293,8 +293,8 @@ const ActiveRequests = () => {
                 className={`px-2.5 py-1.5 md:px-4 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm transition-all ${filter === status ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: filter === status ? '#64946e' : '#f7fafc',
-                  color: filter === status ? '#ffffff' : '#2d3748'
+                  backgroundColor: filter === status ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: filter === status ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {status === 'all' ? getTranslatedText('all') : getTranslatedText(status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1))}
@@ -318,11 +318,11 @@ const ActiveRequests = () => {
               animate={{ opacity: 1 }}
               className="p-12 text-center"
             >
-              <FaFileInvoice className="mx-auto mb-4" style={{ color: '#cbd5e0', fontSize: '48px' }} />
-              <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+              <FaFileInvoice className="mx-auto mb-4" style={{ color: 'var(--ad-border-strong)', fontSize: '48px' }} />
+              <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("No requests found")}
               </p>
-              <p className="text-sm" style={{ color: '#718096' }}>
+              <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                 {searchQuery ? getTranslatedText('Try a different search term') : getTranslatedText('No active requests at the moment')}
               </p>
             </motion.div>
@@ -335,18 +335,18 @@ const ActiveRequests = () => {
                 transition={{ delay: index * 0.05 }}
                 className={`p-3 md:p-6 hover:bg-gray-50 transition-all ${index !== filteredRequests.length - 1 ? 'border-b' : ''
                   }`}
-                style={{ borderColor: '#e2e8f0' }}
+                style={{ borderColor: 'var(--ad-border)' }}
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                   {/* Request Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3 flex-wrap">
-                      <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                      <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                         {request.requestId}
                       </h3>
                       {getStatusBadge(request.status)}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 md:gap-3 text-xs md:text-sm" style={{ color: '#718096' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 md:gap-3 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                       <div className="flex items-center gap-1.5 md:gap-2">
                         <FaUser className="text-xs" />
                         <span className="truncate">{request.userName}</span>
@@ -380,7 +380,7 @@ const ActiveRequests = () => {
                       </div>
                     </div>
                     {request.assignedScrapperName && (
-                      <div className="mt-1 md:mt-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                      <div className="mt-1 md:mt-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                         {getTranslatedText("Assigned Scrapper: {name}", { name: request.assignedScrapperName })}
                       </div>
                     )}
@@ -393,7 +393,7 @@ const ActiveRequests = () => {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => handleViewDetails(request)}
                       className="px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center gap-1.5 md:gap-2 transition-all"
-                      style={{ backgroundColor: '#64946e', color: '#ffffff' }}
+                      style={{ backgroundColor: 'var(--ad-primary)', color: '#ffffff' }}
                     >
                       <FaEye className="text-xs md:text-sm" />
                       <span className="hidden sm:inline">{getTranslatedText("View")}</span>

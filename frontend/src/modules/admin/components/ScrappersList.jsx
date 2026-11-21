@@ -1,3 +1,4 @@
+import { TableSkeleton } from '../ui/components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -176,7 +177,7 @@ const ScrappersList = () => {
       verified: { bg: '#d1fae5', color: '#10b981', icon: FaCheckCircle },
       pending: { bg: '#fef3c7', color: '#f59e0b', icon: FaClock },
       rejected: { bg: '#fee2e2', color: '#ef4444', icon: FaUserTimes },
-      not_submitted: { bg: '#e2e8f0', color: '#718096', icon: FaIdCard }
+      not_submitted: { bg: 'var(--ad-border)', color: 'var(--ad-muted)', icon: FaIdCard }
     };
     const style = styles[status] || styles.not_submitted;
     const Icon = style.icon;
@@ -233,16 +234,16 @@ const ScrappersList = () => {
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: '#2d3748' }}>
+            <h1 className="text-xl md:text-3xl font-bold mb-1 md:mb-2" style={{ color: 'var(--ad-ink)' }}>
               {getTranslatedText("Scrapper Management")}
             </h1>
-            <p className="text-xs md:text-base" style={{ color: '#718096' }}>
+            <p className="text-xs md:text-base" style={{ color: 'var(--ad-muted)' }}>
               {getTranslatedText("Manage all registered scrappers on the platform")}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: '#f7fafc' }}>
-              <span className="text-xs md:text-sm font-semibold" style={{ color: '#2d3748' }}>
+            <div className="px-3 py-1.5 md:px-4 md:py-2 rounded-xl" style={{ backgroundColor: 'var(--ad-surface-2)' }}>
+              <span className="text-xs md:text-sm font-semibold" style={{ color: 'var(--ad-ink)' }}>
                 {getTranslatedText("{count} Total Scrappers", { count: scrappers.length })}
               </span>
             </div>
@@ -260,7 +261,7 @@ const ScrappersList = () => {
         <div className="flex flex-col md:flex-row gap-2 md:gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: '#718096' }} />
+            <FaSearch className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-xs md:text-base" style={{ color: 'var(--ad-muted)' }} />
             <input
               type="text"
               placeholder={getTranslatedText("Search by name, phone, or vehicle...")}
@@ -268,9 +269,9 @@ const ScrappersList = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 md:pl-12 pr-3 md:pr-4 py-2 md:py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all text-sm md:text-base"
               style={{
-                borderColor: '#e2e8f0',
-                focusBorderColor: '#64946e',
-                focusRingColor: '#64946e'
+                borderColor: 'var(--ad-border)',
+                focusBorderColor: 'var(--ad-primary)',
+                focusRingColor: 'var(--ad-primary)'
               }}
             />
           </div>
@@ -284,8 +285,8 @@ const ScrappersList = () => {
                 className={`px-2.5 py-1.5 md:px-4 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm transition-all ${filter === status ? 'shadow-md' : ''
                   }`}
                 style={{
-                  backgroundColor: filter === status ? '#64946e' : '#f7fafc',
-                  color: filter === status ? '#ffffff' : '#2d3748'
+                  backgroundColor: filter === status ? 'var(--ad-primary)' : 'var(--ad-surface-2)',
+                  color: filter === status ? '#ffffff' : 'var(--ad-ink)'
                 }}
               >
                 {status === 'all'
@@ -301,16 +302,7 @@ const ScrappersList = () => {
 
       {/* Loading / Error State */}
       {loading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
-        >
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#64946e' }} />
-          <p className="text-sm md:text-base font-semibold" style={{ color: '#2d3748' }}>
-            {getTranslatedText("Loading scrappers...")}
-          </p>
-        </motion.div>
+        <TableSkeleton />
       )}
 
       {error && !loading && (
@@ -320,16 +312,16 @@ const ScrappersList = () => {
           className="bg-white rounded-2xl shadow-lg p-8 md:p-12 text-center"
         >
           <FaTimesCircle className="mx-auto mb-4 text-4xl" style={{ color: '#ef4444' }} />
-          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: '#2d3748' }}>
+          <h3 className="text-lg md:text-xl font-bold mb-2" style={{ color: 'var(--ad-ink)' }}>
             {getTranslatedText("Error loading scrappers")}
           </h3>
-          <p className="text-sm md:text-base mb-4" style={{ color: '#718096' }}>
+          <p className="text-sm md:text-base mb-4" style={{ color: 'var(--ad-muted)' }}>
             {error}
           </p>
           <button
             onClick={loadScrappersData}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: '#64946e' }}
+            style={{ backgroundColor: 'var(--ad-primary)' }}
           >
             {getTranslatedText("Retry")}
           </button>
@@ -351,11 +343,11 @@ const ScrappersList = () => {
                 animate={{ opacity: 1 }}
                 className="p-12 text-center"
               >
-                <FaTruck className="mx-auto mb-4" style={{ color: '#cbd5e0', fontSize: '48px' }} />
-                <p className="text-lg font-semibold mb-2" style={{ color: '#2d3748' }}>
+                <FaTruck className="mx-auto mb-4" style={{ color: 'var(--ad-border-strong)', fontSize: '48px' }} />
+                <p className="text-lg font-semibold mb-2" style={{ color: 'var(--ad-ink)' }}>
                   {getTranslatedText("No scrappers found")}
                 </p>
-                <p className="text-sm" style={{ color: '#718096' }}>
+                <p className="text-sm" style={{ color: 'var(--ad-muted)' }}>
                   {searchQuery ? getTranslatedText('Try a different search term') : getTranslatedText('No scrappers registered yet')}
                 </p>
               </motion.div>
@@ -368,7 +360,7 @@ const ScrappersList = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`p-3 md:p-6 hover:bg-gray-50 transition-all ${index !== filteredScrappers.length - 1 ? 'border-b' : ''
                     }`}
-                  style={{ borderColor: '#e2e8f0' }}
+                  style={{ borderColor: 'var(--ad-border)' }}
                 >
                   <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                     {/* Scrapper Info */}
@@ -376,19 +368,19 @@ const ScrappersList = () => {
                       <div className="flex items-start gap-2 md:gap-4">
                         <div
                           className="w-10 h-10 md:w-16 md:h-16 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: '#f7fafc' }}
+                          style={{ backgroundColor: 'var(--ad-surface-2)' }}
                         >
-                          <FaTruck className="text-lg md:text-2xl" style={{ color: '#64946e' }} />
+                          <FaTruck className="text-lg md:text-2xl" style={{ color: 'var(--ad-primary)' }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2 flex-wrap">
-                            <h3 className="text-base md:text-xl font-bold" style={{ color: '#2d3748' }}>
+                            <h3 className="text-base md:text-xl font-bold" style={{ color: 'var(--ad-ink)' }}>
                               {scrapper.name}
                             </h3>
                             {getKYCStatusBadge(scrapper.kycStatus, scrapper.status)}
                             {getSubscriptionBadge(scrapper.subscriptionStatus)}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 md:gap-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 md:gap-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <div className="flex items-center gap-1.5 md:gap-2">
                               <FaPhone className="text-xs" />
                               <span className="truncate">{scrapper.phone}</span>
@@ -406,7 +398,7 @@ const ScrappersList = () => {
                               <span>₹{scrapper.totalEarnings.toLocaleString()}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5 md:gap-2 mt-1 md:mt-2 text-xs md:text-sm" style={{ color: '#718096' }}>
+                          <div className="flex items-center gap-1.5 md:gap-2 mt-1 md:mt-2 text-xs md:text-sm" style={{ color: 'var(--ad-muted)' }}>
                             <div className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-medium">
                               📍 {scrapper.city}
                             </div>

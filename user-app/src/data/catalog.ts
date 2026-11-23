@@ -92,13 +92,40 @@ export const LANGUAGES: Language[] = [
 /** Pickup slots offered on the confirm step (the web app's time slots). */
 export const SLOT_TIMES = ['9 AM – 11 AM', '11 AM – 1 PM', '1 PM – 3 PM', '3 PM – 5 PM', '5 PM – 7 PM'];
 
-/** Cleaning services (the web app's ServiceBookingFlow; backend type kept off until launch). */
-export const CLEANING_SERVICES = [
-  { id: 'home_cleaning', name: 'Home deep cleaning', hint: 'Kitchen, bathrooms, floors and windows', image: require('../assets/images/banner_clean_green_india.jpg') },
-  { id: 'office_cleaning', name: 'Office cleaning', hint: 'Desks, cabins, washrooms, pantry', image: require('../assets/images/banner_reduce_reuse_recycle.jpg') },
-  { id: 'debris_removal', name: 'Debris removal', hint: 'Construction and renovation waste', image: require('../assets/images/step_doorstep_pickup.jpg') },
-  { id: 'garage_cleaning', name: 'Garage & store-room clearing', hint: 'We sort, clear and buy the scrap', image: require('../assets/images/cat_wooden_furniture.jpg') },
+export type CleaningIcon = 'house' | 'car' | 'droplets' | 'sofa' | 'sun' | 'building' | 'warehouse' | 'truck';
+
+export type CleaningService = {
+  /** Same ids as backend CLEANING_SERVICE_TYPES. */
+  id: string;
+  name: string;
+  hint: string;
+  icon: CleaningIcon;
+  /** Tile colours: a light tint and a deep accent (light + dark pairing). */
+  tint: string;
+  accent: string;
+  /** What the size chips ask about, and the choices. */
+  sizeLabel: string;
+  sizes: string[];
+};
+
+/**
+ * Cleaning services. Priced by the partner after an inspection visit; the user
+ * then pays online in the app (Razorpay via the wallet). Carpet cleaning is
+ * offered with super dry cleaning, shown as "Super Dry / Carpet Cleaning".
+ */
+export const CLEANING_SERVICES: CleaningService[] = [
+  { id: 'home_cleaning', name: 'Home Cleaning', hint: 'Kitchen, bathrooms, floors and windows', icon: 'house', tint: '#E3F4E8', accent: '#00542A', sizeLabel: 'Size of the home', sizes: ['1 BHK', '2 BHK', '3 BHK', '4 BHK+', 'Villa / bungalow'] },
+  { id: 'car_cleaning', name: 'Car Cleaning', hint: 'Interior vacuum, foam wash and polish', icon: 'car', tint: '#E7EFFC', accent: '#1D4F9C', sizeLabel: 'Type of car', sizes: ['Hatchback', 'Sedan', 'SUV / MUV', '2 or more cars'] },
+  { id: 'water_tank_cleaning', name: 'Water Tank Cleaning', hint: 'Drain, scrub, disinfect and rinse', icon: 'droplets', tint: '#DFF3F4', accent: '#0B5A62', sizeLabel: 'Tank capacity', sizes: ['Up to 500 L', '500 – 1000 L', '1000 – 2000 L', 'Above 2000 L', 'Underground sump'] },
+  { id: 'super_dry_carpet_cleaning', name: 'Super Dry / Carpet Cleaning', hint: 'Sofas, carpets, mattresses and curtains', icon: 'sofa', tint: '#EEEAFE', accent: '#4A33A8', sizeLabel: 'What needs cleaning', sizes: ['Sofa set', 'Carpet / rug', 'Mattress', 'Curtains', 'Multiple items'] },
+  { id: 'solar_panel_cleaning', name: 'Solar Panel Cleaning', hint: 'Dust and bird-dropping removal for more output', icon: 'sun', tint: '#FFF3DC', accent: '#7A4F00', sizeLabel: 'Number of panels', sizes: ['Up to 5', '6 – 10', '11 – 20', 'More than 20'] },
+  { id: 'office_cleaning', name: 'Office Cleaning', hint: 'Desks, cabins, washrooms, pantry', icon: 'building', tint: '#ECEFF2', accent: '#38444E', sizeLabel: 'Size of the office', sizes: ['Up to 500 sq ft', '500 – 1500 sq ft', '1500 – 3000 sq ft', 'Above 3000 sq ft'] },
+  { id: 'garage_cleaning', name: 'Garage & Store-room Clearing', hint: 'We sort, clear and buy the scrap', icon: 'warehouse', tint: '#F7ECE2', accent: '#7A3F12', sizeLabel: 'Size of the space', sizes: ['Small room', 'Garage', 'Large store-room'] },
+  { id: 'debris_removal', name: 'Debris Removal', hint: 'Construction and renovation waste', icon: 'truck', tint: '#F2EEE4', accent: '#5C4A24', sizeLabel: 'Amount of debris', sizes: ['A few bags', 'Half a truck', 'Full truck'] },
 ];
+
+/** 1% platform fee on a cleaning job, minimum ₹1 (backend cleaningPlatformFee). */
+export const cleaningFee = (amount: number) => (amount > 0 ? Math.max(1, Math.round(amount * 0.01 * 100) / 100) : 0);
 
 export const HOW_HEARD = ['Friends or family', 'YouTube', 'Instagram', 'Facebook', 'Google', 'WhatsApp', 'Other'];
 

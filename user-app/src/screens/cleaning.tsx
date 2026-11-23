@@ -1,60 +1,111 @@
 /**
- * Cleaning services: the web app's ServiceBookingFlow (details → address →
- * schedule → confirm). On the backend the cleaning_service order type is
- * still switched off; the mock accepts it so the flow can be reviewed.
+ * Cleaning services: pick a service -> details, address and visit time ->
+ * book. A partner inspects and shares the price in the app; the user then pays
+ * online (Razorpay through the wallet) from the order screen.
  */
 import React, { useMemo, useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions } from '@react-navigation/native';
-import { ArrowRight, Check, ShieldCheck } from 'lucide-react-native';
+import { ArrowRight, Building, Car, Check, CreditCard, Droplets, House, ShieldCheck, Sofa, Sparkles, Sun, Truck, Warehouse } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
-import { AppBar, BottomBar, Button, Card, Chip, DemoNote, Field, Screen, Tag } from '../components/ui';
+import { AppBar, BottomBar, Button, Card, Chip, Field, Screen } from '../components/ui';
 import { AddressCard } from './sell';
 import { colors, radius } from '../theme';
 import { useStore } from '../store/AppStore';
 import { api } from '../api/client';
-import { CLEANING_SERVICES, SLOT_TIMES } from '../data/catalog';
+import { CLEANING_SERVICES, SLOT_TIMES, type CleaningIcon, type CleaningService } from '../data/catalog';
 import { nextDays } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
 type P<K extends keyof RootParams> = NativeStackScreenProps<RootParams, K>;
 
+const ICONS: Record<CleaningIcon, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+  house: House,
+  car: Car,
+  droplets: Droplets,
+  sofa: Sofa,
+  sun: Sun,
+  building: Building,
+  warehouse: Warehouse,
+  truck: Truck,
+};
+
+/** Square icon tile for a cleaning service (lists, order cards). */
+export function CleaningTile({ svc, size = 44 }: { svc?: CleaningService; size?: number }) {
+  const Icon = svc ? ICONS[svc.icon] : Sparkles;
+  return (
+    <View style={{ width: size, height: size, borderRadius: size * 0.26, backgroundColor: svc?.tint ?? colors.green50, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={size * 0.5} color={svc?.accent ?? colors.deep} strokeWidth={2} />
+    </View>
+  );
+}
+
+const STEPS = ['Book a visit', 'Partner shares the price', 'Pay online in the app'];
+
 export function CleaningScreen({ navigation }: P<'Cleaning'>) {
+  const featured = CLEANING_SERVICES.slice(0, 5);
+  const more = CLEANING_SERVICES.slice(5);
+  const row = (s: CleaningService) => (
+    <Pressable
+      key={s.id}
+      onPress={() => navigation.navigate('CleaningBook', { serviceId: s.id })}
+      accessibilityRole="button"
+      accessibilityLabel={s.name}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line }}
+    >
+      <CleaningTile svc={s} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <T size={14} w="extrabold">{s.name}</T>
+        <T size={12} color={colors.muted} numberOfLines={1}>{s.hint}</T>
+      </View>
+      <ArrowRight size={18} color={colors.primary} />
+    </Pressable>
+  );
+
   return (
     <Screen>
       <AppBar title="Cleaning services" subtitle="By Scraptox verified teams" />
-      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }}>
+        {/* Dark hero: how pricing and payment work */}
+        <View style={{ backgroundColor: colors.night, borderRadius: radius.xl, padding: 14, gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.night2, alignItems: 'center', justifyContent: 'center' }}>
+              <Sparkles size={18} color={colors.green200} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T size={15} w="extrabold" color={colors.white}>Professional cleaning at your door</T>
+              <T size={12} color={colors.nightText}>Fair price after inspection · pay online securely</T>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {STEPS.map((step, i) => (
+              <View key={step} style={{ flex: 1, backgroundColor: colors.night2, borderRadius: radius.md, padding: 8, gap: 4, borderWidth: 1, borderColor: colors.nightLine }}>
+                <T size={11} w="extrabold" color={colors.green200} raw>{`0${i + 1}`}</T>
+                <T size={11} w="semibold" color={colors.white} lh={14}>{step}</T>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <T size={15} w="extrabold" style={{ marginTop: 4 }}>Popular services</T>
+        {featured.map(row)}
+        <T size={15} w="extrabold" style={{ marginTop: 4 }}>More services</T>
+        {more.map(row)}
+
         <Card tone="green" style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
           <ShieldCheck size={20} color={colors.primary} />
-          <T size={13} color={colors.deep} style={{ flex: 1 }} lh={18}>We clear the space and buy any scrap we find, so the cleaning often pays for itself.</T>
+          <T size={13} color={colors.deep} style={{ flex: 1 }} lh={18}>We also buy any scrap we find while cleaning, so the job often pays for itself.</T>
         </Card>
-        {CLEANING_SERVICES.map((s) => (
-          <Pressable key={s.id} onPress={() => navigation.navigate('CleaningBook', { serviceId: s.id })} accessibilityRole="button" style={{ backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' }}>
-            <Image source={s.image} style={{ width: '100%', height: 120 }} resizeMode="cover" />
-            <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ flex: 1, gap: 3 }}>
-                <T size={15} w="extrabold">{s.name}</T>
-                <T size={12} color={colors.muted}>{s.hint}</T>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Tag tone="gold" label="Quote on visit" />
-                <ArrowRight size={18} color={colors.primary} />
-              </View>
-            </View>
-          </Pressable>
-        ))}
       </ScrollView>
     </Screen>
   );
 }
 
-const SIZES = ['1 BHK', '2 BHK', '3 BHK', '4 BHK+', 'Office / shop'];
-
 export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
-  const svc = CLEANING_SERVICES.find((s) => s.id === route.params.serviceId)!;
+  const svc = CLEANING_SERVICES.find((s) => s.id === route.params.serviceId) ?? CLEANING_SERVICES[0];
   const { addresses } = useStore();
   const days = useMemo(() => nextDays(7).slice(1), []);
   const [size, setSize] = useState<string | null>(null);
@@ -89,30 +140,38 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
 
   return (
     <Screen>
-      <AppBar title={svc.name} subtitle="Book a visit" />
-      <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
-        <View style={{ gap: 10 }}>
-          <T size={15} w="extrabold">Size of the space</T>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {SIZES.map((s) => <Chip key={s} label={s} active={size === s} onPress={() => setSize(s)} />)}
+      <AppBar title={svc.name} subtitle="Book an inspection visit" />
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 12 }} keyboardShouldPersistTaps="handled">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: svc.tint }}>
+          <CleaningTile svc={svc} size={48} />
+          <View style={{ flex: 1 }}>
+            <T size={15} w="extrabold" color={svc.accent}>{svc.name}</T>
+            <T size={12} color={colors.ink2}>{svc.hint}</T>
           </View>
         </View>
-        <Field label="Anything we should know? (optional)" value={notes} onChangeText={setNotes} multiline placeholder="E.g. two bathrooms, balcony full of old furniture" />
-        <View style={{ gap: 10 }}>
+
+        <View style={{ gap: 8 }}>
+          <T size={15} w="extrabold">{svc.sizeLabel}</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {svc.sizes.map((s) => <Chip key={s} label={s} active={size === s} onPress={() => setSize(s)} />)}
+          </View>
+        </View>
+        <Field label="Anything we should know? (optional)" value={notes} onChangeText={setNotes} multiline placeholder="E.g. two bathrooms, stains on the sofa, tank on the roof" />
+        <View style={{ gap: 8 }}>
           <T size={15} w="extrabold">Address</T>
           {addresses.map((a) => <AddressCard key={a._id} a={a} on={a._id === addrId} onPress={() => setAddrId(a._id)} />)}
           <T size={13} w="bold" color={colors.primary} onPress={() => navigation.navigate('AddressForm')}>+ Add a new address</T>
         </View>
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: 8 }}>
           <T size={15} w="extrabold">Visit time</T>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {days.map((d) => {
               const on = d.key === day;
               return (
-                <Pressable key={d.key} onPress={() => setDay(d.key)} style={{ width: 58, paddingVertical: 8, borderRadius: 12, alignItems: 'center', gap: 2, backgroundColor: on ? colors.primary : colors.white, borderWidth: on ? 0 : 1, borderColor: colors.lineStrong }}>
-                  <T size={11} w="semibold" color={on ? colors.green100 : colors.muted}>{d.day}</T>
+                <Pressable key={d.key} onPress={() => setDay(d.key)} style={{ width: 58, paddingVertical: 8, borderRadius: 12, alignItems: 'center', gap: 2, backgroundColor: on ? colors.night : colors.white, borderWidth: on ? 0 : 1, borderColor: colors.lineStrong }}>
+                  <T size={11} w="semibold" color={on ? colors.nightText : colors.muted}>{d.day}</T>
                   <T size={17} w="extrabold" color={on ? colors.white : colors.ink} raw>{String(d.date)}</T>
-                  <T size={10} w="semibold" color={on ? colors.green100 : colors.muted}>{d.month}</T>
+                  <T size={10} w="semibold" color={on ? colors.nightText : colors.muted}>{d.month}</T>
                 </Pressable>
               );
             })}
@@ -121,15 +180,18 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
             {SLOT_TIMES.map((t) => <Chip key={t} label={t} active={time === t} onPress={() => setTime(t)} />)}
           </View>
         </View>
-        <Card style={{ gap: 8 }}>
-          {['A supervisor visits and confirms the price before any work starts', 'Pay only after the job, by UPI or wallet', 'Scrap we find is bought at today’s rates'].map((s) => (
+        <View style={{ backgroundColor: colors.night, borderRadius: radius.lg, padding: 12, gap: 8 }}>
+          {[
+            'A partner inspects and shares the price in the app before work starts',
+            'Pay online securely: UPI, cards, net banking or wallet',
+            'Any scrap we find is bought at today’s rates',
+          ].map((s, i) => (
             <View key={s} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-              <Check size={16} color={colors.primary} strokeWidth={3} style={{ marginTop: 2 }} />
-              <T size={13} color={colors.ink2} style={{ flex: 1 }} lh={18}>{s}</T>
+              {i === 1 ? <CreditCard size={16} color={colors.green200} style={{ marginTop: 2 }} /> : <Check size={16} color={colors.green200} strokeWidth={3} style={{ marginTop: 2 }} />}
+              <T size={13} color={colors.white} style={{ flex: 1 }} lh={18}>{s}</T>
             </View>
           ))}
-        </Card>
-        <DemoNote text="Prices are quoted on the visit. [PRICE LIST TO BE PROVIDED]" />
+        </View>
       </ScrollView>
       <BottomBar>
         <Button label="Book visit" disabled={!size || !addr} loading={busy} onPress={book} />

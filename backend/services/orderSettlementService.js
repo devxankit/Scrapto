@@ -3,6 +3,7 @@ import SystemSetting from '../models/SystemSetting.js';
 import { creditWallet, debitWallet } from './walletService.js';
 import { AppError, roundMoney } from '../utils/security.js';
 import logger from '../utils/logger.js';
+import { cleaningPlatformFee } from '../config/constants.js';
 
 /**
  * Completion-time financial settlement. Runs inside the caller's transaction.
@@ -24,7 +25,7 @@ export const settleOrderOnCompletion = async (order, session) => {
   if (order.orderType === 'cleaning_service') {
     // User pays a 1% platform fee.
     if (amount > 0) {
-      const commission = Math.max(1, roundMoney(amount * 0.01));
+      const commission = roundMoney(cleaningPlatformFee(amount));
       await debitWallet({
         ownerId: order.user,
         ownerType: 'User',

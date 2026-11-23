@@ -251,7 +251,8 @@ export function KycStatusScreen({ navigation }: P<'KycStatus'>) {
 
 const per = (p: Plan) => (p.durationType === 'quarterly' ? '/ 3 months' : p.durationType === 'yearly' ? '/ year' : p.durationType === 'daily' ? '/ day' : p.duration > 1 ? `/ ${p.duration} months` : '/ month');
 
-export function PlansScreen({ navigation }: P<'Plans'>) {
+export function PlansScreen({ navigation, route }: P<'Plans'>) {
+  const wanted = route.params?.planId;
   const { user, refreshMe } = useStore();
   const [kind, setKind] = useState<'general' | 'market_price'>('general');
   const q = useQuery<{ plans: Plan[] }>('/subscriptions/plans', { type: kind });
@@ -268,8 +269,8 @@ export function PlansScreen({ navigation }: P<'Plans'>) {
   useEffect(() => {
     const ps = q.data?.plans ?? [];
     if (!ps.length) return;
-    setSel((s) => (s && ps.some((p) => p._id === s) ? s : ps.find((p) => p.isPopular)?._id ?? ps[0]._id));
-  }, [q.data]);
+    setSel((s) => (s && ps.some((p) => p._id === s) ? s : (wanted && ps.some((p) => p._id === wanted) ? wanted : ps.find((p) => p.isPopular)?._id ?? ps[0]._id)));
+  }, [q.data, wanted]);
   useEffect(() => setCoupon(null), [sel]);
 
   const plan = plans.find((p) => p._id === sel);

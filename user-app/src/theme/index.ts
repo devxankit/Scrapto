@@ -55,6 +55,17 @@ export const colors = {
   tealSoft: '#DFF3F4',
   tealText: '#0B5A62',
 
+  /**
+   * Dark accents used sparingly on light screens (hero bands, highlight
+   * cards, the tab bar) so the app pairs light and dark instead of being
+   * all white. Text on night surfaces uses white / nightText.
+   */
+  night: '#0F2219',
+  night2: '#163126',
+  nightLine: 'rgba(255,255,255,0.10)',
+  nightText: '#B9CFC2',
+  nightMuted: '#86A193',
+
   white: '#FFFFFF',
   black: '#000000',
   overlay: 'rgba(0,0,0,0.45)',

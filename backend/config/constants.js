@@ -87,6 +87,26 @@ export const ORDER_TYPES = {
   CLEANING_SERVICE: 'cleaning_service'
 };
 
+/**
+ * Cleaning services a user can book. Ids are shared with the apps'
+ * src/data/catalog.ts. Carpet cleaning is offered together with super dry
+ * cleaning (same equipment and crew), as "Super Dry / Carpet Cleaning".
+ */
+export const CLEANING_SERVICE_TYPES = [
+  'home_cleaning',
+  'car_cleaning',
+  'water_tank_cleaning',
+  'super_dry_carpet_cleaning',
+  'solar_panel_cleaning',
+  'office_cleaning',
+  'garage_cleaning',
+  'debris_removal'
+];
+
+/** Platform fee on a cleaning job: 1%, minimum ₹1 (charged at completion). */
+export const cleaningPlatformFee = (amount) =>
+  amount > 0 ? Math.max(1, Math.round(amount * 0.01 * 100) / 100) : 0;
+
 export const PRICE_TYPES = {
   MATERIAL: 'material',
   // SERVICE: 'service'

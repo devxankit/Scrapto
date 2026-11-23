@@ -30,7 +30,7 @@ export type RootParams = {
   Signup: { phone: string; otp?: string };
   Kyc: undefined;
   KycStatus: undefined;
-  Plans: undefined;
+  Plans: { planId?: string } | undefined;
   Main: NavigatorScreenParams<TabParams> | undefined;
   Requests: undefined;
   Job: { id: string };

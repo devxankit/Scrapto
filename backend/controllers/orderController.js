@@ -3,7 +3,7 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import Order from '../models/Order.js';
 import Scrapper from '../models/Scrapper.js';
 import Price from '../models/Price.js';
-import { ORDER_STATUS, PAYMENT_STATUS, SCRAP_CATEGORIES, normalizeCategory } from '../config/constants.js';
+import { ORDER_STATUS, PAYMENT_STATUS, SCRAP_CATEGORIES, normalizeCategory, ORDER_TYPES, CLEANING_SERVICE_TYPES } from '../config/constants.js';
 import logger from '../utils/logger.js';
 import { notifyUser } from '../services/socketService.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
@@ -102,14 +102,24 @@ export const createOrder = asyncHandler(async (req, res) => {
   const { scrapItems, pickupAddress, preferredTime, pickupSlot, images, notes, orderType } = req.body;
   const userId = req.user.id;
 
-  if (orderType === 'cleaning_service') {
-    return sendError(res, 'Cleaning Services are currently unavailable', 400);
+  const isCleaning = orderType === ORDER_TYPES.CLEANING_SERVICE;
+  let built;
+  let serviceDetails;
+  if (isCleaning) {
+    // Cleaning is priced by the partner after the visit (quote), so it starts at 0.
+    const serviceType = pickEnum(req.body.serviceDetails?.serviceType, CLEANING_SERVICE_TYPES);
+    if (!serviceType) return sendError(res, 'Please choose a valid cleaning service', 400);
+    if (!pickupAddress || typeof pickupAddress !== 'object') return sendError(res, 'Address is required', 400);
+    serviceDetails = { serviceType, description: asString(req.body.serviceDetails?.description, 500) || '' };
+    built = { items: [], totalWeight: 0, totalAmount: 0 };
+  } else {
+    built = await buildScrapItems(scrapItems);
   }
-
-  const { items, totalWeight, totalAmount } = await buildScrapItems(scrapItems);
+  const { items, totalWeight, totalAmount } = built;
 
   const orderPayload = {
     user: userId,
+    ...(isCleaning ? { orderType: ORDER_TYPES.CLEANING_SERVICE, serviceDetails } : {}),
     scrapItems: items,
     totalWeight,
     totalAmount,
@@ -150,8 +160,8 @@ export const createOrder = asyncHandler(async (req, res) => {
 
     if (onlineScrappers.length > 0) {
       const notificationPayload = {
-        title: 'New Order Request 🔔',
-        body: 'A new pickup request is available near you!',
+        title: isCleaning ? 'New Cleaning Job 🧽' : 'New Order Request 🔔',
+        body: isCleaning ? 'A new cleaning job is available near you!' : 'A new pickup request is available near you!',
         data: { orderId: order._id.toString(), type: 'new_order' }
       };
       const scrapperIds = onlineScrappers.map((s) => s._id.toString());
@@ -508,6 +518,10 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         if (!Number.isFinite(totalAmount) || totalAmount < 0 || totalAmount > 500000) {
           throw new AppError('Invalid totalAmount', 400);
         }
+        // Once paid, the price is final: a quote must not move after the user paid it.
+        if (order.paymentStatus === PAYMENT_STATUS.COMPLETED && roundMoney(totalAmount) !== roundMoney(order.totalAmount || 0)) {
+          throw new AppError('This order is already paid; its amount can no longer change', 409);
+        }
         order.totalAmount = roundMoney(totalAmount);
       }
 
@@ -550,6 +564,14 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     });
 
     const order = result.order;
+    if (order.orderType === ORDER_TYPES.CLEANING_SERVICE && totalAmount !== null && order.totalAmount > 0 && order.paymentStatus !== PAYMENT_STATUS.COMPLETED) {
+      sendNotificationToUser(order.user.toString(), {
+        title: 'Your cleaning price is ready 🧾',
+        body: `Quote: ₹${order.totalAmount}. Pay securely in the app.`,
+        data: { orderId: order._id.toString(), type: 'cleaning_quote' }
+      });
+      notifyUser(order.user.toString(), 'order_updated', { orderId: order._id, totalAmount: order.totalAmount });
+    }
     await order.populate('user', 'name phone');
     await order.populate('scrapper', 'name phone');
 

@@ -1,8 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { FlatList, Image, NativeScrollEvent, NativeSyntheticEvent, RefreshControl, ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Image, NativeScrollEvent, NativeSyntheticEvent, RefreshControl, ScrollView, StatusBar, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { ArrowRight, Bell, BellOff, ChevronDown, ChevronRight, Gift, Headphones, IndianRupee, MapPin, MessageCircle, PackageCheck, Recycle, Scale, Search, ShieldCheck, Sparkles, TrendingDown, TrendingUp, Truck, Wallet as WalletIcon, X, Zap } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
@@ -25,6 +25,7 @@ const BANNER_IMAGES: Record<string, any> = { bannerPickup: images.bannerPickup, 
 
 export function HomeScreen() {
   const nav = useNavigation();
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { user, prices, addresses, loadPrices } = useStore();
@@ -58,28 +59,29 @@ export function HomeScreen() {
   return (
     <Screen>
       {/* Header (sticky: it sits outside the scroll view) */}
-      <View style={{ backgroundColor: colors.white, paddingTop: insets.top + 4, paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+      <View style={{ backgroundColor: colors.night, paddingTop: insets.top + 4, paddingHorizontal: 12, paddingBottom: 10, gap: 8, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl }}>
+        {focused ? <StatusBar barStyle="light-content" /> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Pressable onPress={() => nav.navigate('Addresses')} accessibilityRole="button" accessibilityLabel="Change pickup address" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <IconBadge size={32}>
-              <MapPin size={16} color={colors.brand} fill={colors.green100} />
-            </IconBadge>
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: colors.night2, alignItems: 'center', justifyContent: 'center' }}>
+              <MapPin size={16} color={colors.green200} />
+            </View>
             <View style={{ flex: 1 }}>
-              <T size={11} w="semibold" color={colors.muted} lh={14}>{home ? `Pickup at · ${home.label}` : `${greeting()}, ${firstName(user?.name)}`}</T>
+              <T size={11} w="semibold" color={colors.nightText} lh={14}>{home ? `Pickup at · ${home.label}` : `${greeting()}, ${firstName(user?.name)}`}</T>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <T size={14} w="bold" lh={18} numberOfLines={1} style={{ flexShrink: 1 }}>{home ? `${home.street.split(',').slice(-1)[0].trim()}, ${home.city}` : 'Add your pickup address'}</T>
-                <ChevronDown size={14} color={colors.ink} strokeWidth={2.6} />
+                <T size={14} w="bold" lh={18} color={colors.white} numberOfLines={1} style={{ flexShrink: 1 }}>{home ? `${home.street.split(',').slice(-1)[0].trim()}, ${home.city}` : 'Add your pickup address'}</T>
+                <ChevronDown size={14} color={colors.white} strokeWidth={2.6} />
               </View>
             </View>
           </Pressable>
-          <Pressable onPress={() => nav.navigate('Notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={{ width: 38, height: 38, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
-            <Bell size={18} color={colors.ink} />
-            {unread ? <View style={{ position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red, borderWidth: 1.5, borderColor: colors.white }} /> : null}
+          <Pressable onPress={() => nav.navigate('Notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={{ width: 38, height: 38, borderRadius: radius.md, borderWidth: 1, borderColor: colors.nightLine, backgroundColor: colors.night2, alignItems: 'center', justifyContent: 'center' }}>
+            <Bell size={18} color={colors.white} />
+            {unread ? <View style={{ position: 'absolute', top: 7, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red, borderWidth: 1.5, borderColor: colors.night }} /> : null}
           </Pressable>
         </View>
-        <Pressable onPress={() => nav.navigate('Categories')} accessibilityRole="search" style={{ height: 38, borderRadius: radius.md, backgroundColor: colors.bg, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
-          <Search size={16} color={colors.muted} />
-          <T size={13} color={colors.muted}>Search copper, newspaper, AC…</T>
+        <Pressable onPress={() => nav.navigate('Categories')} accessibilityRole="search" style={{ height: 38, borderRadius: radius.md, backgroundColor: colors.night2, borderWidth: 1, borderColor: colors.nightLine, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+          <Search size={16} color={colors.nightMuted} />
+          <T size={13} color={colors.nightMuted}>Search copper, newspaper, AC…</T>
         </Pressable>
       </View>
 
@@ -279,16 +281,16 @@ export function HomeScreen() {
         </View>
 
         {/* Cleaning services */}
-        <Pressable onPress={() => nav.navigate('Cleaning')} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: '#EEEAFE', opacity: pressed ? 0.9 : 1 })}>
-          <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
-            <Sparkles size={18} color="#4A33A8" />
+        <Pressable onPress={() => nav.navigate('Cleaning')} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.night, opacity: pressed ? 0.92 : 1 })}>
+          <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: colors.night2, alignItems: 'center', justifyContent: 'center' }}>
+            <Sparkles size={18} color={colors.green200} />
           </View>
           <View style={{ flex: 1 }}>
-            <T size={10} w="extrabold" color="#4A33A8">NEW ON SCRAPTOX</T>
-            <T size={14} w="extrabold" color="#2B1D6B" lh={18}>Home &amp; office cleaning</T>
-            <T size={11} color="#4A33A8" numberOfLines={1}>Deep cleaning, debris and store-room clearing</T>
+            <T size={10} w="extrabold" color={colors.green200}>CLEANING · PAY ONLINE</T>
+            <T size={14} w="extrabold" color={colors.white} lh={18}>Home, car, water tank &amp; more</T>
+            <T size={11} color={colors.nightText} numberOfLines={1}>Solar panels, super dry / carpet, office cleaning</T>
           </View>
-          <ArrowRight size={16} color="#4A33A8" />
+          <ArrowRight size={16} color={colors.green200} />
         </Pressable>
 
         <T size={10} color={colors.faint} center lh={14}>Rates are updated daily. The final amount is set by digital weighing at your door.</T>

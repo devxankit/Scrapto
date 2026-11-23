@@ -91,6 +91,20 @@ export const LANGUAGES: Language[] = [
 ];
 
 /** Vehicle types (backend scrapper.vehicleInfo.type). */
+/** Cleaning service names by backend id (user app catalog.ts has the full entries). */
+export const CLEANING_NAMES: Record<string, string> = {
+  home_cleaning: 'Home Cleaning',
+  car_cleaning: 'Car Cleaning',
+  water_tank_cleaning: 'Water Tank Cleaning',
+  super_dry_carpet_cleaning: 'Super Dry / Carpet Cleaning',
+  solar_panel_cleaning: 'Solar Panel Cleaning',
+  office_cleaning: 'Office Cleaning',
+  garage_cleaning: 'Garage & Store-room Clearing',
+  debris_removal: 'Debris Removal',
+};
+export const isCleaning = (o: any) => o?.orderType === 'cleaning_service';
+export const cleaningName = (o: any) => CLEANING_NAMES[o?.serviceDetails?.serviceType] ?? 'Cleaning job';
+
 export const VEHICLES: { id: 'bike' | 'auto' | 'truck'; name: string; hint: string; capacity: number }[] = [
   { id: 'bike', name: 'Bike / cycle', hint: 'Small household pickups', capacity: 50 },
   { id: 'auto', name: 'Auto / e-rickshaw', hint: 'Most home pickups', capacity: 300 },

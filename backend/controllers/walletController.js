@@ -243,6 +243,13 @@ export const payOrderViaWallet = asyncHandler(async (req, res) => {
       throw new AppError('Order is not ready for payment', 400);
     }
 
+    // Cleaning: the user pays exactly the partner's quote (never a client-chosen amount).
+    if (order.orderType === 'cleaning_service') {
+      const quoted = roundMoney(order.totalAmount || 0);
+      if (!(quoted > 0)) throw new AppError('The partner has not shared the price for this job yet', 400);
+      if (roundMoney(amount) !== quoted) throw new AppError(`Amount must match the quoted price (₹${quoted})`, 400);
+    }
+
     let payerType;
     let payeeType;
     let payerId;

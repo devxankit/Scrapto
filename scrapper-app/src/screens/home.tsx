@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Bell, BellRing, ChevronRight, Gavel, MapPin, Navigation, Package, Radar, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { Bell, BellRing, ChevronRight, Crown, Gavel, MapPin, Navigation, Package, Radar, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
 import { AppBar, BackButton, Button, Card, EmptyState, IconButton, Loading, Screen, Tag } from '../components/ui';
@@ -12,8 +12,8 @@ import { IconBadge, unitOf } from '../components/brand';
 import { colors, radius, shadow } from '../theme';
 import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
-import { useStore } from '../store/AppStore';
-import { categoryMeta, images } from '../data/catalog';
+import { useStore, type Plan } from '../store/AppStore';
+import { categoryMeta, cleaningName, images, isCleaning } from '../data/catalog';
 import { ago, agoLabel, dateLabel, firstName, greeting, inr, qty, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
@@ -29,6 +29,7 @@ export function itemsLine(items: any[] = []) {
 
 /** Short summary for the request card: "≈ ₹5,808 · 14 kg + 1 AC" */
 function requestSummary(o: any) {
+  if (isCleaning(o)) return `${cleaningName(o)}${o.serviceDetails?.description ? ` · ${o.serviceDetails.description}` : ''}`;
   const kg = o.scrapItems.filter((i: any) => categoryMeta(i.category).unit === 'kg').reduce((n: number, i: any) => n + i.weight, 0);
   const pcs = o.scrapItems.filter((i: any) => categoryMeta(i.category).unit === 'pc');
   const parts = [kg ? qty(kg) : '', ...pcs.map((i: any) => `${i.weight} ${catName(i.category)}`)].filter(Boolean);
@@ -123,6 +124,8 @@ export function DashboardScreen() {
         </View>
 
         <View style={{ padding: 12, gap: 10 }}>
+          <PlansStrip sub={sub} left={left} />
+
           {requests.length ? (
             <Pressable onPress={() => nav.navigate('Requests')} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.lg, backgroundColor: colors.primary }}>
               <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
@@ -203,10 +206,10 @@ export function DashboardScreen() {
             </Card>
           ) : null}
 
-          <Card tone={sub?.status === 'active' && left > 5 ? 'white' : 'gold'} onPress={() => nav.navigate('Plans')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Card onPress={() => nav.navigate('Plans')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <IconBadge tone="gold"><ShieldCheck size={18} color={colors.goldText} /></IconBadge>
             <View style={{ flex: 1 }}>
-              <T size={14} w="extrabold">{sub?.status === 'active' ? `${sub.plan?.name ?? 'Plan'} plan · ${left} ${left === 1 ? 'day' : 'days'} left` : 'No active plan'}</T>
+              <T size={14} w="extrabold">Market-price alerts</T>
               <T size={12} color={colors.muted}>{user?.marketSubscription?.status === 'active' ? 'Market-price alerts are on' : 'Add market-price alerts for ₹99/mo'}</T>
             </View>
             <ChevronRight size={18} color={colors.faint} />
@@ -214,6 +217,59 @@ export function DashboardScreen() {
         </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+const PER: Record<Plan['durationType'], string> = { daily: 'day', monthly: 'month', quarterly: '3 months', yearly: 'year' };
+
+/**
+ * Subscription plans, front and centre on the dashboard (they used to sit at
+ * the very bottom). Shows the current plan and every plan with its price;
+ * tapping one opens the purchase screen with it preselected.
+ */
+function PlansStrip({ sub, left }: { sub: any; left: number }) {
+  const nav = useNavigation();
+  const q = useQuery<{ plans: Plan[] }>('/subscriptions/plans', { type: 'general' }, { persist: true });
+  const plans = q.data?.plans ?? [];
+  const active = sub?.status === 'active';
+  const urgent = !active || left <= 5;
+  return (
+    <View style={{ backgroundColor: colors.night, borderRadius: radius.xl, paddingVertical: 12, gap: 10 }}>
+      <Pressable onPress={() => nav.navigate('Plans')} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}>
+        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: urgent ? colors.gold : colors.night2, alignItems: 'center', justifyContent: 'center' }}>
+          <Crown size={18} color={urgent ? colors.white : colors.green200} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <T size={14} w="extrabold" color={colors.white}>{active ? `${sub.plan?.name ?? 'Plan'} plan · ${left} ${left === 1 ? 'day' : 'days'} left` : 'Get a plan to start earning'}</T>
+          <T size={12} color={urgent ? '#F6D58E' : colors.nightText} numberOfLines={1}>{active ? (left <= 5 ? 'Renew now to keep receiving pickups' : 'Upgrade for more pickups and bulk lots') : 'An active plan is needed to go online'}</T>
+        </View>
+        <T size={13} w="bold" color={colors.green200}>All plans ›</T>
+      </Pressable>
+      {plans.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 12 }}>
+          {plans.map((p) => {
+            const current = active && (sub.planId === p._id || sub.plan?._id === p._id);
+            return (
+              <Pressable key={p._id} onPress={() => nav.navigate('Plans', { planId: p._id })} accessibilityRole="button" accessibilityLabel={`${p.name} plan, ${inr(p.price)}`}
+                style={{ width: 150, padding: 10, gap: 6, borderRadius: radius.lg, backgroundColor: p.isPopular ? colors.white : colors.night2, borderWidth: 1, borderColor: p.isPopular ? colors.white : colors.nightLine }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <T size={13} w="extrabold" color={p.isPopular ? colors.deep : colors.white} numberOfLines={1} style={{ flex: 1 }}>{p.name}</T>
+                  {p.isPopular ? <Tag tone="gold" label="POPULAR" /> : null}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+                  <T size={18} w="extrabold" color={p.isPopular ? colors.ink : colors.white} raw>{inr(p.price)}</T>
+                  <T size={11} color={p.isPopular ? colors.muted : colors.nightMuted} raw>{`/${p.duration > 1 ? `${p.duration} ` : ''}${PER[p.durationType] ?? p.durationType}`}</T>
+                </View>
+                <T size={11} color={p.isPopular ? colors.ink2 : colors.nightText} numberOfLines={1}>{p.maxPickups ? `${p.maxPickups} pickups` : 'Unlimited pickups'}</T>
+                <View style={{ height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: current ? 'transparent' : colors.primary, borderWidth: current ? 1 : 0, borderColor: p.isPopular ? colors.primary : colors.green200 }}>
+                  <T size={12} w="extrabold" color={current ? (p.isPopular ? colors.primary : colors.green200) : colors.white}>{current ? 'Current plan' : active ? 'Switch' : 'Buy now'}</T>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+    </View>
   );
 }
 

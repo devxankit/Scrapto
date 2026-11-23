@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { BadgeCheck, Check, ChevronLeft, ClipboardList, Gavel, MessageCircle, Phone, Search, Star, Trash2, Truck } from 'lucide-react-native';
+import { BadgeCheck, Check, ChevronLeft, ClipboardList, CreditCard, Gavel, MessageCircle, Phone, Search, Star, Trash2, Truck } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
 import { AppBar, Avatar, BottomBar, Button, Card, DemoNote, Divider, EmptyState, ErrorBox, IconButton, InfoRow, Loading, Screen, Sheet, StatusPill, Tag } from '../components/ui';
@@ -12,7 +12,10 @@ import { IconBadge } from '../components/brand';
 import { colors, radius, shadow } from '../theme';
 import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
-import { categoryMeta, CLEANING_SERVICES, images } from '../data/catalog';
+import { categoryMeta, CLEANING_SERVICES, cleaningFee, images } from '../data/catalog';
+import { CleaningTile } from './cleaning';
+import { useStore } from '../store/AppStore';
+import { openRazorpay, PaymentCancelled } from '../api/razorpay';
 import { dateLabel, firstName, inr, qty, whenLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
@@ -116,7 +119,7 @@ function OrderCard({ o }: { o: any }) {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flexDirection: 'row' }}>
-          {cleaning ? <Image source={cleaning.image} style={{ width: 44, height: 44, borderRadius: 10 }} /> : null}
+          {cleaning ? <CleaningTile svc={cleaning} /> : null}
           {cats.slice(0, 3).map((c, i) => (
             <Image key={c} source={categoryMeta(c).image} style={{ width: 44, height: 44, borderRadius: 10, borderWidth: 2, borderColor: colors.white, marginLeft: i ? -12 : 0 }} />
           ))}
@@ -227,7 +230,7 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
   const collector = o.tracking?.location;
   const stepIndex = STEPS.findIndex((s) => s.key === o.status);
   const headline =
-    o.status === 'pending' ? (o.preferredTime === 'later' && o.pickupSlot ? `Scheduled · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Finding a collector near you')
+    o.status === 'pending' ? (o.preferredTime === 'later' && o.pickupSlot ? `Scheduled · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : o.orderType === 'cleaning_service' ? 'Finding a cleaning partner' : 'Finding a collector near you')
       : o.status === 'confirmed' ? (o.preferredTime === 'later' && o.pickupSlot ? `Accepted · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Collector accepted · leaving soon')
         : o.tracking?.arrived ? 'At your door · weighing now' : `On the way · ${o.tracking?.etaMin ?? 8} min`;
 
@@ -320,18 +323,109 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
             </View>
           )}
 
-          {o.tracking?.arrived ? <DemoNote text="The collector is weighing your items. The final amount will show here in a moment." /> : null}
+          {o.orderType === 'cleaning_service' ? <CleaningPayCard o={o} onPaid={q.reload} /> : null}
+
+          {o.tracking?.arrived && o.orderType !== 'cleaning_service' ? <DemoNote text="The collector is weighing your items. The final amount will show here in a moment." /> : null}
 
           <View style={{ backgroundColor: colors.bg, borderRadius: radius.lg, padding: 14, gap: 8 }}>
             <InfoRow label="Order" value={`#${o.orderNo} · ${whenLabel(o.createdAt)}`} />
             <InfoRow label={o.orderType === 'cleaning_service' ? 'Service' : 'Items'} value={o.orderType === 'cleaning_service' ? `${CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType)?.name ?? 'Cleaning'} · ${o.serviceDetails?.description ?? ''}` : o.scrapItems.map((i: any) => `${catName(i.category)} ${qty(i.weight, unitFor(i.category))}`).join(' · ')} />
             <InfoRow label="Pickup at" value={[o.pickupAddress.street, o.pickupAddress.city].filter(Boolean).join(', ')} />
-            <InfoRow label="Estimate" value={inr(o.totalAmount)} strong valueColor={colors.deep} />
+            <InfoRow label={o.orderType === 'cleaning_service' ? 'Price' : 'Estimate'} value={o.orderType === 'cleaning_service' && !(o.totalAmount > 0) ? 'After inspection' : inr(o.totalAmount)} strong valueColor={colors.deep} />
           </View>
           {o.status !== 'in_progress' ? <Button label="Cancel pickup" variant="danger" size="md" onPress={() => setCancelOpen(true)} /> : null}
         </ScrollView>
       </View>
       <CancelSheet visible={cancelOpen} onClose={() => setCancelOpen(false)} orderId={o._id} onDone={() => { setCancelOpen(false); q.reload(); }} />
+    </View>
+  );
+}
+
+/**
+ * Cleaning jobs are priced by the partner after inspection. Once the quote is
+ * in, the user pays online: any shortfall in the wallet is added through
+ * Razorpay (the same recharge flow as the wallet screen), then the exact quote
+ * is paid to the partner with /wallet/pay-order. The 1% platform fee stays in
+ * the wallet and is settled when the job is completed.
+ */
+function CleaningPayCard({ o, onPaid }: { o: any; onPaid: () => void }) {
+  const { user } = useStore();
+  const [busy, setBusy] = useState(false);
+  const quote = Number(o.totalAmount) || 0;
+  const fee = cleaningFee(quote);
+  const due = Math.round((quote + fee) * 100) / 100;
+
+  if (o.paymentStatus === 'completed') {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.green50, borderWidth: 1, borderColor: colors.green100 }}>
+        <BadgeCheck size={20} color={colors.white} fill={colors.brand} />
+        <View style={{ flex: 1 }}>
+          <T size={14} w="extrabold" color={colors.deep}>Paid online</T>
+          <T size={12} color={colors.ink2} raw>{`${inr(quote)} paid to your cleaning partner`}</T>
+        </View>
+      </View>
+    );
+  }
+  if (!(quote > 0)) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.night }}>
+        <CreditCard size={20} color={colors.green200} />
+        <View style={{ flex: 1 }}>
+          <T size={14} w="extrabold" color={colors.white}>Price after inspection</T>
+          <T size={12} color={colors.nightText} lh={16}>Your partner shares the price here after the visit. You can then pay online.</T>
+        </View>
+      </View>
+    );
+  }
+
+  const pay = async () => {
+    setBusy(true);
+    try {
+      const w = await api('/wallet/profile');
+      const balance = Number(w.data?.balance) || 0;
+      const need = Math.max(0, Math.ceil(due - balance));
+      if (need > 0) {
+        const c = await api('/wallet/recharge/create', { method: 'POST', body: { amount: need } });
+        const paid = await openRazorpay({
+          keyId: c.data.keyId,
+          orderId: c.data.orderId,
+          amountPaise: c.data.amount,
+          description: `Cleaning #${o.orderNo}`,
+          prefill: { name: user?.name, email: user?.email, contact: user?.phone },
+        });
+        await api('/wallet/recharge/verify', { method: 'POST', body: paid });
+      }
+      await api('/wallet/pay-order', { method: 'POST', body: { orderId: o._id, amount: quote } });
+      Alert.alert('Payment successful', `${inr(quote)} paid for your cleaning.`);
+      onPaid();
+    } catch (e: any) {
+      if (!(e instanceof PaymentCancelled)) Alert.alert('Payment failed', e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={{ borderRadius: radius.lg, backgroundColor: colors.night, padding: 14, gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <CreditCard size={18} color={colors.green200} />
+        <T size={14} w="extrabold" color={colors.white} style={{ flex: 1 }}>Price shared by your partner</T>
+      </View>
+      <View style={{ gap: 6 }}>
+        {[['Cleaning price', inr(quote)], ['Platform fee (1%)', inr(fee)]].map(([l, v]) => (
+          <View key={l} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <T size={13} color={colors.nightText}>{l}</T>
+            <T size={13} w="semibold" color={colors.white} raw>{v}</T>
+          </View>
+        ))}
+        <View style={{ height: 1, backgroundColor: colors.nightLine, marginVertical: 2 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <T size={14} w="extrabold" color={colors.white}>Total</T>
+          <T size={16} w="extrabold" color={colors.green200} raw>{inr(due)}</T>
+        </View>
+      </View>
+      <Button label={`Pay ${inr(due)} online`} loading={busy} onPress={pay} icon={<CreditCard size={18} color={colors.white} />} />
+      <T size={11} color={colors.nightMuted} center>UPI, cards and net banking via Razorpay · wallet balance is used first</T>
     </View>
   );
 }

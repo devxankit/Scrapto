@@ -4,14 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Check, CircleCheck, MapPin, MessageCircle, Navigation, Phone, Scale, Wallet } from 'lucide-react-native';
+import { Check, CircleCheck, Clock, CreditCard, MapPin, MessageCircle, Navigation, Phone, Scale, Sparkles, Wallet } from 'lucide-react-native';
 import T from '../components/T';
 import Pressable from '../components/Pressable';
 import { AppBar, Initials, BackButton, BottomBar, Button, Card, DemoNote, ErrorBox, IconButton, InfoRow, Loading, RadioDot, Screen, Tag } from '../components/ui';
 import { colors, radius } from '../theme';
 import { api } from '../api/client';
 import { clearQueryCache, useQuery } from '../hooks/useQuery';
-import { categoryMeta, images } from '../data/catalog';
+import { categoryMeta, cleaningName, images, isCleaning } from '../data/catalog';
 import { inr, phoneLabel, qty, whenLabel, catName } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import { itemsLine } from './home';
@@ -35,6 +35,10 @@ function JobStatus({ o }: { o: any }) {
   const s = jobStep(o);
   if (o.status === 'cancelled') return <Tag tone="red" label="CANCELLED" />;
   if (s === 4) return <Tag label="COMPLETED" />;
+  if (isCleaning(o)) {
+    const label = o.status === 'confirmed' ? 'TO VISIT' : !(o.totalAmount > 0) ? 'SHARE PRICE' : o.paymentStatus !== 'completed' ? 'AWAITING PAYMENT' : 'COMPLETE IT';
+    return <Tag tone={o.status === 'confirmed' ? 'green' : 'gold'} label={label} />;
+  }
   return <Tag tone={s === 0 ? 'green' : 'gold'} label={['TO PICK UP', 'WEIGHING', 'PAY CUSTOMER', 'COMPLETE IT'][s]} />;
 }
 
@@ -88,11 +92,11 @@ export function JobsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <T size={15} w="extrabold" numberOfLines={1}>{o.user.name}</T>
-                <T size={12} color={colors.muted} numberOfLines={1}>{itemsLine(o.scrapItems)}</T>
+                <T size={12} color={colors.muted} numberOfLines={1}>{isCleaning(o) ? cleaningName(o) : itemsLine(o.scrapItems)}</T>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <T size={15} w="extrabold" color={colors.deep} raw>{inr(o.paidAmount ?? o.totalAmount)}</T>
-                <T size={11} color={colors.muted}>{o.paymentStatus === 'completed' ? 'Paid' : 'Estimate'}</T>
+                <T size={11} color={colors.muted}>{o.paymentStatus === 'completed' ? 'Paid' : isCleaning(o) ? (o.totalAmount > 0 ? 'Quoted' : 'Price pending') : 'Estimate'}</T>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
@@ -102,6 +106,141 @@ export function JobsScreen() {
           </Card>
         )}
       />
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------ Cleaning */
+
+/**
+ * Cleaning job (the customer pays the partner): visit -> share the price after
+ * inspection -> the customer pays online in their app -> complete.
+ * The price can be corrected until the customer has paid.
+ */
+function CleaningJob({ o, setO, reload }: { o: any; setO: (o: any) => void; reload: () => void }) {
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
+  const [quote, setQuote] = useState(o.totalAmount > 0 ? String(o.totalAmount) : '');
+  const [busy, setBusy] = useState(false);
+  const paid = o.paymentStatus === 'completed';
+  const priced = o.totalAmount > 0;
+  const step = o.status === 'completed' ? 4 : o.status === 'confirmed' ? 0 : !priced ? 1 : !paid ? 2 : 3;
+
+  // While waiting for the customer's online payment, refresh every 5 s.
+  useEffect(() => {
+    if (step !== 2) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await api(`/orders/${o._id}`);
+        if (r.data?.order) setO(r.data.order);
+      } catch {
+        // keep the current view; the next tick retries
+      }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [step, o._id, setO]);
+
+  const update = async (body: any) => {
+    setBusy(true);
+    try {
+      const r = await api(`/orders/${o._id}/status`, { method: 'PUT', body });
+      setO(r.data.order);
+      clearQueryCache();
+    } catch (e: any) {
+      Alert.alert('Something went wrong', e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const n = Number(quote);
+  const validQuote = Number.isFinite(n) && n >= 1 && n <= 500000;
+  const title = ['Visit the customer', 'Share the price', 'Waiting for payment', 'Complete the job', 'Job complete'][step];
+
+  return (
+    <Screen>
+      {focused ? <StatusBar barStyle="light-content" /> : null}
+      <View style={{ backgroundColor: colors.night, paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 16, gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <BackButton light onPress={() => navigation.goBack()} />
+          <View style={{ flex: 1 }}>
+            <T size={12} w="semibold" color={colors.green200} raw>{`Cleaning #${o.orderNo}`}</T>
+            <T size={18} w="extrabold" color={colors.white} numberOfLines={1}>{title}</T>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {['Visit', 'Price', 'Paid', 'Done'].map((l, i) => {
+            const reached = i <= Math.min(step, 3);
+            return (
+              <View key={l} style={{ flex: 1, gap: 6 }}>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: reached ? colors.green400 : colors.night2 }} />
+                <T size={11} w={i === step ? 'extrabold' : 'semibold'} color={reached ? colors.white : colors.nightMuted}>{l}</T>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={false} onRefresh={reload} colors={[colors.primary]} />}>
+        <Card style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: colors.green50, alignItems: 'center', justifyContent: 'center' }}>
+              <Sparkles size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T size={15} w="extrabold">{cleaningName(o)}</T>
+              <T size={12} color={colors.muted} numberOfLines={2}>{o.serviceDetails?.description || 'No details given'}</T>
+            </View>
+          </View>
+          <InfoRow label="Customer" value={o.user?.name ?? ''} />
+          <InfoRow label="Address" value={[o.pickupAddress?.street, o.pickupAddress?.city].filter(Boolean).join(', ')} />
+          {o.pickupSlot ? <InfoRow label="Visit" value={`${o.pickupSlot.dayName ?? ''} ${o.pickupSlot.slot ?? ''}`.trim()} /> : null}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            <Button label="Call" size="md" variant="outline" style={{ flex: 1 }} icon={<Phone size={16} color={colors.primary} />} onPress={() => Linking.openURL(`tel:${o.user?.phone}`)} />
+            <Button label="Directions" size="md" variant="outline" style={{ flex: 1 }} icon={<Navigation size={16} color={colors.primary} />} onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${o.pickupAddress?.coordinates?.lat},${o.pickupAddress?.coordinates?.lng}`)} />
+          </View>
+        </Card>
+
+        {step >= 1 && step <= 2 ? (
+          <Card style={{ gap: 10 }}>
+            <T size={15} w="extrabold">{priced ? 'Price shared with the customer' : 'Price after inspection'}</T>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, paddingHorizontal: 12 }}>
+              <T size={18} w="bold" color={colors.muted} raw>₹</T>
+              <TextInput value={quote} onChangeText={(v) => setQuote(v.replace(/[^0-9.]/g, '').slice(0, 9))} keyboardType="decimal-pad" placeholder="Total for the job" style={{ flex: 1, fontSize: 18, color: colors.ink }} placeholderTextColor={colors.faint} />
+            </View>
+            <T size={12} color={colors.muted}>The customer sees this price in their app and pays online. You can correct it until they pay.</T>
+            <Button label={priced ? 'Update price' : 'Share price'} variant={priced ? 'outline' : 'primary'} disabled={!validQuote || n === o.totalAmount} loading={busy && step === 1} onPress={() => update({ totalAmount: n })} />
+          </Card>
+        ) : null}
+
+        {step === 2 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.night }}>
+            <Clock size={20} color={colors.green200} />
+            <View style={{ flex: 1 }}>
+              <T size={14} w="extrabold" color={colors.white}>Waiting for the customer to pay</T>
+              <T size={12} color={colors.nightText} raw>{`${inr(o.totalAmount)} · they pay online in the Scraptox app`}</T>
+            </View>
+          </View>
+        ) : null}
+
+        {paid ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.lg, backgroundColor: colors.green50 }}>
+            <CreditCard size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <T size={14} w="extrabold" color={colors.deep}>Paid online</T>
+              <T size={12} color={colors.ink2} raw>{`${inr(o.totalAmount)} added to your partner wallet`}</T>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {step !== 1 && step !== 2 ? (
+        <BottomBar>
+          {step === 0 ? <Button label="I have arrived" loading={busy} onPress={() => update({ status: 'in_progress' })} /> : null}
+          {step === 3 ? <Button label="Complete job" loading={busy} onPress={() => update({ status: 'completed' })} /> : null}
+          {step === 4 ? <Button label="Back to dashboard" onPress={() => navigation.navigate('Main', { screen: 'Home' })} /> : null}
+        </BottomBar>
+      ) : null}
     </Screen>
   );
 }
@@ -150,6 +289,8 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
       </Screen>
     );
   }
+
+  if (isCleaning(o)) return <CleaningJob o={o} setO={setO} reload={q.reload} />;
 
   const update = async (body: any) => {
     const r = await api(`/orders/${o._id}/status`, { method: 'PUT', body });

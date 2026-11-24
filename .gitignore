@@ -2,3 +2,8 @@ node_modules
 
 # Old Flutter/PWA wrapper apps: contain the Play signing keystore, its passwords and Firebase configs. Never commit.
 old PWA APPS/
+
+# JVM crash logs from local Gradle builds
+hs_err_pid*.log
+replay_pid*.log
+config.bat

@@ -6,4 +6,3 @@ old PWA APPS/
 # JVM crash logs from local Gradle builds
 hs_err_pid*.log
 replay_pid*.log
-config.bat

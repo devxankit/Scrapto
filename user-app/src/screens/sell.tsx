@@ -223,7 +223,11 @@ export function SellWeightScreen({ navigation }: P<'SellWeight'>) {
 /* ------------------------------------------------------------- 4 Address */
 
 export function SellAddressScreen({ navigation }: P<'SellAddress'>) {
-  const { addresses, draft, setDraft, saveAddress } = useStore();
+  const { addresses, draft, setDraft, saveAddress, loadAddresses } = useStore();
+  useEffect(() => {
+    if (!addresses.length) loadAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [locating, setLocating] = useState(false);
   const chosen = draft.address ?? addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
 
@@ -438,7 +442,7 @@ function SlotMode({ on, Icon, title, sub, onPress }: { on: boolean; Icon: typeof
 /* --------------------------------------------------------------- Success */
 
 export function SellSuccessScreen({ navigation, route }: P<'SellSuccess'>) {
-  const { orderId, orderNo, later } = route.params;
+  const { orderId, orderNo, later, cleaning } = route.params;
   return (
     <View style={{ flex: 1, backgroundColor: colors.white, padding: 24, justifyContent: 'center', gap: 24 }}>
       <View style={{ alignItems: 'center', gap: 16 }}>
@@ -447,14 +451,14 @@ export function SellSuccessScreen({ navigation, route }: P<'SellSuccess'>) {
             <Check size={44} color={colors.white} strokeWidth={3.2} />
           </View>
         </View>
-        <T size={24} w="extrabold" center>{later ? 'Pickup scheduled' : 'Pickup requested'}</T>
-        <T size={14} color={colors.muted} center lh={20}>{later ? 'A verified collector will confirm your slot shortly. We will remind you before they arrive.' : 'We are matching you with a verified collector nearby. You can track them live.'}</T>
+        <T size={24} w="extrabold" center>{cleaning ? 'Visit booked' : later ? 'Pickup scheduled' : 'Pickup requested'}</T>
+        <T size={14} color={colors.muted} center lh={20}>{cleaning ? 'A verified cleaning partner will confirm your slot. They share the price after inspecting, and you pay securely in the app.' : later ? 'A verified collector will confirm your slot shortly. We will remind you before they arrive.' : 'We are matching you with a verified collector nearby. You can track them live.'}</T>
         <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.bg }}>
           <T size={13} w="bold" raw>{`Order #${orderNo}`}</T>
         </View>
       </View>
       <View style={{ gap: 10 }}>
-        <Button label={later ? 'View pickup' : 'Track pickup'} icon={<CircleCheck size={18} color={colors.white} />} onPress={() => navigation.replace('Order', { id: orderId })} />
+        <Button label={cleaning ? 'View booking' : later ? 'View pickup' : 'Track pickup'} icon={<CircleCheck size={18} color={colors.white} />} onPress={() => navigation.replace('Order', { id: orderId })} />
         <Button label="Back to home" variant="ghost" onPress={() => navigation.goBack()} />
       </View>
     </View>

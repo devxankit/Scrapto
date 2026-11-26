@@ -35,7 +35,7 @@ export type RootParams = {
   SellWeight: undefined;
   SellAddress: undefined;
   SellConfirm: undefined;
-  SellSuccess: { orderId: string; orderNo: string; later: boolean };
+  SellSuccess: { orderId: string; orderNo: string; later: boolean; cleaning?: boolean };
   Order: { id: string };
   Review: { orderId: string };
   MyReviews: undefined;

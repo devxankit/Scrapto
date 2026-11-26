@@ -156,7 +156,11 @@ export function EditProfileScreen({ navigation }: P<'EditProfile'>) {
 /* -------------------------------------------------------------- Addresses */
 
 export function AddressesScreen({ navigation }: P<'Addresses'>) {
-  const { addresses, deleteAddress, saveAddress } = useStore();
+  const { addresses, deleteAddress, saveAddress, loadAddresses } = useStore();
+  useEffect(() => {
+    if (!addresses.length) loadAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Screen>
       <AppBar title="Saved addresses" />

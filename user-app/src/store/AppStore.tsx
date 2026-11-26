@@ -134,11 +134,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
       loadPrices();
       if (token) {
+        // Saved addresses are needed to book anything; load them even if the
+        // profile refresh below fails (slow network, rate limit, server hiccup).
+        loadAddresses();
         try {
           const me = await api('/auth/me');
           setUser(me.data.user);
           AsyncStorage.setItem(USER_KEY, JSON.stringify(me.data.user)).catch(() => {});
-          loadAddresses();
           startPush();
         } catch (e: any) {
           if (e?.status === 401) signedOut();

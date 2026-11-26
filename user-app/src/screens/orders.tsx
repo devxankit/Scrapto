@@ -94,28 +94,35 @@ function OrderCard({ o }: { o: any }) {
   const cats: string[] = o.scrapItems.map((i: any) => catName(i.category));
   const cleaning = o.orderType === 'cleaning_service' ? CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType) : null;
   const later = o.preferredTime === 'later' && o.pickupSlot;
-  const sub =
-    o.status === 'pending' ? (later ? `${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Finding a collector nearby')
+  const priced = o.totalAmount > 0;
+  const paidOnline = o.paymentStatus === 'completed';
+  const sub = cleaning
+    ? (o.status === 'pending' ? (later ? `${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Finding a cleaning partner')
+      : o.status === 'cancelled' ? (o.cancelReason || 'Cancelled')
+        : o.status === 'completed' ? `Paid ${inr(o.totalAmount)} · ${o.scrapper?.name ?? ''}`
+          : o.status === 'in_progress' ? (!priced ? `${o.scrapper?.name ?? ''} · inspecting` : paidOnline ? `${o.scrapper?.name ?? ''} · paid, job in progress` : `Price ready · pay ${inr(o.totalAmount)}`)
+            : `${o.scrapper?.name ?? ''}${later ? ` · visit ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : ''}`)
+    : o.status === 'pending' ? (later ? `${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Finding a collector nearby')
       : o.status === 'cancelled' ? (o.cancelReason || 'Cancelled')
         : o.status === 'completed' ? `Paid to wallet · ${o.scrapper?.name ?? ''}`
           : o.status === 'in_progress' ? `${o.scrapper?.name} · ${o.tracking?.arrived ? 'at your door' : `${o.tracking?.etaMin ?? 8} min away`}`
             : `${o.scrapper?.name ?? ''}${later ? ` · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : ''}`;
   const actions: { label: string; tone: 'tonal' | 'outline'; go: () => void }[] = [];
   if (isActive(o.status)) {
-    actions.push({ label: o.status === 'pending' ? 'View details' : 'Track live', tone: 'tonal', go: () => nav.navigate('Order', { id: o._id }) });
+    actions.push({ label: o.status === 'pending' || cleaning ? 'View details' : 'Track live', tone: 'tonal', go: () => nav.navigate('Order', { id: o._id }) });
     if (o.scrapper) actions.push({ label: 'Chat', tone: 'outline', go: () => nav.navigate('ChatThread', { orderId: o._id, name: o.scrapper.name }) });
   } else if (o.status === 'completed') {
     actions.push(o.reviewed ? { label: 'View receipt', tone: 'tonal', go: () => nav.navigate('Order', { id: o._id }) } : { label: 'Rate & review', tone: 'tonal', go: () => nav.navigate('Review', { orderId: o._id }) });
-    actions.push({ label: o.reviewed ? 'Sell again' : 'Receipt', tone: 'outline', go: () => (o.reviewed ? nav.navigate('SellCategory') : nav.navigate('Order', { id: o._id })) });
+    actions.push({ label: o.reviewed ? (cleaning ? 'Book again' : 'Sell again') : 'Receipt', tone: 'outline', go: () => (o.reviewed ? (cleaning ? nav.navigate('Cleaning') : nav.navigate('SellCategory')) : nav.navigate('Order', { id: o._id })) });
   } else {
-    actions.push({ label: 'Book again', tone: 'tonal', go: () => nav.navigate('SellCategory', { preselect: cats[0] }) });
+    actions.push({ label: 'Book again', tone: 'tonal', go: () => (cleaning ? nav.navigate('Cleaning') : nav.navigate('SellCategory', { preselect: cats[0] })) });
     actions.push({ label: 'Details', tone: 'outline', go: () => nav.navigate('Order', { id: o._id }) });
   }
   return (
     <Card onPress={() => nav.navigate('Order', { id: o._id })} style={{ gap: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <T size={12} w="semibold" color={colors.muted} raw>{`#${o.orderNo} · ${whenLabel(o.createdAt)}`}</T>
-        <StatusPill status={o.status} />
+        <StatusPill status={o.status} label={cleaning && o.status === 'in_progress' ? 'In progress' : undefined} />
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flexDirection: 'row' }}>
@@ -128,7 +135,9 @@ function OrderCard({ o }: { o: any }) {
           <T size={14} w="bold" numberOfLines={1}>{cleaning ? cleaning.name : cats.join(', ')}</T>
           <T size={12} color={colors.muted} numberOfLines={1}>{sub}</T>
         </View>
-        <T size={16} w="extrabold" color={o.status === 'cancelled' ? colors.faint : colors.deep} raw>{inr(o.totalAmount)}</T>
+        {cleaning && !priced
+          ? <T size={12} w="bold" color={colors.muted} center style={{ width: 64 }}>Price after visit</T>
+          : <T size={16} w="extrabold" color={o.status === 'cancelled' ? colors.faint : colors.deep} raw>{inr(o.totalAmount)}</T>}
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {actions.map((a) => <Button key={a.label} label={a.label} size="md" variant={a.tone} onPress={a.go} style={{ flex: 1, height: 40 }} />)}
@@ -229,8 +238,12 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
   const pickup = o.pickupAddress.coordinates;
   const collector = o.tracking?.location;
   const stepIndex = STEPS.findIndex((s) => s.key === o.status);
-  const headline =
-    o.status === 'pending' ? (o.preferredTime === 'later' && o.pickupSlot ? `Scheduled · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : o.orderType === 'cleaning_service' ? 'Finding a cleaning partner' : 'Finding a collector near you')
+  const isCleaningJob = o.orderType === 'cleaning_service';
+  const steps = isCleaningJob ? STEPS.map((s) => (s.key === 'in_progress' ? { ...s, label: 'Visit' } : s.key === 'completed' ? { ...s, label: 'Done' } : s)) : STEPS;
+  const headline = isCleaningJob && o.status === 'in_progress'
+    ? (!(o.totalAmount > 0) ? 'Partner is inspecting · price coming up' : o.paymentStatus === 'completed' ? 'Paid · cleaning in progress' : `Price ready · ${inr(o.totalAmount)}`)
+    : isCleaningJob && o.status === 'confirmed' && !(o.preferredTime === 'later' && o.pickupSlot) ? 'Partner accepted · visiting soon'
+    : o.status === 'pending' ? (o.preferredTime === 'later' && o.pickupSlot ? `Scheduled · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : o.orderType === 'cleaning_service' ? 'Finding a cleaning partner' : 'Finding a collector near you')
       : o.status === 'confirmed' ? (o.preferredTime === 'later' && o.pickupSlot ? `Accepted · ${o.pickupSlot.dayName}, ${o.pickupSlot.slot}` : 'Collector accepted · leaving soon')
         : o.tracking?.arrived ? 'At your door · weighing now' : `On the way · ${o.tracking?.etaMin ?? 8} min`;
 
@@ -279,7 +292,7 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong }} />
           {/* Progress */}
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            {STEPS.map((s, i) => {
+            {steps.map((s, i) => {
               const done = i < stepIndex;
               const cur = i === stepIndex;
               return (
@@ -330,10 +343,10 @@ export function OrderScreen({ route, navigation }: P<'Order'>) {
           <View style={{ backgroundColor: colors.bg, borderRadius: radius.lg, padding: 14, gap: 8 }}>
             <InfoRow label="Order" value={`#${o.orderNo} · ${whenLabel(o.createdAt)}`} />
             <InfoRow label={o.orderType === 'cleaning_service' ? 'Service' : 'Items'} value={o.orderType === 'cleaning_service' ? `${CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType)?.name ?? 'Cleaning'} · ${o.serviceDetails?.description ?? ''}` : o.scrapItems.map((i: any) => `${catName(i.category)} ${qty(i.weight, unitFor(i.category))}`).join(' · ')} />
-            <InfoRow label="Pickup at" value={[o.pickupAddress.street, o.pickupAddress.city].filter(Boolean).join(', ')} />
+            <InfoRow label={o.orderType === 'cleaning_service' ? 'Visit at' : 'Pickup at'} value={[o.pickupAddress.street, o.pickupAddress.city].filter(Boolean).join(', ')} />
             <InfoRow label={o.orderType === 'cleaning_service' ? 'Price' : 'Estimate'} value={o.orderType === 'cleaning_service' && !(o.totalAmount > 0) ? 'After inspection' : inr(o.totalAmount)} strong valueColor={colors.deep} />
           </View>
-          {o.status !== 'in_progress' ? <Button label="Cancel pickup" variant="danger" size="md" onPress={() => setCancelOpen(true)} /> : null}
+          {o.status !== 'in_progress' ? <Button label={o.orderType === 'cleaning_service' ? 'Cancel booking' : 'Cancel pickup'} variant="danger" size="md" onPress={() => setCancelOpen(true)} /> : null}
         </ScrollView>
       </View>
       <CancelSheet visible={cancelOpen} onClose={() => setCancelOpen(false)} orderId={o._id} onDone={() => { setCancelOpen(false); q.reload(); }} />
@@ -361,7 +374,7 @@ function CleaningPayCard({ o, onPaid }: { o: any; onPaid: () => void }) {
         <BadgeCheck size={20} color={colors.white} fill={colors.brand} />
         <View style={{ flex: 1 }}>
           <T size={14} w="extrabold" color={colors.deep}>Paid online</T>
-          <T size={12} color={colors.ink2} raw>{`${inr(quote)} paid to your cleaning partner`}</T>
+          <T size={12} color={colors.ink2} raw>{`${inr(quote, true)} paid to your cleaning partner · ${inr(fee, true)} platform fee`}</T>
         </View>
       </View>
     );
@@ -412,7 +425,7 @@ function CleaningPayCard({ o, onPaid }: { o: any; onPaid: () => void }) {
         <T size={14} w="extrabold" color={colors.white} style={{ flex: 1 }}>Price shared by your partner</T>
       </View>
       <View style={{ gap: 6 }}>
-        {[['Cleaning price', inr(quote)], ['Platform fee (1%)', inr(fee)]].map(([l, v]) => (
+        {[['Cleaning price', inr(quote, true)], ['Platform fee (1%)', inr(fee, true)]].map(([l, v]) => (
           <View key={l} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <T size={13} color={colors.nightText}>{l}</T>
             <T size={13} w="semibold" color={colors.white} raw>{v}</T>
@@ -421,10 +434,10 @@ function CleaningPayCard({ o, onPaid }: { o: any; onPaid: () => void }) {
         <View style={{ height: 1, backgroundColor: colors.nightLine, marginVertical: 2 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <T size={14} w="extrabold" color={colors.white}>Total</T>
-          <T size={16} w="extrabold" color={colors.green200} raw>{inr(due)}</T>
+          <T size={16} w="extrabold" color={colors.green200} raw>{inr(due, true)}</T>
         </View>
       </View>
-      <Button label={`Pay ${inr(due)} online`} loading={busy} onPress={pay} icon={<CreditCard size={18} color={colors.white} />} />
+      <Button label={`Pay ${inr(due, true)} online`} loading={busy} onPress={pay} icon={<CreditCard size={18} color={colors.white} />} />
       <T size={11} color={colors.nightMuted} center>UPI, cards and net banking via Razorpay · wallet balance is used first</T>
     </View>
   );
@@ -469,6 +482,7 @@ function CancelSheet({ visible, onClose, orderId, onDone }: { visible: boolean; 
 function Receipt({ o }: { o: any }) {
   const nav = useNavigation();
   const done = o.status === 'completed';
+  if (o.orderType === 'cleaning_service') return <CleaningReceipt o={o} />;
   return (
     <Screen>
       <AppBar title={done ? 'Pickup receipt' : 'Cancelled pickup'} subtitle={`#${o.orderNo}`} />
@@ -511,9 +525,47 @@ function Receipt({ o }: { o: any }) {
   );
 }
 
+/** Receipt for a finished or cancelled cleaning job: what the user paid, not what they earned. */
+function CleaningReceipt({ o }: { o: any }) {
+  const nav = useNavigation();
+  const done = o.status === 'completed';
+  const svc = CLEANING_SERVICES.find((c) => c.id === o.serviceDetails?.serviceType);
+  const price = Number(o.totalAmount) || 0;
+  const paid = o.paymentStatus === 'completed';
+  const fee = paid ? cleaningFee(price) : 0;
+  return (
+    <Screen>
+      <AppBar title={done ? 'Cleaning receipt' : 'Cancelled booking'} subtitle={`#${o.orderNo}`} />
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
+        <Card style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
+          <StatusPill status={o.status} label={done ? 'Paid' : 'Cancelled'} />
+          <T size={34} w="extrabold" color={done ? colors.deep : colors.faint} raw style={{ letterSpacing: -0.6 }}>{inr(price + fee, true)}</T>
+          <T size={12} color={colors.muted} raw>{done ? `Completed ${dateLabel(o.completedDate)} · ${o.scrapper?.name ?? ''}` : o.cancelReason || 'Cancelled'}</T>
+        </Card>
+        <Card style={{ gap: 8 }}>
+          <InfoRow label="Service" value={`${svc?.name ?? 'Cleaning'}${o.serviceDetails?.description ? ` · ${o.serviceDetails.description}` : ''}`} />
+          {paid ? <InfoRow label="Cleaning price" value={inr(price, true)} /> : null}
+          {paid ? <InfoRow label="Platform fee (1%)" value={inr(fee, true)} /> : null}
+          {paid ? <InfoRow label="Total paid" value={inr(price + fee, true)} strong /> : null}
+        </Card>
+        <Card style={{ gap: 8 }}>
+          <InfoRow label="Booked" value={whenLabel(o.createdAt)} />
+          <InfoRow label="Visit at" value={[o.pickupAddress?.street, o.pickupAddress?.city].filter(Boolean).join(', ')} />
+          {paid ? <InfoRow label="Payment" value="Online · Scraptox wallet" /> : null}
+        </Card>
+        {done ? (
+          o.reviewed ? <Button label="See my reviews" variant="outline" onPress={() => nav.navigate('MyReviews')} /> : <Button label={`Rate ${firstName(o.scrapper?.name)}`} icon={<Star size={18} color={colors.white} />} onPress={() => nav.navigate('Review', { orderId: o._id })} />
+        ) : null}
+        <Button label="Book again" variant={done ? 'outline' : 'primary'} onPress={() => nav.navigate('Cleaning')} />
+      </ScrollView>
+    </Screen>
+  );
+}
+
 /* ----------------------------------------------------------------- Review */
 
 const TAGS = ['On time', 'Fair weighing', 'Polite', 'Paid instantly', 'Clean pickup'];
+const CLEANING_TAGS = ['On time', 'Thorough job', 'Polite', 'Fair price', 'Left it tidy'];
 
 export function ReviewScreen({ route, navigation }: P<'Review'>) {
   const q = useQuery<{ order: any }>(`/orders/${route.params.orderId}`);
@@ -525,7 +577,7 @@ export function ReviewScreen({ route, navigation }: P<'Review'>) {
   const words = ['', 'Poor', 'Not great', 'Okay', 'Good', 'Excellent'];
   return (
     <Screen>
-      <AppBar title="Rate your pickup" subtitle={o ? `#${o.orderNo}` : undefined} />
+      <AppBar title={o?.orderType === 'cleaning_service' ? 'Rate your cleaning' : 'Rate your pickup'} subtitle={o ? `#${o.orderNo}` : undefined} />
       <ScrollView contentContainerStyle={{ padding: 12, gap: 10 }} keyboardShouldPersistTaps="handled">
         <Card style={{ alignItems: 'center', gap: 12, paddingVertical: 22 }}>
           <Avatar source={images.avatarPartner} size={72} />
@@ -542,7 +594,7 @@ export function ReviewScreen({ route, navigation }: P<'Review'>) {
         <View style={{ gap: 10 }}>
           <T size={14} w="bold">What went well?</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {TAGS.map((t) => {
+            {(o?.orderType === 'cleaning_service' ? CLEANING_TAGS : TAGS).map((t) => {
               const on = tags.includes(t);
               return (
                 <Pressable key={t} onPress={() => setTags((x) => (on ? x.filter((y) => y !== t) : [...x, t]))} style={{ height: 36, paddingHorizontal: 14, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? colors.green50 : colors.white, borderWidth: 1, borderColor: on ? colors.primary : colors.lineStrong }}>
@@ -552,7 +604,7 @@ export function ReviewScreen({ route, navigation }: P<'Review'>) {
             })}
           </View>
         </View>
-        <TextInput value={comment} onChangeText={setComment} multiline placeholder="Tell others about your pickup (optional)" placeholderTextColor={colors.faint} style={{ minHeight: 100, textAlignVertical: 'top', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, padding: 12, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, color: colors.ink }} />
+        <TextInput value={comment} onChangeText={setComment} multiline placeholder={o?.orderType === 'cleaning_service' ? 'Tell others about the cleaning (optional)' : 'Tell others about your pickup (optional)'} placeholderTextColor={colors.faint} style={{ minHeight: 100, textAlignVertical: 'top', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, padding: 12, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, color: colors.ink }} />
       </ScrollView>
       <BottomBar>
         <Button

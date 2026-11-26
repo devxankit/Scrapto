@@ -327,7 +327,7 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
           <Marker key={r._id} coordinate={{ latitude: r.pickupAddress.coordinates.lat, longitude: r.pickupAddress.coordinates.lng }} onPress={() => setIndex(i)} anchor={{ x: 0.5, y: 1 }}>
             <View style={{ alignItems: 'center' }}>
               <View style={{ paddingHorizontal: 8, height: 26, borderRadius: 13, backgroundColor: r._id === o?._id ? colors.deep : colors.white, borderWidth: 1.5, borderColor: colors.deep, justifyContent: 'center' }}>
-                <T size={11} w="extrabold" color={r._id === o?._id ? colors.white : colors.deep} raw>{inr(r.totalAmount)}</T>
+                <T size={11} w="extrabold" color={r._id === o?._id ? colors.white : colors.deep} raw>{isCleaning(r) && !(r.totalAmount > 0) ? 'Cleaning' : inr(r.totalAmount)}</T>
               </View>
               <View style={{ width: 2, height: 8, backgroundColor: colors.deep }} />
             </View>
@@ -355,7 +355,7 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: colors.goldSoft, justifyContent: 'center' }}>
-                <T size={11} w="extrabold" color={colors.goldText}>NEW PICKUP REQUEST</T>
+                <T size={11} w="extrabold" color={colors.goldText}>{o && isCleaning(o) ? 'NEW CLEANING JOB' : 'NEW PICKUP REQUEST'}</T>
               </View>
               <T size={12} color={colors.muted} raw style={{ flex: 1 }}>{agoLabel(o.createdAt)}</T>
               {list.length > 1 ? <T size={12} w="bold" color={colors.primary} onPress={() => setIndex((index + 1) % list.length)} raw>{`${index + 1} of ${list.length} ›`}</T> : null}
@@ -384,7 +384,7 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
             {o.notes ? <T size={12} color={colors.muted} numberOfLines={2}>{`“${o.notes}”`}</T> : null}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button label="Skip" variant="outline" full={false} loading={busy === 'skip'} disabled={!!busy} onPress={skip} style={{ width: 104 }} />
-              <Button label="Accept pickup" variant="deep" loading={busy === 'accept'} disabled={!!busy} onPress={accept} style={{ flex: 1 }} iconRight={<Navigation size={16} color={colors.white} />} />
+              <Button label={o && isCleaning(o) ? 'Accept job' : 'Accept pickup'} variant="deep" loading={busy === 'accept'} disabled={!!busy} onPress={accept} style={{ flex: 1 }} iconRight={<Navigation size={16} color={colors.white} />} />
             </View>
           </View>
         )}

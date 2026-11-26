@@ -104,4 +104,24 @@ describe('Cleaning service booking and online payment', () => {
     const avail = await request(app).get('/api/orders/available').set(authHeader(scrapOnly)).expect(200);
     assert.ok(!avail.body.data.orders.some((o) => String(o._id) === String(orderId)));
   });
+
+  test('CLN-6 a partner turns on cleaning in Edit profile and then sees cleaning jobs', async () => {
+    const user = await makeUser();
+    const { user: partner, scrapper } = await makeScrapper();
+    const orderId = (await book(user)).body.data.order._id;
+
+    // Same request the partner app's Edit profile sends.
+    const on = await request(app).put('/api/scrappers/me').set(authHeader(partner))
+      .send({ services: ['scrap_pickup', 'home_cleaning'] });
+    assert.equal(on.status, 200, on.body.message);
+    assert.deepEqual((await Scrapper.findById(scrapper._id).lean()).services.sort(), ['home_cleaning', 'scrap_pickup']);
+    const avail = await request(app).get('/api/orders/available').set(authHeader(partner)).expect(200);
+    assert.ok(avail.body.data.orders.some((o) => String(o._id) === String(orderId)), 'cleaning job should be offered');
+
+    // Unknown values are dropped; an empty choice is refused and changes nothing.
+    await request(app).put('/api/scrappers/me').set(authHeader(partner)).send({ services: ['home_cleaning', 'hacking'] }).expect(200);
+    assert.deepEqual((await Scrapper.findById(scrapper._id).lean()).services, ['home_cleaning']);
+    await request(app).put('/api/scrappers/me').set(authHeader(partner)).send({ services: [] }).expect(400);
+    assert.deepEqual((await Scrapper.findById(scrapper._id).lean()).services, ['home_cleaning']);
+  });
 });

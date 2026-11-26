@@ -3,7 +3,7 @@
  * book. A partner inspects and shares the price in the app; the user then pays
  * online (Razorpay through the wallet) from the order screen.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions } from '@react-navigation/native';
@@ -106,7 +106,11 @@ export function CleaningScreen({ navigation }: P<'Cleaning'>) {
 
 export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
   const svc = CLEANING_SERVICES.find((s) => s.id === route.params.serviceId) ?? CLEANING_SERVICES[0];
-  const { addresses } = useStore();
+  const { addresses, loadAddresses } = useStore();
+  useEffect(() => {
+    if (!addresses.length) loadAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const days = useMemo(() => nextDays(7).slice(1), []);
   const [size, setSize] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -114,7 +118,8 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
   const [day, setDay] = useState(days[0].key);
   const [time, setTime] = useState(SLOT_TIMES[0]);
   const [busy, setBusy] = useState(false);
-  const addr = addresses.find((a) => a._id === addrId);
+  // Fall back to the default (or first) address, also when the list loads after this screen opened.
+  const addr = addresses.find((a) => a._id === addrId) ?? addresses.find((a) => a.isDefault) ?? addresses[0];
 
   const book = async () => {
     if (!addr || !size) return;
@@ -131,7 +136,7 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
           pickupSlot: { dayName: d.label, date: d.key, slot: time, timestamp: Date.parse(d.key) },
         },
       });
-      navigation.dispatch(CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: 'SellSuccess', params: { orderId: r.data.order._id, orderNo: r.data.order.orderNo, later: true } }] }));
+      navigation.dispatch(CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: 'SellSuccess', params: { orderId: r.data.order._id, orderNo: r.data.order.orderNo, later: true, cleaning: true } }] }));
     } catch (e: any) {
       Alert.alert('Could not book', e.message);
       setBusy(false);
@@ -159,7 +164,7 @@ export function CleaningBookScreen({ navigation, route }: P<'CleaningBook'>) {
         <Field label="Anything we should know? (optional)" value={notes} onChangeText={setNotes} multiline placeholder="E.g. two bathrooms, stains on the sofa, tank on the roof" />
         <View style={{ gap: 8 }}>
           <T size={15} w="extrabold">Address</T>
-          {addresses.map((a) => <AddressCard key={a._id} a={a} on={a._id === addrId} onPress={() => setAddrId(a._id)} />)}
+          {addresses.map((a) => <AddressCard key={a._id} a={a} on={a._id === addr?._id} onPress={() => setAddrId(a._id)} />)}
           <T size={13} w="bold" color={colors.primary} onPress={() => navigation.navigate('AddressForm')}>+ Add a new address</T>
         </View>
         <View style={{ gap: 8 }}>

@@ -70,6 +70,18 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     } else {
         if (name) scrapper.name = name;
         if (vehicleInfo) scrapper.vehicleInfo = { ...scrapper.vehicleInfo, ...vehicleInfo };
+        // Which job types the partner takes (the app's Edit profile "Services").
+        // Cleaning jobs are only offered to partners with 'home_cleaning' here.
+        if (req.body.services !== undefined) {
+            const allowed = ['scrap_pickup', 'home_cleaning'];
+            const services = Array.isArray(req.body.services)
+                ? [...new Set(req.body.services.filter((s) => allowed.includes(s)))]
+                : [];
+            if (!services.length) {
+                return sendError(res, 'Choose at least one service', 400);
+            }
+            scrapper.services = services;
+        }
         if (city !== undefined) {
             if (city === null || city.trim() === "") {
                 // If they are online, they CANNOT clear the city

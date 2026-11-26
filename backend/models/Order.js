@@ -177,6 +177,23 @@ const orderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // Set when the order was created from an admin-uploaded lead: the lead's own
+  // details, shown to the partner as uploaded (the customer account may hold
+  // another name or no email).
+  leadInfo: {
+    type: new mongoose.Schema({
+      name: String,
+      phone: String,
+      email: String,
+      address: String,
+      category: String,
+      preferredAt: Date,
+      preferredText: String,
+      price: Number,
+      source: String
+    }, { _id: false }),
+    default: undefined
+  },
   cancelledAt: {
     type: Date,
     default: null

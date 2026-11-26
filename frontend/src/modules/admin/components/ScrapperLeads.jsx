@@ -35,6 +35,23 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
+/** The seven fields every lead carries to the partner app. */
+const LEAD_FIELDS = ['Name', 'Number', 'Address', 'Mail ID', 'Category', 'Date and time', 'Price'];
+
+/** "Thu, 27 Nov, 4:00 pm" from the lead's date, or the sheet's own text ("ASAP"). */
+const leadWhen = (at, text) => {
+  if (at) {
+    const d = new Date(at);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    }
+  }
+  return text && text !== 'ASAP' ? text : '';
+};
+
+const LeadCell = ({ value, missing }) =>
+  missing || !value ? <span className="text-amber-700 font-bold">Missing</span> : <span className="text-gray-800">{value}</span>;
+
 const ScrapperLeads = () => {
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState({ total: 0, unassigned: 0, assigned: 0, completed: 0 });
@@ -514,10 +531,12 @@ const ScrapperLeads = () => {
                         <div className="flex flex-col text-xs">
                           <span className="font-bold text-gray-900">{lead.scrapType || 'Mixed Scrap'}</span>
                           <span className="text-gray-500 font-semibold mt-0.5">
-                            Est: <strong className="text-gray-900">{lead.estimatedWeight || 10} kg</strong>
+                            Price: <strong className="text-gray-900">{lead.price ? `₹${Number(lead.price).toLocaleString('en-IN')}` : '—'}</strong>
+                            <span className="text-gray-400"> · {lead.estimatedWeight || 10} kg</span>
                           </span>
-                          {lead.preferredDate ? (
-                            <span className="text-[11px] text-indigo-600 font-bold mt-0.5">Slot: {lead.preferredDate}</span>
+                          <span className="text-[11px] text-indigo-600 font-bold mt-0.5">{leadWhen(lead.preferredAt, lead.preferredDate)}</span>
+                          {lead.missing?.length ? (
+                            <span className="text-[10px] text-amber-700 font-bold mt-0.5">Missing: {lead.missing.join(', ')}</span>
                           ) : null}
                         </div>
                       </td>
@@ -701,8 +720,49 @@ const ScrapperLeads = () => {
                         <span className="text-red-500">Skipped (Invalid):</span> <strong className="text-red-600">{previewData.invalidCount}</strong>
                       </div>
                     )}
+                    {previewData.incompleteCount > 0 && (
+                      <div>
+                        <span className="text-amber-600">Missing fields:</span> <strong className="text-amber-700">{previewData.incompleteCount}</strong>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Per-lead preview: the seven fields the partner will see */}
+                {previewData?.preview?.length ? (
+                  <div className="border border-gray-200 rounded-2xl overflow-hidden">
+                    <div className="px-4 py-2 bg-gray-50 text-[11px] font-black text-gray-600 uppercase tracking-wider">
+                      Lead details sent to the partner{previewData.validCount > previewData.preview.length ? ` (first ${previewData.preview.length})` : ''}
+                    </div>
+                    <div className="overflow-x-auto max-h-72">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-white sticky top-0">
+                          <tr className="text-gray-500 font-bold">
+                            {LEAD_FIELDS.map((f) => <th key={f} className="px-3 py-2 whitespace-nowrap">{f}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {previewData.preview.map((l, i) => (
+                            <tr key={`${l.rowNumber}-${i}`} className={l.missing?.length ? 'bg-amber-50/60' : ''}>
+                              <td className="px-3 py-2 font-bold text-gray-900 whitespace-nowrap">{l.name}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">+91 {l.phone}</td>
+                              <td className="px-3 py-2 min-w-[180px]">{l.address}</td>
+                              <td className="px-3 py-2"><LeadCell value={l.email} missing={l.missing?.includes('Mail ID')} /></td>
+                              <td className="px-3 py-2 whitespace-nowrap"><LeadCell value={l.category} missing={l.missing?.includes('Category')} /></td>
+                              <td className="px-3 py-2 whitespace-nowrap"><LeadCell value={leadWhen(l.preferredAt, l.preferredDate)} missing={l.missing?.includes('Date and time')} /></td>
+                              <td className="px-3 py-2 whitespace-nowrap font-bold"><LeadCell value={l.price ? `₹${Number(l.price).toLocaleString('en-IN')}` : ''} missing={l.missing?.includes('Price')} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {previewData.incompleteCount > 0 ? (
+                      <div className="px-4 py-2 bg-amber-50 text-[11px] text-amber-800 font-semibold">
+                        Highlighted rows are missing a field. They can still be sent, but the partner will see the gap. Fill the sheet and upload again to send complete leads.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Distribution Mode Options */}
                 <div className="space-y-3">

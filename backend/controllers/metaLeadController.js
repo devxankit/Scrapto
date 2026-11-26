@@ -4,6 +4,7 @@ import MetaLead from '../models/MetaLead.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import Scrapper from '../models/Scrapper.js';
+import Price from '../models/Price.js';
 import { ORDER_STATUS, ORDER_TYPES, PAYMENT_STATUS, SCRAP_CATEGORIES } from '../config/constants.js';
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js';
 import { notifyUser } from '../services/socketService.js';
@@ -12,19 +13,72 @@ import { parseMetaLeadsFile, generateSampleMetaLeadsWorkbook } from '../utils/me
 import { parsePagination, safeSearchRegex, assertObjectId } from '../utils/security.js';
 
 /**
- * Helper: Match or map scrap category string to SCRAP_CATEGORIES enum
+ * The lead's "Category" text as one of the app's categories (the ones the
+ * partner app has names, images and rates for). Exact names win; otherwise
+ * the first keyword found as a whole word decides; "other" when nothing fits.
  */
+const CATEGORY_KEYWORDS = [
+  ['split ac', ['split ac', 'ac', 'air conditioner', 'aircon']],
+  ['refrigerator', ['refrigerator', 'fridge']],
+  ['washing machine', ['washing machine', 'washer']],
+  ['tv / monitor', ['tv', 'television', 'monitor', 'led tv']],
+  ['ceiling fan', ['fan', 'ceiling fan']],
+  ['cooler', ['cooler']],
+  ['geyser', ['geyser', 'water heater']],
+  ['microwave', ['microwave', 'oven']],
+  ['e-waste', ['e waste', 'ewaste', 'electronic', 'electronics', 'laptop', 'computer', 'mobile', 'phone']],
+  ['battery', ['battery', 'batteries', 'inverter battery']],
+  ['wire & cable', ['wire', 'wires', 'cable', 'cables']],
+  ['copper', ['copper']],
+  ['brass', ['brass']],
+  ['aluminium', ['aluminium', 'aluminum']],
+  ['steel', ['steel', 'stainless']],
+  ['iron', ['iron', 'metal', 'metals', 'loha']],
+  ['newspaper', ['newspaper', 'newspapers', 'paper', 'papers', 'book', 'books', 'raddi']],
+  ['cardboard', ['cardboard', 'carton', 'cartons', 'box', 'boxes']],
+  ['plastic', ['plastic', 'plastics', 'bottle', 'bottles']],
+  ['glass', ['glass']],
+  ['tyres', ['tyre', 'tyres', 'tire', 'tires']],
+  ['old vehicle', ['vehicle', 'car', 'bike', 'scooter', 'motorcycle']],
+  ['wooden furniture', ['furniture', 'wood', 'wooden']],
+];
 const resolveScrapCategory = (text) => {
-  const t = String(text || '').toLowerCase();
-  if (t.includes('paper') || t.includes('book') || t.includes('carton') || t.includes('newspaper')) return 'paper';
-  if (t.includes('plastic') || t.includes('bottle')) return 'plastic';
-  if (t.includes('iron') || t.includes('metal') || t.includes('steel')) return 'iron';
-  if (t.includes('copper')) return 'copper';
-  if (t.includes('brass')) return 'brass';
-  if (t.includes('aluminium') || t.includes('aluminum')) return 'aluminium';
-  if (t.includes('ac') || t.includes('fridge') || t.includes('electronic') || t.includes('appliance')) return 'appliances';
-  if (t.includes('vehicle') || t.includes('car') || t.includes('bike')) return 'vehicles';
-  return 'mixed';
+  const t = String(text || '').toLowerCase().replace(/[^a-z0-9& /]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (Object.values(SCRAP_CATEGORIES).includes(t)) return t;
+  const words = ` ${t.replace(/[&/]/g, ' ')} `;
+  for (const [cat, keys] of CATEGORY_KEYWORDS) {
+    if (keys.some((k) => words.includes(` ${k} `))) return cat;
+  }
+  return 'other';
+};
+
+/** Today's admin rate (per kg, or per piece) for a category; 0 if none is set. */
+const adminRateFor = async (category) => {
+  const doc = await Price.findOne({ category, isActive: true, effectiveDate: { $lte: new Date() } })
+    .collation({ locale: 'en', strength: 2 }).sort({ effectiveDate: -1 }).lean();
+  if (!doc) return 0;
+  return Number(doc.pricePerKg) > 0 ? Number(doc.pricePerKg) : Number(doc.price) || 0;
+};
+
+/** Pickup slot for the partner app from the lead's date and time (India time). */
+const slotFromLead = (lead, now) => {
+  const at = lead.preferredAt ? new Date(lead.preferredAt) : null;
+  if (at && !Number.isNaN(at.getTime())) {
+    const tz = { timeZone: 'Asia/Kolkata' };
+    return {
+      dayName: at.toLocaleDateString('en-IN', { ...tz, weekday: 'short', day: 'numeric', month: 'short' }),
+      date: at.toLocaleDateString('en-CA', tz),
+      slot: at.toLocaleTimeString('en-IN', { ...tz, hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase(),
+      timestamp: at.getTime()
+    };
+  }
+  // No usable date: keep the sheet's own words ("ASAP", "Tomorrow morning").
+  return {
+    dayName: '',
+    date: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+    slot: lead.preferredDate && lead.preferredDate !== 'ASAP' ? lead.preferredDate : 'As soon as possible',
+    timestamp: now.getTime()
+  };
 };
 
 /**
@@ -67,8 +121,12 @@ const assignLeadToScrapper = async (lead, scrapper, distributionMode, uploadedBy
   const orderNo = 'ML-' + Math.random().toString(36).substring(2, 8).toUpperCase();
   const category = resolveScrapCategory(lead.scrapType);
   const weight = lead.estimatedWeight || 10;
-  const rate = 15; // Standard base rate per kg
-  const estimatedTotal = weight * rate;
+  // Price: the lead's own price when the sheet has one; otherwise today's admin
+  // rate for the category; ₹15/kg only if neither exists.
+  const leadPrice = Number(lead.price) > 0 ? Math.round(Number(lead.price) * 100) / 100 : 0;
+  const rate = leadPrice ? Math.round((leadPrice / weight) * 100) / 100 : ((await adminRateFor(category)) || 15);
+  const estimatedTotal = leadPrice || Math.round(weight * rate * 100) / 100;
+  const slot = slotFromLead(lead, now);
 
   const order = await Order.create({
     user: customerUser._id,
@@ -94,11 +152,19 @@ const assignLeadToScrapper = async (lead, scrapper, distributionMode, uploadedBy
       type: 'Point',
       coordinates: [77.2090, 28.6139]
     },
-    pickupSlot: {
-      dayName: 'Today',
-      date: now.toLocaleDateString('en-IN'),
-      slot: lead.preferredDate || 'Direct Lead',
-      timestamp: Date.now()
+    preferredTime: lead.preferredAt ? 'later' : 'now',
+    pickupSlot: slot,
+    scheduledDate: lead.preferredAt || null,
+    leadInfo: {
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email || '',
+      address: [lead.address, lead.city, lead.pincode].filter(Boolean).join(', '),
+      category: lead.scrapType || '',
+      preferredAt: lead.preferredAt || null,
+      preferredText: lead.preferredDate || '',
+      price: leadPrice,
+      source: 'admin_lead'
     },
     scrapItems: [{
       category,
@@ -129,8 +195,8 @@ const assignLeadToScrapper = async (lead, scrapper, distributionMode, uploadedBy
   const scrapperIdStr = scrapper._id.toString();
   try {
     await sendNotificationToUser(scrapperIdStr, {
-      title: 'New Meta Lead Assigned 📋',
-      body: `Customer: ${lead.name} (${lead.city || 'Near you'}). Est. ${weight} kg scrap. Tap to view job!`,
+      title: 'New lead assigned 📋',
+      body: `${lead.name} · ${lead.scrapType || 'Scrap'} · ₹${estimatedTotal}${slot.dayName ? ` · ${slot.dayName}, ${slot.slot}` : ''}. Tap to view the job.`,
       data: {
         orderId: order._id.toString(),
         type: 'order_assigned',
@@ -169,7 +235,7 @@ export const uploadMetaLeads = asyncHandler(async (req, res) => {
     return sendError(res, `File parsing failed: ${err.message}`, 400);
   }
 
-  const { totalRows, validCount, invalidCount, validLeads, invalidRows } = parseResult;
+  const { totalRows, validCount, invalidCount, incompleteCount, validLeads, invalidRows } = parseResult;
 
   // Mode 1: PREVIEW ONLY
   if (distributionMode === 'preview') {
@@ -177,7 +243,20 @@ export const uploadMetaLeads = asyncHandler(async (req, res) => {
       totalRows,
       validCount,
       invalidCount,
-      preview: validLeads.slice(0, 50),
+      incompleteCount,
+      // The seven fields per lead, as the partner will see them.
+      preview: validLeads.slice(0, 50).map((l) => ({
+        rowNumber: l.rowNumber,
+        name: l.name,
+        phone: l.phone,
+        address: [l.address, l.city, l.pincode].filter(Boolean).join(', '),
+        email: l.email,
+        category: l.scrapType,
+        preferredAt: l.preferredAt,
+        preferredDate: l.preferredDate,
+        price: l.price,
+        missing: l.missing
+      })),
       invalidRows: invalidRows.slice(0, 20)
     });
   }

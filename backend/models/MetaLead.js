@@ -58,6 +58,22 @@ const metaLeadSchema = new mongoose.Schema({
     trim: true,
     default: 'ASAP'
   },
+  // "Date and time" column read as a real date (null when it was text like "ASAP").
+  preferredAt: {
+    type: Date,
+    default: null
+  },
+  // "Price" column: the price agreed with the customer for this lead (₹).
+  price: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Expected fields that were empty in the sheet (Mail ID, Category, Date and time, Price).
+  missing: {
+    type: [String],
+    default: []
+  },
   notes: {
     type: String,
     trim: true,

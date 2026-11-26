@@ -110,6 +110,44 @@ export function JobsScreen() {
   );
 }
 
+/* ------------------------------------------------------------ Lead */
+
+/**
+ * A job created from an admin-uploaded lead: the seven fields exactly as the
+ * admin sent them (Name, Number, Address, Mail ID, Category, Date and time,
+ * Price). Missing ones say so, so the partner knows to ask.
+ */
+function LeadDetails({ lead }: { lead: any }) {
+  const when = lead.preferredAt
+    ? new Date(lead.preferredAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : lead.preferredText && lead.preferredText !== 'ASAP' ? lead.preferredText : '';
+  const rows: [string, string, (() => void) | null][] = [
+    ['Name', lead.name || '', null],
+    ['Number', lead.phone ? `+91 ${phoneLabel(lead.phone)}` : '', lead.phone ? () => Linking.openURL(`tel:${lead.phone}`) : null],
+    ['Address', lead.address || '', null],
+    ['Mail ID', lead.email || '', lead.email ? () => Linking.openURL(`mailto:${lead.email}`) : null],
+    ['Category', lead.category || '', null],
+    ['Date and time', when, null],
+    ['Price', Number(lead.price) > 0 ? inr(Number(lead.price), true) : '', null],
+  ];
+  return (
+    <Card style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <T size={15} w="extrabold" style={{ flex: 1 }}>Lead details</T>
+        <Tag tone="gold" label="ADMIN LEAD" />
+      </View>
+      {rows.map(([label, value, onPress]) => (
+        <View key={label} style={{ flexDirection: 'row', gap: 12 }}>
+          <T size={13} color={colors.muted} style={{ width: 104 }}>{label}</T>
+          <T size={13} w="semibold" raw style={{ flex: 1 }} color={!value ? colors.faint : onPress ? colors.primary : colors.ink} onPress={onPress ?? undefined}>
+            {value || 'Not given'}
+          </T>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------ Cleaning */
 
 /**
@@ -417,6 +455,8 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
             {o.notes ? <T size={12} color={colors.muted}>{`“${o.notes}”`}</T> : null}
           </View>
         </Card>
+
+        {o.leadInfo ? <LeadDetails lead={o.leadInfo} /> : null}
 
         <Card style={{ gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>

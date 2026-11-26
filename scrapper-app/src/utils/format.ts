@@ -29,6 +29,30 @@ export function timeLabel(iso?: string | number | Date | null): string {
   return `${((h + 11) % 12) + 1}:${m.toString().padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
+/**
+ * Pickup slot parts from an order. The backend stores { dayName, date, slot, timestamp }
+ * (e.g. "Wed, 25 Nov" + "11 AM – 1 PM"); older/admin-made orders may carry an ISO
+ * timestamp in `slot`. Never returns "undefined".
+ */
+export function slotParts(ps?: any): { day: string; time: string } {
+  if (!ps || typeof ps !== 'object') return { day: '', time: '' };
+  const day = String(ps.dayLabel ?? ps.dayName ?? '').trim();
+  const time = String(ps.time ?? ps.slot ?? '').trim();
+  // A real timestamp in `slot` (admin-created leads): take the day from it too, since
+  // the stored day word ("Today") was only true on the day it was saved.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(time)) {
+    const [d, ...rest] = whenLabel(time).split(', ');
+    return { day: d, time: rest.join(', ') || timeLabel(time) };
+  }
+  return { day, time };
+}
+
+/** "Wed, 25 Nov · 11 AM – 1 PM", or '' when there is no slot. */
+export function slotLabel(ps?: any, sep = ', '): string {
+  const { day, time } = slotParts(ps);
+  return [day, time].filter(Boolean).join(sep);
+}
+
 /** "Today, 4:30 PM" / "Yesterday, 9:05 AM" / "12 Nov, 4:30 PM" */
 export function whenLabel(iso?: string | number | Date | null): string {
   if (!iso) return '';

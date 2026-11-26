@@ -14,7 +14,7 @@ import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { useStore, type Plan } from '../store/AppStore';
 import { categoryMeta, cleaningName, images, isCleaning } from '../data/catalog';
-import { ago, agoLabel, dateLabel, firstName, greeting, inr, qty, catName } from '../utils/format';
+import { ago, agoLabel, dateLabel, firstName, greeting, inr, qty, catName, slotLabel, slotParts } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import type { RootParams } from '../navigation/RootNavigator';
 
@@ -179,7 +179,7 @@ export function DashboardScreen() {
                 <T size={20} w="extrabold" raw>{String(active.length)}</T>
               </View>
               <T size={12} w="bold">{active.length === 1 ? 'Active pickup' : 'Active pickups'}</T>
-              <T size={11} color={colors.muted} numberOfLines={1}>{next ? (next.pickupSlot ? `Next: ${next.pickupSlot.dayLabel}, ${next.pickupSlot.time}` : `Next: ${firstName(next.user.name)}, now`) : 'Accept a request to start'}</T>
+              <T size={11} color={colors.muted} numberOfLines={1}>{next ? (slotLabel(next.pickupSlot) ? `Next: ${slotLabel(next.pickupSlot)}` : `Next: ${firstName(next.user.name)}, now`) : 'Accept a request to start'}</T>
             </Card>
             <Card onPress={() => nav.navigate('Main', { screen: 'Market' })} style={{ flex: 1, gap: 2, paddingVertical: 10, paddingHorizontal: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -370,7 +370,7 @@ export function RequestsScreen({ navigation }: P<'Requests'>) {
               ))}
             </View>
             <View style={{ flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 14, paddingVertical: 10 }}>
-              {[[`${o.distanceKm} km`, 'Distance'], [`${o.etaMin ?? (typeof o.distanceKm === 'number' ? Math.max(5, Math.round(o.distanceKm * 3)) : '—')} min`, 'ETA'], [o.pickupSlot ? o.pickupSlot.dayLabel : 'Now', o.pickupSlot ? o.pickupSlot.time : 'Slot']].map(([v, l], i) => (
+              {[[`${o.distanceKm} km`, 'Distance'], [`${o.etaMin ?? (typeof o.distanceKm === 'number' ? Math.max(5, Math.round(o.distanceKm * 3)) : '—')} min`, 'ETA'], [slotParts(o.pickupSlot).day || 'Now', slotParts(o.pickupSlot).time || 'Slot']].map(([v, l], i) => (
                 <View key={l} style={{ flex: 1, alignItems: 'center', gap: 2, borderLeftWidth: i ? 1 : 0, borderLeftColor: colors.line }}>
                   <T size={15} w="extrabold" raw numberOfLines={1}>{v}</T>
                   <T size={11} w="semibold" color={colors.muted} numberOfLines={1}>{l}</T>

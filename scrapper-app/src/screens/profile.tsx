@@ -28,6 +28,7 @@ export function ProfileScreen() {
   const { user, lang, logout, resetDemo } = useStore();
   const stats = useQuery<{ stats: any }>('/scrappers/stats');
   const notes = useQuery<{ notifications: any[] }>('/notifications');
+  const ref = useQuery<any>('/referrals/me');
   const unread = (notes.data?.notifications ?? []).filter((n) => !n.read).length;
   const langName = LANGUAGES.find((l) => l.id === (lang ?? 'en'))?.native ?? 'English';
   const vehicle = VEHICLES.find((v) => v.id === user?.vehicleInfo?.type);
@@ -83,8 +84,8 @@ export function ProfileScreen() {
           <Card tone="gold" onPress={() => nav.navigate('Refer')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <IconBadge tone="gold"><Gift size={18} color={colors.goldText} /></IconBadge>
             <View style={{ flex: 1 }}>
-              <T size={14} w="extrabold" color="#5C3B00">Bring partners, earn up to ₹400 each</T>
-              <T size={12} color={colors.goldText} raw>{`Your code ${user?.referralCode ?? ''}`}</T>
+              <T size={14} w="extrabold" color="#5C3B00" raw>{ref.data?.rewardPerReferral ? `Bring partners, earn ${inr(ref.data.rewardPerReferral)} each` : 'Bring partners, earn a reward each'}</T>
+              <T size={12} color={colors.goldText} raw>{ref.data?.code || user?.referralCode ? `Your code ${ref.data?.code ?? user?.referralCode}` : 'Tap to get your invite code'}</T>
             </View>
             <ChevronRight size={18} color={colors.goldText} />
           </Card>
@@ -204,6 +205,8 @@ export function ReferScreen() {
   const insets = useSafeAreaInsets();
   const q = useQuery<any>('/referrals/me');
   const r = q.data;
+  const milestones: any[] = Array.isArray(r?.milestones) ? r.milestones : [];
+  const referrals: any[] = Array.isArray(r?.referrals) ? r.referrals : [];
   const share = () =>
     Share.share({ message: `I get scrap pickups near me on Scraptox Partner. Join with my code ${r?.code} and get ₹${r?.friendReward ?? 100} after your first pickup.` });
   return (
@@ -219,8 +222,8 @@ export function ReferScreen() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1, gap: 8 }}>
-              <T size={24} w="extrabold" color={colors.white} lh={29} style={{ letterSpacing: -0.4 }}>{`Earn up to ${inr(r?.rewardPerReferral ?? 400)} per partner you bring`}</T>
-              <T size={13} color={colors.green100} lh={19}>{`They get ${inr(r?.friendReward ?? 100)} after their first pickup. You earn at each milestone.`}</T>
+              <T size={24} w="extrabold" color={colors.white} lh={29} style={{ letterSpacing: -0.4 }}>{r?.rewardPerReferral ? `Earn ${inr(r.rewardPerReferral)} for every partner you bring` : 'Earn for every partner you bring'}</T>
+              <T size={13} color={colors.green100} lh={19}>{r?.friendReward ? `They get ${inr(r.friendReward)} after their first pickup. You get paid when they complete it.` : 'You both get paid once they complete their first pickup.'}</T>
             </View>
             <Image source={images.refer} style={{ width: 92, height: 92, borderRadius: 18 }} />
           </View>
@@ -240,7 +243,7 @@ export function ReferScreen() {
             </Card>
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              {[['Invited', String(r.totals.invited)], ['Joined', String(r.totals.joined)], ['Earned', inr(r.totals.earned)]].map(([l, v]) => (
+              {[['Invited', String(r.totals?.invited ?? 0)], ['Joined', String(r.totals?.joined ?? 0)], ['Earned', inr(r.totals?.earned ?? 0)]].map(([l, v]) => (
                 <Card key={l} style={{ flex: 1, alignItems: 'center', gap: 2, paddingVertical: 12 }}>
                   <T size={18} w="extrabold" raw color={l === 'Earned' ? colors.deep : colors.ink}>{v}</T>
                   <T size={11} w="semibold" color={colors.muted}>{l}</T>
@@ -248,25 +251,29 @@ export function ReferScreen() {
               ))}
             </View>
 
-            <T size={17} w="bold" style={{ marginTop: 4 }}>Milestones per partner</T>
-            <Card style={{ gap: 12 }}>
-              {r.milestones.map((m: any, i: number) => (
-                <View key={m.label} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            {milestones.length ? <T size={17} w="bold" style={{ marginTop: 4 }}>Milestones per partner</T> : null}
+            {milestones.length ? <Card style={{ gap: 12 }}>
+              {milestones.map((m: any, i: number) => (
+                <View key={`${m.label}-${i}`} style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
                   <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.goldSoft, alignItems: 'center', justifyContent: 'center' }}>
                     <T size={13} w="extrabold" color={colors.goldText} raw>{String(i + 1)}</T>
                   </View>
-                  <T size={14} w="semibold" style={{ flex: 1 }}>{`Their ${m.label.toLowerCase()}`}</T>
-                  <T size={14} w="extrabold" color={colors.deep} raw>{`+${inr(m.reward)}`}</T>
+                  <T size={14} w="semibold" style={{ flex: 1 }}>{`Their ${String(m.label ?? '').toLowerCase()}`}</T>
+                  <T size={14} w="extrabold" color={colors.deep} raw>{`+${inr(Number(m.reward) || 0)}`}</T>
                 </View>
               ))}
-            </Card>
+            </Card> : null}
 
             <T size={17} w="bold" style={{ marginTop: 4 }}>Your referrals</T>
-            <Card style={{ paddingVertical: 0 }}>
-              {r.referrals.map((f: any, i: number) => (
-                <ListRow key={f.name} title={f.name} subtitle={f.status === 'kyc_pending' ? `Joined ${dateLabel(f.createdAt)} · KYC pending` : `${f.pickups} pickups done`} last={i === r.referrals.length - 1} right={f.reward ? <Tag label={`+${inr(f.reward)}`} /> : <Tag tone="grey" label="Pending" />} />
-              ))}
-            </Card>
+            {referrals.length ? (
+              <Card style={{ paddingVertical: 0 }}>
+                {referrals.map((f: any, i: number) => (
+                  <ListRow key={`${f.name}-${i}`} title={f.name || 'Partner'} subtitle={`Joined ${dateLabel(f.createdAt)} · ${f.status === 'completed' ? 'first pickup done' : 'first pickup pending'}`} last={i === referrals.length - 1} right={Number(f.reward) > 0 ? <Tag label={`+${inr(Number(f.reward))}`} /> : <Tag tone="grey" label="Pending" />} />
+                ))}
+              </Card>
+            ) : (
+              <Card><T size={13} color={colors.muted}>No referrals yet. Share your code with other collectors to start earning.</T></Card>
+            )}
             <T size={13} w="bold" color={colors.primary} center onPress={() => nav.navigate('Leaderboard')}>See this month's top partners ›</T>
           </View>
         )}
@@ -278,39 +285,48 @@ export function ReferScreen() {
 export function LeaderboardScreen() {
   const q = useQuery<any>('/referrals/leaderboard');
   const d = q.data;
+  const leaders: any[] = Array.isArray(d?.leaders) ? d.leaders : [];
+  const me = d?.me;
   const medal = (n: number) => (n === 1 ? colors.gold : n === 2 ? '#8E9AA3' : '#B07A4A');
+  const firstName = (n?: string) => String(n ?? '').split(' ')[0] || 'Partner';
+  const referred = (n?: number) => `${Number(n) || 0} referred`;
   return (
     <Screen>
-      <AppBar title="Top partners" subtitle={d ? `${d.month} · Delhi NCR` : undefined} />
+      <AppBar title="Top partners" subtitle={d?.month ? `${d.month} · Delhi NCR` : undefined} />
       {!d ? <Loading /> : (
         <ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
           <Image source={images.podium} style={{ width: '100%', height: 150, borderRadius: radius.lg }} resizeMode="cover" />
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
-            {[d.leaders[1], d.leaders[0], d.leaders[2]].filter(Boolean).map((l: any) => (
+            {[leaders[1], leaders[0], leaders[2]].filter(Boolean).map((l: any) => (
               <Card key={l.rank} style={{ flex: 1, alignItems: 'center', gap: 6, paddingVertical: l.rank === 1 ? 22 : 14 }}>
                 <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: medal(l.rank), alignItems: 'center', justifyContent: 'center' }}>
                   <T size={14} w="extrabold" color={colors.white} raw>{String(l.rank)}</T>
                 </View>
-                <T size={13} w="bold" center numberOfLines={1}>{l.name.split(' ')[0]}</T>
-                <T size={11} color={colors.muted} raw>{`${l.pickups} pickups`}</T>
-                <T size={11} w="bold" color={colors.primary} raw>{`${(l.kg / 1000).toFixed(1)} t`}</T>
+                <T size={13} w="bold" center numberOfLines={1} raw>{firstName(l.name)}</T>
+                <T size={11} color={colors.muted} raw>{referred(l.referrals)}</T>
+                <T size={11} w="bold" color={colors.primary} raw>{`${Number(l.kg) || 0} kg`}</T>
               </Card>
             ))}
           </View>
-          <Card style={{ paddingVertical: 0 }}>
-            {d.leaders.slice(3).map((l: any, i: number) => (
-              <ListRow key={l.rank} title={`${l.rank}. ${l.name}`} subtitle={l.city} last={i === d.leaders.length - 4} right={<T size={13} w="bold" raw>{`${l.pickups} · ${(l.kg / 1000).toFixed(1)} t`}</T>} />
-            ))}
-          </Card>
-          <Card tone="green" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.deep, alignItems: 'center', justifyContent: 'center' }}>
-              <T size={13} w="extrabold" color={colors.white} raw>{String(d.me.rank)}</T>
-            </View>
-            <View style={{ flex: 1 }}>
-              <T size={14} w="extrabold">{`You · ${d.me.name}`}</T>
-              <T size={12} color={colors.muted} raw>{`${d.me.pickups} pickups · ${d.me.kg} kg this month`}</T>
-            </View>
-          </Card>
+          {leaders.length > 3 ? (
+            <Card style={{ paddingVertical: 0 }}>
+              {leaders.slice(3).map((l: any, i: number) => (
+                <ListRow key={`${l.rank}-${i}`} title={`${l.rank}. ${l.name ?? ''}`} subtitle={l.city || undefined} last={i === leaders.length - 4} right={<T size={13} w="bold" raw>{`${referred(l.referrals)} · ${Number(l.kg) || 0} kg`}</T>} />
+              ))}
+            </Card>
+          ) : null}
+          {!leaders.length ? <Card><T size={13} color={colors.muted} center>No referrals this month yet. Bring a partner to top the board.</T></Card> : null}
+          {me ? (
+            <Card tone="green" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.deep, alignItems: 'center', justifyContent: 'center' }}>
+                <T size={13} w="extrabold" color={colors.white} raw>{String(me.rank ?? '-')}</T>
+              </View>
+              <View style={{ flex: 1 }}>
+                <T size={14} w="extrabold" raw>{`You · ${me.name ?? ''}`}</T>
+                <T size={12} color={colors.muted} raw>{`${referred(me.referrals)} · ${Number(me.kg) || 0} kg collected`}</T>
+              </View>
+            </Card>
+          ) : null}
           <T size={12} color={colors.muted} center>Top 3 partners each month win a wallet bonus. Ranks update daily.</T>
         </ScrollView>
       )}

@@ -11,6 +11,7 @@ import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
 import { dateLabel, inr } from '../utils/format';
 import { Alert } from '../i18n/Alert';
+import { tx as translate } from '../i18n/auto';
 import type { RootParams } from '../navigation/RootNavigator';
 import { openRazorpay, PaymentCancelled } from '../api/razorpay';
 import { useStore } from '../store/AppStore';
@@ -34,6 +35,35 @@ const TX_TITLES: Record<string, string> = {
   adjustment: 'Adjustment',
   coupon_credit: 'Coupon cashback',
   commission: 'Platform fee',
+};
+
+/**
+ * "…for Order #6b05743ef6c201afd60918b7" -> "…for Order #0918B7" (the order number people
+ * see everywhere else in the app). Plain string scan, no regex.
+ */
+const HEX = '0123456789abcdefABCDEF';
+const shortIds = (t?: string) => {
+  const s = String(t ?? '');
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    let j = i;
+    while (j < s.length && HEX.includes(s[j])) j++;
+    const run = j - i;
+    const boundaryBefore = i === 0 || !HEX.includes(s[i - 1]);
+    if (run === 24 && boundaryBefore) {
+      if (!out.endsWith('#')) out += '#';
+      out += s.slice(j - 6, j).toUpperCase();
+      i = j;
+    } else if (run > 0) {
+      out += s.slice(i, j);
+      i = j;
+    } else {
+      out += s[i];
+      i++;
+    }
+  }
+  return out;
 };
 
 export function WalletScreen({ navigation }: P<'Wallet'>) {
@@ -99,7 +129,7 @@ export function WalletScreen({ navigation }: P<'Wallet'>) {
               </IconBadge>
               <View style={{ flex: 1 }}>
                 <T size={14} w="bold">{title}</T>
-                <T size={12} color={colors.muted} numberOfLines={1}>{`${dateLabel(item.createdAt)} · ${item.description}`}</T>
+                <T size={12} color={colors.muted} numberOfLines={1} raw>{[dateLabel(item.createdAt), shortIds(translate(item.description))].filter(Boolean).join(' · ')}</T>
               </View>
               <T size={14} w="extrabold" color={out ? colors.ink : colors.primary} raw>{`${out ? '−' : '+'}${inr(item.amount, true)}`}</T>
             </View>

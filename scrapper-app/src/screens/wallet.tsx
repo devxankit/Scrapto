@@ -10,8 +10,9 @@ import { IconBadge } from '../components/brand';
 import { colors, radius } from '../theme';
 import { api } from '../api/client';
 import { useQuery } from '../hooks/useQuery';
-import { dateLabel, inr } from '../utils/format';
+import { catName, dateLabel, inr } from '../utils/format';
 import { Alert } from '../i18n/Alert';
+import { tx as translate } from '../i18n/auto';
 import type { RootParams } from '../navigation/RootNavigator';
 import { openRazorpay, PaymentCancelled } from '../api/razorpay';
 import { useStore } from '../store/AppStore';
@@ -95,7 +96,7 @@ export function WalletScreen() {
               </IconBadge>
               <View style={{ flex: 1 }}>
                 <T size={14} w="bold">{title}</T>
-                <T size={12} color={colors.muted} numberOfLines={1}>{`${dateLabel(item.createdAt)} · ${item.description}`}</T>
+                <T size={12} color={colors.muted} numberOfLines={1} raw>{[dateLabel(item.createdAt), shortIds(translate(item.description))].filter(Boolean).join(' · ')}</T>
               </View>
               <T size={14} w="extrabold" color={out ? colors.ink : colors.primary} raw>{`${out ? '−' : '+'}${inr(item.amount, true)}`}</T>
             </View>
@@ -212,6 +213,58 @@ export function WithdrawScreen({ navigation }: P<'Withdraw'>) {
  * (negative) and a cleaning job as income (positive), so the summary is a cash
  * flow, labelled that way here.
  */
+/**
+ * "…for Order #6b05743ef6c201afd60918b7" -> "…for Order #0918B7" (the order number people
+ * see everywhere else in the app). Plain string scan, no regex.
+ */
+const HEX = '0123456789abcdefABCDEF';
+const shortIds = (t?: string) => {
+  const s = String(t ?? '');
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    let j = i;
+    while (j < s.length && HEX.includes(s[j])) j++;
+    const run = j - i;
+    const boundaryBefore = i === 0 || !HEX.includes(s[i - 1]);
+    if (run === 24 && boundaryBefore) {
+      if (!out.endsWith('#')) out += '#';
+      out += s.slice(j - 6, j).toUpperCase();
+      i = j;
+    } else if (run > 0) {
+      out += s.slice(i, j);
+      i = j;
+    } else {
+      out += s[i];
+      i++;
+    }
+  }
+  return out;
+};
+
+/**
+ * One /scrapper/earnings/history row, in the shape the list shows. The API sends
+ * { orderId, userName, scrapType: "copper, iron", weight, amount (signed),
+ * completedAt, orderType }; every field is optional here so a missing one can
+ * never crash the screen.
+ */
+function earningRow(h: any) {
+  const id = String(h?.orderId ?? h?.id ?? h?._id ?? '');
+  const cleaning = h?.orderType === 'cleaning_service';
+  const cats = String(h?.scrapType ?? (Array.isArray(h?.items) ? h.items.join(', ') : ''))
+    .split(',').map((c) => c.trim()).filter((c) => c && c.toLowerCase() !== 'scrap');
+  const kg = Number(h?.weight) > 0 ? `${Number(h.weight)} kg` : '';
+  const what = cleaning ? 'Cleaning job' : [cats.map((c) => catName(c)).join(', '), kg].filter(Boolean).join(' · ');
+  const amount = Number(h?.amount);
+  return {
+    customer: h?.userName ?? h?.customer ?? 'Customer',
+    orderNo: h?.orderNo ?? (id ? id.slice(-6).toUpperCase() : ''),
+    date: h?.completedAt ?? h?.completedDate ?? h?.createdAt,
+    what,
+    amount: Number.isFinite(amount) ? amount : 0,
+  };
+}
+
 export function EarningsScreen() {
   const sq = useQuery<{ summary: any }>('/scrapper/earnings/summary');
   const hq = useQuery<{ history: any[] }>('/scrapper/earnings/history');
@@ -223,7 +276,7 @@ export function EarningsScreen() {
       <AppBar title="Earnings" subtitle="Cash flow from your pickups" />
       <FlatList
         data={history}
-        keyExtractor={(h) => h._id}
+        keyExtractor={(h, i) => String(h.id ?? h._id ?? h.orderId ?? i)}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => { sq.reload(); hq.reload(); }} colors={[colors.primary]} />}
         contentContainerStyle={{ padding: 12, flexGrow: 1 }}
         ListHeaderComponent={
@@ -255,15 +308,18 @@ export function EarningsScreen() {
           </View>
         }
         ListEmptyComponent={hq.loading ? <Loading /> : <EmptyState icon={<WalletIcon size={30} color={colors.primary} />} title="No completed pickups yet" text="Each completed pickup shows up here with what you paid." />}
-        renderItem={({ item, index }) => (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.white, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, borderTopWidth: index === 0 ? 1 : 0, borderBottomWidth: 1, borderBottomColor: index === history.length - 1 ? colors.line : colors.lineSoft, borderTopLeftRadius: index === 0 ? radius.lg : 0, borderTopRightRadius: index === 0 ? radius.lg : 0, borderBottomLeftRadius: index === history.length - 1 ? radius.lg : 0, borderBottomRightRadius: index === history.length - 1 ? radius.lg : 0 }}>
-            <View style={{ flex: 1 }}>
-              <T size={14} w="bold" numberOfLines={1}>{item.customer}</T>
-              <T size={12} color={colors.muted} numberOfLines={1} raw>{`#${item.orderNo} · ${dateLabel(item.completedDate)} · ${item.items.join(', ')}`}</T>
+        renderItem={({ item, index }) => {
+          const row = earningRow(item);
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.white, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line, borderTopWidth: index === 0 ? 1 : 0, borderBottomWidth: 1, borderBottomColor: index === history.length - 1 ? colors.line : colors.lineSoft, borderTopLeftRadius: index === 0 ? radius.lg : 0, borderTopRightRadius: index === 0 ? radius.lg : 0, borderBottomLeftRadius: index === history.length - 1 ? radius.lg : 0, borderBottomRightRadius: index === history.length - 1 ? radius.lg : 0 }}>
+              <View style={{ flex: 1 }}>
+                <T size={14} w="bold" numberOfLines={1} raw>{row.customer}</T>
+                <T size={12} color={colors.muted} numberOfLines={1} raw>{[row.orderNo ? `#${row.orderNo}` : '', row.date ? dateLabel(row.date) : '', row.what].filter(Boolean).join(' · ')}</T>
+              </View>
+              <T size={14} w="extrabold" color={row.amount < 0 ? colors.ink : colors.primary} raw>{money(row.amount)}</T>
             </View>
-            <T size={14} w="extrabold" color={item.amount < 0 ? colors.ink : colors.primary} raw>{money(item.amount)}</T>
-          </View>
-        )}
+          );
+        }}
       />
     </Screen>
   );

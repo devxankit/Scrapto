@@ -12,7 +12,7 @@ import { colors, radius } from '../theme';
 import { api } from '../api/client';
 import { clearQueryCache, useQuery } from '../hooks/useQuery';
 import { categoryMeta, cleaningName, images, isCleaning } from '../data/catalog';
-import { inr, phoneLabel, qty, whenLabel, catName } from '../utils/format';
+import { inr, phoneLabel, qty, whenLabel, catName, slotLabel } from '../utils/format';
 import { Alert } from '../i18n/Alert';
 import { itemsLine } from './home';
 import type { RootParams } from '../navigation/RootNavigator';
@@ -79,7 +79,7 @@ export function JobsScreen() {
           <Card onPress={() => nav.navigate('Job', { id: o._id })} style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <T size={12} w="bold" color={colors.muted} raw>{`#${o.orderNo} · ${o.status === 'completed' ? whenLabel(o.completedDate) : o.pickupSlot ? `${o.pickupSlot.dayLabel || o.pickupSlot.slot || 'Today'}, ${o.pickupSlot.time || ''}` : 'Pickup now'}`}</T>
+                <T size={12} w="bold" color={colors.muted} raw>{`#${o.orderNo} · ${o.status === 'completed' ? whenLabel(o.completedDate) : slotLabel(o.pickupSlot) ? slotLabel(o.pickupSlot) : 'Pickup now'}`}</T>
                 {o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="META LEAD" /> : null}
               </View>
               <JobStatus o={o} />
@@ -194,7 +194,7 @@ function CleaningJob({ o, setO, reload }: { o: any; setO: (o: any) => void; relo
           </View>
           <InfoRow label="Customer" value={o.user?.name ?? ''} />
           <InfoRow label="Address" value={[o.pickupAddress?.street, o.pickupAddress?.city].filter(Boolean).join(', ')} />
-          {o.pickupSlot ? <InfoRow label="Visit" value={`${o.pickupSlot.dayName ?? ''} ${o.pickupSlot.slot ?? ''}`.trim()} /> : null}
+          {slotLabel(o.pickupSlot) ? <InfoRow label="Visit" value={slotLabel(o.pickupSlot)} /> : null}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
             <Button label="Call" size="md" variant="outline" style={{ flex: 1 }} icon={<Phone size={16} color={colors.primary} />} onPress={() => Linking.openURL(`tel:${o.user?.phone}`)} />
             <Button label="Directions" size="md" variant="outline" style={{ flex: 1 }} icon={<Navigation size={16} color={colors.primary} />} onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${o.pickupAddress?.coordinates?.lat},${o.pickupAddress?.coordinates?.lng}`)} />
@@ -413,7 +413,7 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
                 {o.pickupAddress.landmark ? <T size={12} color={colors.muted}>{o.pickupAddress.landmark}</T> : null}
               </View>
             </View>
-            {o.pickupSlot ? <T size={12} w="bold" color={colors.deep} raw>{`Slot: ${o.pickupSlot.dayLabel}, ${o.pickupSlot.time}`}</T> : null}
+            {slotLabel(o.pickupSlot) ? <T size={12} w="bold" color={colors.deep} raw>{`Slot: ${slotLabel(o.pickupSlot)}`}</T> : null}
             {o.notes ? <T size={12} color={colors.muted}>{`“${o.notes}”`}</T> : null}
           </View>
         </Card>

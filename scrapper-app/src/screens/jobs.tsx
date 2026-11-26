@@ -77,12 +77,17 @@ export function JobsScreen() {
         )}
         renderItem={({ item: o }) => (
           <Card onPress={() => nav.navigate('Job', { id: o._id })} style={{ gap: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Order number + tags on one row (shrinks, never pushes the status off screen); time below. */}
+            <View style={{ gap: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <T size={12} w="bold" color={colors.muted} raw>{`#${o.orderNo} · ${o.status === 'completed' ? whenLabel(o.completedDate) : slotLabel(o.pickupSlot) ? slotLabel(o.pickupSlot) : 'Pickup now'}`}</T>
-                {o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="META LEAD" /> : null}
+                <T size={12} w="bold" color={colors.muted} raw numberOfLines={1} style={{ flexShrink: 1 }}>{`#${o.orderNo}`}</T>
+                {o.leadInfo || o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="LEAD" /> : null}
+                <View style={{ flex: 1 }} />
+                <JobStatus o={o} />
               </View>
-              <JobStatus o={o} />
+              <T size={12} w="semibold" color={colors.ink2} raw numberOfLines={1}>
+                {o.status === 'completed' ? `Completed ${whenLabel(o.completedDate)}` : slotLabel(o.pickupSlot) ? slotLabel(o.pickupSlot) : 'Pickup now'}
+              </T>
             </View>
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <View style={{ flexDirection: 'row' }}>
@@ -395,7 +400,7 @@ export function JobScreen({ route, navigation }: P<'Job'>) {
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <T size={12} w="semibold" color={colors.green200} raw>{`Pickup #${o.orderNo}`}</T>
-              {o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="META LEAD" /> : null}
+              {o.leadInfo || o.orderNo?.startsWith('ML-') ? <Tag tone="primary" label="LEAD" /> : null}
             </View>
             <T size={18} w="extrabold" color={colors.white} numberOfLines={1}>{done ? 'Pickup complete' : ['Go to pickup', 'Weigh the scrap', 'Pay the customer', 'Complete the pickup'][step]}</T>
           </View>
